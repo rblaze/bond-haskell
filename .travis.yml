@@ -1,6 +1,7 @@
 sudo: false
 os:
     - linux
+    - osx
 cache:
     directories:
         - $HOME/.stack
@@ -13,9 +14,11 @@ env:
     - STACK_ARGS="--resolver lts-2"
 
 before_install:
-    - mkdir -p ~/.local/bin
-    - export PATH=$HOME/.local/bin:$PATH
-    - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mkdir -p ~/.local/bin ; fi
+    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then export PATH=$HOME/.local/bin:$PATH ; fi
+    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack' ; fi
+    - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update ; fi
+    - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install-stack ; fi
 
 install:
     - stack $STACK_ARGS --no-terminal setup
