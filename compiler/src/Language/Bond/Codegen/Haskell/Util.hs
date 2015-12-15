@@ -131,7 +131,16 @@ hsType s c (BT_UserDefined decl params) = foldl1 TyApp $ declType : map (hsType 
                    typename = declName decl
                 in TyCon $ Qual (mkModuleName ns typename) (mkType typename)
 
+makeDeclName :: Declaration -> String
+makeDeclName decl = overrideName (declName decl) (declAttributes decl)
+
+overrideName :: String -> [Attribute] -> String
+overrideName def attrs = maybe def attrValue $ find (\a -> attrName a == ["HaskellName"]) attrs
+
 -- overrides for bond functions I can't use because of opaque TypeMapping
+
+getNamespace :: MappingContext -> QualifiedName
+getNamespace c = resolveNamespace c (namespaces c)
 
 getQualifiedName :: MappingContext -> QualifiedName -> String
 getQualifiedName _ = intercalate "."

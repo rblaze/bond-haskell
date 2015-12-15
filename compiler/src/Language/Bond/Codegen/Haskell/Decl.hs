@@ -6,7 +6,7 @@ module Language.Bond.Codegen.Haskell.Decl (
     ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping
+import Language.Bond.Codegen.TypeMapping (MappingContext)
 import Language.Bond.Codegen.Haskell.EnumDecl
 import Language.Bond.Codegen.Haskell.StructDecl
 import Language.Bond.Codegen.Haskell.Util
@@ -37,7 +37,7 @@ makeModule genMode setType ctx decl = fmap ((,) sourceName) code
         Enum{} -> enumDecl genMode ctx moduleName decl
         Struct{} -> structDecl genMode setType ctx moduleName decl
         _ -> Nothing
-    hsModule = capitalize (declName decl)
+    hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx
     sourceName = joinPath $ hsNamespaces ++ [hsModule ++ ".hs"]
     moduleName = mkModuleName hsNamespaces hsModule
@@ -49,7 +49,7 @@ makeHsBootModule genMode setType ctx decl = fmap ((,) hsBootName) code
         Enum{} -> enumHsBootDecl genMode ctx moduleName decl
         Struct{} -> structHsBootDecl genMode setType ctx moduleName decl
         _ -> Nothing
-    hsModule = capitalize (declName decl)
+    hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx
     hsBootName = joinPath $ hsNamespaces ++ [hsModule ++ ".hs-boot"]
     moduleName = mkModuleName hsNamespaces hsModule

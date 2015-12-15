@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, PatternGuards, RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns, PatternGuards #-}
 module Language.Bond.Codegen.Haskell.StructDecl (
         structDecl,
         structHsBootDecl
@@ -22,9 +22,12 @@ getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
 getTypeModules (TyList t) = getTypeModules t
 getTypeModules _ = []
 
+makeFieldName :: Field -> String
+makeFieldName f = overrideName (fieldName f) (fieldAttributes f)
+
 defaultFieldValue :: MappingContext -> Language.Bond.Syntax.Types.Field -> FieldUpdate
-defaultFieldValue ctx Field{fieldName, fieldType, fieldDefault}
-    = FieldUpdate (UnQual $ mkVar fieldName) (defValue fieldDefault)
+defaultFieldValue ctx f@Field{fieldType, fieldDefault}
+    = FieldUpdate (UnQual $ mkVar $ makeFieldName f) (defValue fieldDefault)
     where
     defValue Nothing = Var $ implQual "defaultValue"
     defValue (Just (DefaultBool v)) = Con $ pQual $ show v
@@ -82,7 +85,7 @@ getField decl = InsDecl $ FunBind $ map fieldFunc (structFields decl) ++ [defaul
             (UnGuardedRhs $ Do [
                 Generator noLoc (PVar val) (Var $ getFunc f),
                 Qualifier $ App (Var $ pQual "return") $ RecUpdate (Var $ UnQual self) [
-                    FieldUpdate (UnQual $ mkVar $ fieldName f) (Var $ UnQual val)
+                    FieldUpdate (UnQual $ mkVar $ makeFieldName f) (Var $ UnQual val)
                 ]
             ]) noBinds
     getFunc f | fieldDefault f == Just DefaultNothing = implQual "bondGetDefNothing"
@@ -103,12 +106,12 @@ structPut decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [selfPVa
     fieldsCode = map putField (structFields decl)
     putField f = App
         (App (Var $ putFunc f) $ Paren $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f))
-        (Paren $ App (Var $ UnQual $ mkVar $ fieldName f) (Var $ UnQual self))
+        (Paren $ App (Var $ UnQual $ mkVar $ makeFieldName f) (Var $ UnQual self))
     putFunc f | fieldDefault f == Just DefaultNothing = implQual "bondPutDefNothingField"
               | otherwise = implQual "bondPutField"
 
 structDecl :: CodegenMode -> String -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-structDecl mode setType ctx moduleName decl@Struct{..} = Just source
+structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, declParams} = Just source
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
@@ -124,11 +127,11 @@ structDecl mode setType ctx moduleName decl@Struct{..} = Just source
     imports | mode == SchemaDef = importInternalModule : importPrelude : importSchema{importSrc = True} : map (\ m -> importTemplate{importModule = m}) fieldModules
             | otherwise = importInternalModule : importPrelude : importSchema : map (\ m -> importTemplate{importModule = m}) fieldModules
 
-    typeName = mkType declName
+    typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
     fieldModules = unique $ filter (/= moduleName) $ filter (/= internalModuleAlias)
                     $ concatMap (getTypeModules . snd) fields
-    mkField Field{fieldName, fieldType} = ([mkVar fieldName], hsType setType ctx fieldType)
+    mkField f = ([mkVar $ makeFieldName f], hsType setType ctx (fieldType f))
     ownFields = map mkField structFields
     fields | Just base <- structBase = ([baseStructField], hsType setType ctx base) : ownFields
            | otherwise = ownFields
@@ -186,7 +189,8 @@ structDecl mode setType ctx moduleName decl@Struct{..} = Just source
 structDecl _ _ _ _ _ = error "structDecl called for invalid type"
 
 structHsBootDecl :: CodegenMode -> String -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-structHsBootDecl mode setType ctx moduleName Struct{..} = if mode == SchemaDef then Just hsboot else Nothing
+structHsBootDecl mode setType ctx moduleName decl@Struct{structBase, structFields, declParams} =
+    if mode == SchemaDef then Just hsboot else Nothing
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing
         (importInternalModule{importSrc = True} : map (\ m -> importTemplate{importModule = m, importSrc = True}) fieldModules)
@@ -198,11 +202,11 @@ structHsBootDecl mode setType ctx moduleName Struct{..} = if mode == SchemaDef t
                 [makeType True typeName declParams] []
         ]
 
-    typeName = mkType declName
+    typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
     fieldModules = unique $ filter (/= moduleName) $ filter (/= internalModuleAlias)
                     $ concatMap (getTypeModules . snd) fields
-    mkField Field{fieldName, fieldType} = ([mkVar fieldName], hsType setType ctx fieldType)
+    mkField f = ([mkVar $ makeFieldName f], hsType setType ctx (fieldType f))
     ownFields = map mkField structFields
     fields | Just base <- structBase = ([baseStructField], hsType setType ctx base) : ownFields
            | otherwise = ownFields

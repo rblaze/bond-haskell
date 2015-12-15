@@ -4,7 +4,7 @@ import IO
 import Options
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (cppTypeMapping, MappingContext(MappingContext))
+import Language.Bond.Codegen.TypeMapping (MappingContext(MappingContext))
 import Language.Bond.Codegen.Haskell.Decl
 
 import Control.Monad
@@ -29,7 +29,7 @@ codegen options templates file = do
     let outputDir = output_dir options
     aliasMapping <- parseAliasMappings $ using options
     namespaceMapping <- parseNamespaceMappings $ namespace options
-    let mappingContext = MappingContext cppTypeMapping aliasMapping namespaceMapping namespaces
+    let mappingContext = MappingContext (error "can't create TypeMapping") aliasMapping namespaceMapping namespaces
     forM_ templates $ \template -> do
         let MultiFile outputFiles = template mappingContext declarations
         forM_ outputFiles $ \(name, code) -> do

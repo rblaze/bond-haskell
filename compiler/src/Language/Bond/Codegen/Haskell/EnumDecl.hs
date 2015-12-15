@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 module Language.Bond.Codegen.Haskell.EnumDecl (
         enumDecl,
         enumHsBootDecl
@@ -8,11 +7,11 @@ import Language.Bond.Syntax.Types
 import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Codegen.Haskell.SchemaDecl
 import Language.Bond.Codegen.Haskell.Util
-import Language.Haskell.Exts
+import Language.Haskell.Exts hiding (mode)
 import Language.Haskell.Exts.SrcLoc (noLoc)
 
 enumDecl :: CodegenMode -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumDecl mode _ moduleName Enum{..} = Just source
+enumDecl mode _ moduleName decl@Enum{} = Just source
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
@@ -24,7 +23,7 @@ enumDecl mode _ moduleName Enum{..} = Just source
         (dataDecl : serializableDecl : typeSig : values)
     imports | mode == SchemaDef = [importInternalModule, importPrelude, importSchema{importSrc = True}]
             | otherwise = [importInternalModule, importPrelude, importSchema]
-    typeName = mkType declName
+    typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
     dataDecl = DataDecl noLoc NewType [] typeName []
         [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])]
@@ -49,8 +48,8 @@ enumDecl mode _ moduleName Enum{..} = Just source
                     appFun (Var $ pQual "fmap") [Con $ UnQual typeName, Var $ implQual "bondGet"])
                 noBinds
         ]
-    typeSig = TypeSig noLoc (map (mkVar . constantName) enumConstants) typeCon
-    values = makeValue 0 enumConstants
+    typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
+    values = makeValue 0 (enumConstants decl)
     makeValue _ [] = []
     makeValue _ (Constant{constantName = cname, constantValue = Just i} : xs)
         = mkConst cname i : makeValue (i + 1) xs
@@ -62,14 +61,14 @@ enumDecl mode _ moduleName Enum{..} = Just source
 enumDecl _ _ _ _ = error "enumDecl called for invalid type"
 
 enumHsBootDecl :: CodegenMode -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumHsBootDecl mode _ moduleName Enum{..} = if mode == SchemaDef then Just hsboot else Nothing
+enumHsBootDecl mode _ moduleName decl@Enum{} = if mode == SchemaDef then Just hsboot else Nothing
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing [importInternalModule{importSrc = True}] [
                 DataDecl noLoc NewType [] typeName [] [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])] [],
                 typeSig
               ]
-    typeName = mkType declName
+    typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
-    typeSig = TypeSig noLoc (map (mkVar . constantName) enumConstants) typeCon
+    typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
 
 enumHsBootDecl _ _ _ _ = error "enumDecl called for invalid type"

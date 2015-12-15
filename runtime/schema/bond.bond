@@ -92,7 +92,8 @@ struct FieldDef
     1: uint16 id;
 
     // Field type definition
-    2: TypeDef typedef;
+    [HaskellName("typedef")]
+    2: TypeDef type;
 }
 
 // Schema representing a struct definition

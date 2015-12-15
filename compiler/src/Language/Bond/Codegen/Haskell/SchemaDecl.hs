@@ -54,7 +54,7 @@ convertDefault ctx field defval = case defval of
                     App (Var $ implQual "fromString") (stringL v)
     DefaultEnum v -> let BT_UserDefined decl [] = fieldType field
                          ns = getDeclNamespace ctx decl
-                         typename = declName decl
+                         typename = makeDeclName decl
                       in updateRec (sQual "int_value") $
                             App (Var $ pQual "fromIntegral") $
                             App (Var $ pQual "fromEnum") (Var $ Qual (mkModuleName ns typename) (mkVar v))
@@ -107,7 +107,7 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
         ])
     ]
     where
-    typeName = mkType (declName decl)
+    typeName = mkType (makeDeclName decl)
     baseTypeVar = Ident "type'base"
     hsUnwrappedType (BT_Maybe t) = hsType setType ctx t
     hsUnwrappedType t = hsType setType ctx t
