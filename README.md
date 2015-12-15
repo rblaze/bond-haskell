@@ -3,3 +3,5 @@ Bond is an open source, cross-platform framework for working with schematized da
 Bond is published on GitHub at https://github.com/Microsoft/bond/.
 
 This project adds haskell code generator and runtime library, allowing the use of bond in haskell programs.
+
+![Build status](https://travis-ci.org/rblaze/bond-haskell.svg)

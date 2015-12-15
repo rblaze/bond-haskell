@@ -4,6 +4,10 @@ os:
 cache:
     directories:
         - $HOME/.stack
+addons:
+  apt:
+    packages:
+        - libgmp-dev
 env:
     - STACK_ARGS="--resolver lts-3"
     - STACK_ARGS="--resolver lts-2"
