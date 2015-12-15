@@ -1,0 +1,22 @@
+sudo: false
+os:
+    - linux
+cache:
+    directories:
+        - $HOME/.stack
+env:
+    - STACK_ARGS="--resolver lts-3"
+    - STACK_ARGS="--resolver lts-2"
+
+before_install:
+    - mkdir -p ~/.local/bin
+    - export PATH=$HOME/.local/bin:$PATH
+    - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+
+install:
+    - stack $STACK_ARGS --no-terminal setup
+    - stack $STACK_ARGS --no-terminal test --only-snapshot
+
+script:
+    - stack $STACK_ARGS --no-terminal build bond-haskell-compiler
+    - stack $STACK_ARGS --no-terminal test bond-haskell
