@@ -70,4 +70,4 @@ test-suite bond-haskell-test
 
 source-repository head
   type:     git
-  location: https://github.com/rblaze/bond-haskell/runtime
+  location: https://github.com/rblaze/bond-haskell

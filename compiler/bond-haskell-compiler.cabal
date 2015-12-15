@@ -53,4 +53,4 @@ test-suite bond-haskell-compiler-test
 
 source-repository head
   type:     git
-  location: https://github.com/rblaze/bond-haskell/compiler
+  location: https://github.com/rblaze/bond-haskell
