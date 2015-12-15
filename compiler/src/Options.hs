@@ -14,7 +14,7 @@ data Options = Haskell
         , schema_bootstrap :: Bool
         , hashset :: Bool
         }
-      deriving (Show, Data)
+      deriving (Show, Data, Typeable)
 
 haskell :: Options
 haskell = Haskell
