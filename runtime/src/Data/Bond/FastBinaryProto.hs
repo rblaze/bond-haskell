@@ -59,15 +59,15 @@ instance BondProto FastBinaryProto where
     bondGetDouble = wordToDouble <$> getWord64le
     bondGetString = do
         n <- getVarInt
-        Utf8 <$> getByteString (fromIntegral n)
+        Utf8 <$> getByteString n
     bondGetWString = do
         n <- getVarInt
-        Utf16 <$> getByteString (fromIntegral $ n * 2)
+        Utf16 <$> getByteString (n * 2)
     bondGetBlob = do
         t <- BondDataType . fromIntegral <$> getWord8
         unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
         n <- getVarInt
-        Blob <$> getByteString (fromIntegral n)
+        Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
     bondGetList = do
         t <- BondDataType . fromIntegral <$> getWord8
@@ -269,7 +269,7 @@ putStruct level a = do
     t <- checkPutType bT_STRUCT
     schema <- BondPut (asks fst)
     let struct = structs schema ! fromIntegral (TD.struct_def t)
-    let fieldsInfo = M.fromList $ V.toList $ V.map (FD.id &&& id) $ fields struct
+    let fieldsInfo = M.fromList $ V.toList $ V.map (Ordinal . FD.id &&& id) $ fields struct
 
     plocal (second (const fieldsInfo)) $ bondStructPut a
     case level of
@@ -277,7 +277,7 @@ putStruct level a = do
         BaseStruct -> putTag bT_STOP_BASE
 
 putField :: forall a. BondSerializable a => Ordinal -> a -> BondPut FastBinaryProto
-putField (Ordinal n) a = do
+putField n a = do
     fieldTypes <- BondPut (asks snd)
     let Just f = M.lookup n fieldTypes
     let t = FD.typedef f
@@ -288,7 +288,7 @@ putField (Ordinal n) a = do
            modifier (FD.metadata f) /= optional
     when needToSave $ do
         putTag tag
-        putWord16le n
+        let Ordinal fn = n in putWord16le fn
         putAs t $ bondPut a
 
 putList :: forall a. BondSerializable a => [a] -> BondPut FastBinaryProto

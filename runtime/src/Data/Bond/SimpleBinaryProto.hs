@@ -45,13 +45,13 @@ instance BondProto SimpleBinaryProto where
     bondGetDouble = wordToDouble <$> getWord64le
     bondGetString = do
         n <- getVarInt
-        Utf8 <$> getByteString (fromIntegral n)
+        Utf8 <$> getByteString n
     bondGetWString = do
         n <- getVarInt
-        Utf16 <$> getByteString (fromIntegral $ n * 2)
+        Utf16 <$> getByteString (n * 2)
     bondGetBlob = do
         n <- getVarInt
-        Blob <$> getByteString (fromIntegral n)
+        Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
     bondGetList = do
         n <- getVarInt

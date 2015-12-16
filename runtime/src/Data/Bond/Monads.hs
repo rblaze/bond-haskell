@@ -5,6 +5,7 @@ import {-# SOURCE #-}  Data.Bond.Schema.SchemaDef
 import {-# SOURCE #-}  Data.Bond.Schema.FieldDef
 import {-# SOURCE #-}  Data.Bond.Proto
 import Data.Bond.Types
+import Data.Bond.Wire
 
 import Control.Applicative
 import Control.Monad.Trans
@@ -20,13 +21,18 @@ type BondGetM = R.ReaderT GetContext B.Get
 newtype BondGet t a = BondGet (BondGetM a)
     deriving (Functor, Applicative, Monad)
 
-type PutContext = (SchemaDef, Map Word16 FieldDef)
+type PutContext = (SchemaDef, Map Ordinal FieldDef)
 newtype BondPutM t a = BondPut (R.ReaderT PutContext B.PutM a)
     deriving (Functor, Applicative, Monad)
 type BondPut t = BondPutM t ()
 
 glocal :: BondProto t => (GetContext -> GetContext) -> BondGet t a -> BondGet t a
 glocal f (BondGet g) = BondGet (R.local f g)
+
+isolate :: Int -> BondGet t a -> BondGet t a
+isolate n (BondGet g) = do
+    env <- BondGet R.ask
+    BondGet $ lift $ B.isolate n (R.runReaderT g env)
 
 lookAhead :: BondGet t a -> BondGet t a
 lookAhead (BondGet g) = do

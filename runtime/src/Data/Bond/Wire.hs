@@ -35,4 +35,4 @@ instance WireType (Vector a) where getWireType _ = bT_LIST
 instance WireType (Bonded a) where getWireType _ = bT_STRUCT
 
 newtype Ordinal = Ordinal Word16
-    deriving (Eq, Show)
+    deriving (Eq, Ord, Show)

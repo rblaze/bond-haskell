@@ -1,6 +1,7 @@
 {-# Language ScopedTypeVariables #-}
 module Data.Bond (
     BondProto,
+    CompactBinaryProto,
     FastBinaryProto,
     SimpleBinaryProto,
     SimpleBinaryV1Proto,
@@ -9,6 +10,7 @@ module Data.Bond (
     getSchema
   ) where
 
+import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
 import Data.Bond.Monads
 import Data.Bond.Proto
