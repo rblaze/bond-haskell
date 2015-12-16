@@ -1,6 +1,8 @@
 {-# Language ScopedTypeVariables #-}
 module Data.Bond (
     BondProto,
+    BondStruct,
+    Schemable,
     CompactBinaryProto,
     FastBinaryProto,
     SimpleBinaryProto,

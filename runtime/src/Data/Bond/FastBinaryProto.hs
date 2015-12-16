@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls #-}
+{-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf #-}
 module Data.Bond.FastBinaryProto (
         FastBinaryProto
     ) where
@@ -195,10 +195,11 @@ getStruct level = do
                     getAs t $ bondStructGetField (Ordinal ordinal) s
     let loop s = do
             wiretype <- BondDataType . fromIntegral <$> getWord8
-            case True of
-                _ | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
-                  | wiretype == bT_STOP || wiretype == bT_STOP_BASE -> return s -- FIXME consume rest of the output?
-                  | otherwise -> readField wiretype s >>= loop
+            if | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
+               | wiretype == bT_STOP && level == TopLevelStruct -> return s
+               | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
+               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipType bT_STRUCT >> return s
+               | otherwise -> readField wiretype s >>= loop
 
     loop base
 

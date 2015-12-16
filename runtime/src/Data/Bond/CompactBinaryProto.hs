@@ -252,46 +252,56 @@ getStruct level = do
                     getAs t $ bondStructGetField ordinal s
     let loop s = do
             (wiretype, ordinal) <- getFieldHeader
-            case True of
-                _ | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
-                  | wiretype == bT_STOP || wiretype == bT_STOP_BASE -> return s -- FIXME consume rest of the output?
-                  | otherwise -> readField wiretype ordinal s >>= loop
+            if | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
+               | wiretype == bT_STOP && level == TopLevelStruct -> return s
+               | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
+               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipRestOfStruct >> return s
+               | otherwise -> readField wiretype ordinal s >>= loop
 
     loop base
 
 skipVarInt :: BondGet CompactBinaryProto ()
 skipVarInt = void (getVarInt :: BondGet CompactBinaryProto Word64)
 
+skipRestOfStruct :: BondGet CompactBinaryProto ()
+skipRestOfStruct = do
+    let loop = do
+            (wiretype, _) <- getFieldHeader
+            if | wiretype == bT_STOP -> return ()
+               | wiretype == bT_STOP_BASE -> loop
+               | otherwise -> skipType wiretype >> loop
+    loop
+
 skipType :: BondDataType -> BondGet CompactBinaryProto ()
-skipType t = case True of
-     _ | t == bT_BOOL -> skip 1
-       | t == bT_UINT8 -> skip 1
-       | t == bT_UINT16 -> skipVarInt
-       | t == bT_UINT32 -> skipVarInt
-       | t == bT_UINT64 -> skipVarInt
-       | t == bT_FLOAT -> skip 4
-       | t == bT_DOUBLE -> skip 8
-       | t == bT_STRING -> getVarInt >>= skip
-       | t == bT_STRUCT -> do
+skipType t =
+     if | t == bT_BOOL -> skip 1
+        | t == bT_UINT8 -> skip 1
+        | t == bT_UINT16 -> skipVarInt
+        | t == bT_UINT32 -> skipVarInt
+        | t == bT_UINT64 -> skipVarInt
+        | t == bT_FLOAT -> skip 4
+        | t == bT_DOUBLE -> skip 8
+        | t == bT_STRING -> getVarInt >>= skip
+        | t == bT_STRUCT -> do
             size <- getVarInt
             skip size
-       | t == bT_LIST -> do
+        | t == bT_LIST -> do
             (td, n) <- getListHeader
             replicateM_ n (skipType td)
-       | t == bT_SET -> skipType bT_LIST
-       | t == bT_MAP -> do
+        | t == bT_SET -> skipType bT_LIST
+        | t == bT_MAP -> do
             tk <- BondDataType . fromIntegral <$> getWord8
             tv <- BondDataType . fromIntegral <$> getWord8
             n <- getVarInt
             replicateM_ n $ skipType tk >> skipType tv
-       | t == bT_INT8 -> skip 1
-       | t == bT_INT16 -> skipVarInt
-       | t == bT_INT32 -> skipVarInt
-       | t == bT_INT64 -> skipVarInt
-       | t == bT_WSTRING -> do
+        | t == bT_INT8 -> skip 1
+        | t == bT_INT16 -> skipVarInt
+        | t == bT_INT32 -> skipVarInt
+        | t == bT_INT64 -> skipVarInt
+        | t == bT_WSTRING -> do
             n <- getVarInt
             skip $ n * 2
-       | otherwise -> fail $ "Invalid type to skip " ++ show t
+        | otherwise -> fail $ "Invalid type to skip " ++ show t
 
 checkPutType :: BondDataType -> BondPutM CompactBinaryProto TD.TypeDef
 checkPutType expected = do
