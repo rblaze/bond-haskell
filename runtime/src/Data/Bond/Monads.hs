@@ -29,10 +29,12 @@ type BondPut t = BondPutM t ()
 glocal :: BondProto t => (GetContext -> GetContext) -> BondGet t a -> BondGet t a
 glocal f (BondGet g) = BondGet (R.local f g)
 
+-- XXX until I can upgrade to binary >= 0.7.2.0 (and drop lts-2 support), isolate is unavailable
 isolate :: Int -> BondGet t a -> BondGet t a
-isolate n (BondGet g) = do
-    env <- BondGet R.ask
-    BondGet $ lift $ B.isolate n (R.runReaderT g env)
+isolate _ = Prelude.id
+--isolate n (BondGet g) = do
+--    env <- BondGet R.ask
+--    BondGet $ lift $ B.isolate n (R.runReaderT g env)
 
 lookAhead :: BondGet t a -> BondGet t a
 lookAhead (BondGet g) = do

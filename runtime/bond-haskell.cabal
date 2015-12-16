@@ -45,7 +45,7 @@ library
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
                      , array
-                     , binary >= 0.7.2.0
+                     , binary >= 0.7.0.0
                      , bytestring >= 0.10
                      , containers >= 0.4
                      , hashable >= 1.0
