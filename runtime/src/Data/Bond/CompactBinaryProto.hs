@@ -11,6 +11,7 @@ import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
+import Data.Bond.ZigZag
 
 import Control.Applicative hiding (optional)
 import Control.Monad
@@ -33,17 +34,6 @@ import Data.Bond.Schema.BondDataType
 
 data CompactBinaryProto
 data CompactBinaryV1Proto
-
-newtype ZigZagInt = ZigZagInt { fromZigZag :: Int64 }
-    deriving (Show, Eq)
-
-zigzagToWord :: ZigZagInt -> Word64
-zigzagToWord (ZigZagInt i) | i >= 0 = 2 * fromIntegral i
-zigzagToWord (ZigZagInt i) = (2 * fromIntegral (abs i)) - 1
-
-wordToZigZag :: Word64 -> ZigZagInt
-wordToZigZag w | even w = ZigZagInt $ fromIntegral (w `div` 2)
-wordToZigZag w = ZigZagInt $ negate $ fromIntegral ((w - 1) `div` 2) + 1
 
 class TaggedProtocol t => CompactProtocol t where
     getListHeader :: BondGet t (BondDataType, Int)
@@ -92,9 +82,9 @@ instance BondProto CompactBinaryProto where
     bondGetUInt32 = getVarInt
     bondGetUInt64 = getVarInt
     bondGetInt8 = fromIntegral <$> getWord8
-    bondGetInt16 = fromIntegral . fromZigZag . wordToZigZag <$> getVarInt
-    bondGetInt32 = fromIntegral . fromZigZag . wordToZigZag <$> getVarInt
-    bondGetInt64 = fromZigZag . wordToZigZag <$> getVarInt
+    bondGetInt16 = fromZigZag <$> getVarInt
+    bondGetInt32 = fromZigZag <$> getVarInt
+    bondGetInt64 = fromZigZag <$> getVarInt
     bondGetFloat = wordToFloat <$> getWord32le
     bondGetDouble = wordToDouble <$> getWord64le
     bondGetString = do
@@ -136,9 +126,9 @@ instance BondProto CompactBinaryProto where
     bondPutUInt32 = putVarInt
     bondPutUInt64 = putVarInt
     bondPutInt8 = putWord8 . fromIntegral
-    bondPutInt16 = putVarInt . zigzagToWord . ZigZagInt . fromIntegral
-    bondPutInt32 = putVarInt . zigzagToWord . ZigZagInt . fromIntegral
-    bondPutInt64 = putVarInt . zigzagToWord . ZigZagInt
+    bondPutInt16 = putVarInt . toZigZag
+    bondPutInt32 = putVarInt . toZigZag
+    bondPutInt64 = putVarInt . toZigZag
     bondPutFloat = putWord32le . floatToWord
     bondPutDouble = putWord64le . doubleToWord
     bondPutString (Utf8 s) = do
@@ -193,9 +183,9 @@ instance BondProto CompactBinaryV1Proto where
     bondGetUInt32 = getVarInt
     bondGetUInt64 = getVarInt
     bondGetInt8 = fromIntegral <$> getWord8
-    bondGetInt16 = fromIntegral . fromZigZag . wordToZigZag <$> getVarInt
-    bondGetInt32 = fromIntegral . fromZigZag . wordToZigZag <$> getVarInt
-    bondGetInt64 = fromZigZag . wordToZigZag <$> getVarInt
+    bondGetInt16 = fromZigZag <$> getVarInt
+    bondGetInt32 = fromZigZag <$> getVarInt
+    bondGetInt64 = fromZigZag <$> getVarInt
     bondGetFloat = wordToFloat <$> getWord32le
     bondGetDouble = wordToDouble <$> getWord64le
     bondGetString = do
@@ -232,9 +222,9 @@ instance BondProto CompactBinaryV1Proto where
     bondPutUInt32 = putVarInt
     bondPutUInt64 = putVarInt
     bondPutInt8 = putWord8 . fromIntegral
-    bondPutInt16 = putVarInt . zigzagToWord . ZigZagInt . fromIntegral
-    bondPutInt32 = putVarInt . zigzagToWord . ZigZagInt . fromIntegral
-    bondPutInt64 = putVarInt . zigzagToWord . ZigZagInt
+    bondPutInt16 = putVarInt . toZigZag
+    bondPutInt32 = putVarInt . toZigZag
+    bondPutInt64 = putVarInt . toZigZag
     bondPutFloat = putWord32le . floatToWord
     bondPutDouble = putWord64le . doubleToWord
     bondPutString (Utf8 s) = do

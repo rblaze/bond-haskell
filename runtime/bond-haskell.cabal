@@ -24,6 +24,7 @@ library
   exposed-modules:     Data.Bond
                        Data.Bond.Imports
                        Data.Bond.Schema
+                       Data.Bond.ZigZag
   other-modules:       Data.Bond.Cast
                        Data.Bond.CompactBinaryProto
                        Data.Bond.Default
@@ -67,6 +68,7 @@ test-suite bond-haskell-test
                      , filepath >= 1.0
                      , tasty
                      , tasty-hunit
+                     , tasty-quickcheck
   ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

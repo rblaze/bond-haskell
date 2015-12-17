@@ -1,14 +1,18 @@
 {-# Language ScopedTypeVariables #-}
-import Data.Bond.Schema.SchemaDef
 import Data.Bond
+import Data.Bond.ZigZag
+import Data.Bond.Schema.SchemaDef
 import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
 
+import Data.Int
 import Data.Proxy
+import Data.Word
 import System.FilePath
 import Test.Tasty
 import Test.Tasty.HUnit
+import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as L
 
 main :: IO ()
@@ -55,6 +59,12 @@ tests = testGroup "Haskell runtime tests"
                 readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy BasicTypes) "compat.compact.dat",
               testCase "read/write Another value" $
                 readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy Another) "compat.compact.dat"
+            ],
+          testGroup "ZigZag encoding"
+            [ testProperty "Int16" zigzagInt16,
+              testProperty "Int32" zigzagInt32,
+              testProperty "Int64" zigzagInt64,
+              testProperty "Word64" zigzagWord64
             ]
         ]
     ]
@@ -69,7 +79,7 @@ readCompat p f = do
                                   in do
                                     assertBool ("incomplete parse, used " ++ show used ++ ", left " ++ show (L.length rest)) (L.null rest)
                                     let d' = bondWrite p s
---                                    L.writeFile ("/tmp" </> f) d'
+                                    L.writeFile ("/tmp" </> f) d'
                                     assertEqual "serialized value do not match original" dat d'
 
 readAsType :: forall t a. (BondProto t, Schemable a, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
@@ -94,3 +104,15 @@ createCompatSchema = do
     let reprlen = length $ show schema
     -- the point of this test is to force schema creation and see if it is finite
     assertBool "impossible schema length 0" (reprlen > 0)
+
+zigzagInt16 :: Int16 -> Bool
+zigzagInt16 x = x == (fromZigZag $ toZigZag x)
+
+zigzagInt32 :: Int32 -> Bool
+zigzagInt32 x = x == (fromZigZag $ toZigZag x)
+
+zigzagInt64 :: Int64 -> Bool
+zigzagInt64 x = x == (fromZigZag $ toZigZag x)
+
+zigzagWord64 :: Word64 -> Bool
+zigzagWord64 x = x == (toZigZag $ (fromZigZag x :: Int64))
