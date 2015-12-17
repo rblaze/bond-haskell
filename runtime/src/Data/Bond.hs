@@ -14,7 +14,6 @@ module Data.Bond (
   ) where
 
 import Data.Bond.CompactBinaryProto
-import Data.Bond.CompactBinaryV1Proto
 import Data.Bond.FastBinaryProto
 import Data.Bond.Monads
 import Data.Bond.Proto
