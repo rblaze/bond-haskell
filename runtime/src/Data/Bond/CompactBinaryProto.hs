@@ -5,23 +5,21 @@ module Data.Bond.CompactBinaryProto (
     ) where
 
 import Data.Bond.Cast
-import Data.Bond.Default
 import Data.Bond.Monads
 import Data.Bond.Proto
+import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
 
 import Control.Applicative hiding (optional)
-import Control.Arrow ((&&&), second)
 import Control.Monad
-import Control.Monad.Reader (runReaderT, ask, asks)
+import Control.Monad.Reader (runReaderT, ask)
 import Data.Binary.Put (runPut)
 import Data.Bits
 import Data.List
 import Data.Maybe
 import Data.Proxy
-import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.ByteString as BS
@@ -31,19 +29,10 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-import qualified Data.Bond.Schema.FieldDef as FD
-import qualified Data.Bond.Schema.TypeDef as TD
 import Data.Bond.Schema.BondDataType
-import Data.Bond.Schema.Metadata
-import Data.Bond.Schema.Modifier
-import Data.Bond.Schema.SchemaDef
-import Data.Bond.Schema.StructDef
 
 data CompactBinaryProto
 data CompactBinaryV1Proto
-
-data StructLevel = TopLevelStruct | BaseStruct
-    deriving (Show, Eq)
 
 newtype ZigZagInt = ZigZagInt { fromZigZag :: Int64 }
     deriving (Show, Eq)
@@ -56,13 +45,11 @@ wordToZigZag :: Word64 -> ZigZagInt
 wordToZigZag w | even w = ZigZagInt $ fromIntegral (w `div` 2)
 wordToZigZag w = ZigZagInt $ negate $ fromIntegral ((w - 1) `div` 2) + 1
 
-class BondProto t => ProtocolSpecific t where
+class TaggedProtocol t => CompactProtocol t where
     getListHeader :: BondGet t (BondDataType, Int)
     putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut t
-    skipStruct :: BondGet t ()
-    skipRestOfStruct :: BondGet t ()
 
-instance ProtocolSpecific CompactBinaryProto where
+instance CompactProtocol CompactBinaryProto where
     getListHeader = do
         v <- getWord8
         if v `shiftR` 5 /= 0
@@ -77,6 +64,10 @@ instance ProtocolSpecific CompactBinaryProto where
             else do
                 putWord8 tag
                 putVarInt n
+
+instance TaggedProtocol CompactBinaryProto where
+    getFieldHeader = getCompactFieldHeader
+    putFieldHeader = putCompactFieldHeader
     skipStruct = getVarInt >>= skip
     skipRestOfStruct =
         let loop = do
@@ -85,6 +76,7 @@ instance ProtocolSpecific CompactBinaryProto where
                    | wiretype == bT_STOP_BASE -> loop
                    | otherwise -> skipType wiretype >> loop
          in loop
+    skipType = compactSkipType
 
 instance BondProto CompactBinaryProto where
     bondGetStruct = do
@@ -124,10 +116,7 @@ instance BondProto CompactBinaryProto where
             [] -> return Nothing
             [x] -> return (Just x)
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
-    bondGetBonded = do
-        size <- getVarInt
-        bs <- getLazyByteString size -- FIXME prepend length to keep correct format
-        return $ BondedStream bs
+    bondGetBonded = getBonded
 
     bondPutStruct v = do
         env <- BondPut ask
@@ -168,11 +157,9 @@ instance BondProto CompactBinaryProto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = do
-        putVarInt (BL.length s)
-        putLazyByteString s -- FIXME handle different protocols
+    bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
 
-instance ProtocolSpecific CompactBinaryV1Proto where
+instance CompactProtocol CompactBinaryV1Proto where
     getListHeader = do
         t <- BondDataType . fromIntegral <$> getWord8
         n <- getVarInt
@@ -180,6 +167,10 @@ instance ProtocolSpecific CompactBinaryV1Proto where
     putListHeader t n = do
         putTag t
         putVarInt n
+
+instance TaggedProtocol CompactBinaryV1Proto where
+    getFieldHeader = getCompactFieldHeader
+    putFieldHeader = putCompactFieldHeader
     skipStruct =
         let loop = do
                 (td, _) <- getFieldHeader
@@ -188,6 +179,7 @@ instance ProtocolSpecific CompactBinaryV1Proto where
                    | otherwise -> skipType td >> loop
          in loop
     skipRestOfStruct = skipType bT_STRUCT
+    skipType = compactSkipType
 
 instance BondProto CompactBinaryV1Proto where
     bondGetStruct = getStruct TopLevelStruct
@@ -225,14 +217,7 @@ instance BondProto CompactBinaryV1Proto where
             [] -> return Nothing
             [x] -> return (Just x)
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
-    bondGetBonded = do
-        size <- lookAhead $ do
-            start <- bytesRead
-            skipType bT_STRUCT
-            stop <- bytesRead
-            return (stop - start)
-        bs <- getLazyByteString (fromIntegral size)
-        return $ BondedStream bs
+    bondGetBonded = getBonded
 
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
@@ -270,8 +255,8 @@ instance BondProto CompactBinaryV1Proto where
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
 
-getFieldHeader :: BondGet t (BondDataType, Ordinal)
-getFieldHeader = do
+getCompactFieldHeader :: BondGet t (BondDataType, Ordinal)
+getCompactFieldHeader = do
     tag <- getWord8
     case tag `shiftR` 5 of
         6 -> do
@@ -282,8 +267,8 @@ getFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putFieldHeader :: BondDataType -> Ordinal -> BondPut t
-putFieldHeader t (Ordinal n) =
+putCompactFieldHeader :: BondDataType -> Ordinal -> BondPut t
+putCompactFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
      in if | n <= 5 -> putWord8 $ tbits .|. (nbits `shiftL` 5)
@@ -294,82 +279,25 @@ putFieldHeader t (Ordinal n) =
                     putWord8 $ tbits .|. 0xE0
                     putWord16le n
 
-getAs :: BondProto t => TD.TypeDef -> BondGet t a -> BondGet t a
-getAs typedef = glocal (\s -> s{root = typedef})
-
-putAs :: BondProto t => TD.TypeDef -> BondPut t -> BondPut t
-putAs typedef = plocal $ \(s, _) -> (s{root = typedef}, error "uninitialized cache")
-
-checkSchemaMismatch :: (Eq a, Show a, Monad f) => a -> a -> f ()
-checkSchemaMismatch typeSchema typeStream =
-    unless (typeStream == typeSchema) $
-        fail $ "Schema do not match stream: stream/struct type " ++ show typeStream ++ ", schema type " ++ show typeSchema
-
-checkGetType :: BondDataType -> BondGet t TD.TypeDef
-checkGetType expected = do
-    t <- BondGet $ asks root
-    checkSchemaMismatch (TD.id t) expected
-    return t
-
-checkElementGetType :: BondDataType -> BondGet t TD.TypeDef
-checkElementGetType expected = do
-    t <- BondGet $ asks (TD.element . root)
-    checkSchemaMismatch (TD.id <$> t) (Just expected)
-    return (fromJust t)
-
-checkKeyGetType :: BondDataType -> BondGet t TD.TypeDef
-checkKeyGetType expected = do
-    t <- BondGet $ asks (TD.key . root)
-    checkSchemaMismatch (TD.id <$> t) (Just expected)
-    return (fromJust t)
-
-getStruct :: (ProtocolSpecific t, BondStruct a) => StructLevel -> BondGet t a
-getStruct level = do
-    rootT <- checkGetType bT_STRUCT
-    schemaStructs <- BondGet (asks structs)
-    let struct = schemaStructs ! fromIntegral (TD.struct_def rootT)
-    base <- case base_def struct of
-        Nothing -> return defaultValue
-        Just t -> getAs t (bondStructGetBase defaultValue)
-    -- iterate over stream, update fields
-    let fieldTypes = M.fromList $ V.toList $ V.map (Ordinal . FD.id &&& FD.typedef) $ fields struct
-    let readField wiretype ordinal s =
-            case M.lookup ordinal fieldTypes of
-                Nothing -> do
-                    skipType wiretype -- unknown field, ignore it
-                    return s
-                Just t -> do
-                    checkSchemaMismatch (TD.id t) wiretype
-                    getAs t $ bondStructGetField ordinal s
-    let loop s = do
-            (wiretype, ordinal) <- getFieldHeader
-            if | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
-               | wiretype == bT_STOP && level == TopLevelStruct -> return s
-               | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
-               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipRestOfStruct >> return s
-               | otherwise -> readField wiretype ordinal s >>= loop
-
-    loop base
-
-getBlob :: ProtocolSpecific t => BondGet t Blob
+getBlob :: CompactProtocol t => BondGet t Blob
 getBlob = do
     (t, n) <- getListHeader
     unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
     Blob <$> getByteString n
 
-getList :: (ProtocolSpecific t, BondSerializable a) => BondGet t [a]
+getList :: (CompactProtocol t, BondSerializable a) => BondGet t [a]
 getList = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ replicateM n bondGet
 
-getVector :: (ProtocolSpecific t, BondSerializable a) => BondGet t (Vector a)
+getVector :: (CompactProtocol t, BondSerializable a) => BondGet t (Vector a)
 getVector = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ V.replicateM n bondGet
 
-getMap :: (ProtocolSpecific t, Ord k, BondSerializable k, BondSerializable v) => BondGet t (Map k v)
+getMap :: (TaggedProtocol t, Ord k, BondSerializable k, BondSerializable v) => BondGet t (Map k v)
 getMap = do
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
@@ -381,11 +309,21 @@ getMap = do
         v <- getAs elemtype bondGet
         return (k, v)
 
+getBonded :: TaggedProtocol t => BondGet t (Bonded a)
+getBonded = do
+    size <- lookAhead $ do
+        start <- bytesRead
+        skipType bT_STRUCT
+        stop <- bytesRead
+        return (stop - start)
+    bs <- getLazyByteString (fromIntegral size)
+    return $ BondedStream bs
+
 skipVarInt :: forall t. BondGet t ()
 skipVarInt = void (getVarInt :: BondGet t Word64)
 
-skipType :: ProtocolSpecific t => BondDataType -> BondGet t ()
-skipType t =
+compactSkipType :: CompactProtocol t => BondDataType -> BondGet t ()
+compactSkipType t =
      if | t == bT_BOOL -> skip 1
         | t == bT_UINT8 -> skip 1
         | t == bT_UINT16 -> skipVarInt
@@ -413,81 +351,21 @@ skipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-checkPutType :: BondDataType -> BondPutM t TD.TypeDef
-checkPutType expected = do
-    t <- BondPut $ asks (root . fst)
-    checkSchemaMismatch (TD.id t) expected
-    return t
-
-checkPutContainerType :: BondDataType -> BondPutM t TD.TypeDef
-checkPutContainerType expected = do
-    t <- checkPutType expected
-    let elementT = TD.element t
-    when (isNothing elementT) $ fail $ "Malformed schema: " ++ show expected ++
-        " expected to be container, but has no element type defined"
-    return (fromJust elementT)
-
-checkPutMapType :: BondPutM t (TD.TypeDef, TD.TypeDef)
-checkPutMapType = do
-    t <- checkPutType bT_MAP
-    let keyT = TD.key t
-    let elementT = TD.element t
-    when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
-    return (fromJust keyT, fromJust elementT)
-
-putTag :: BondDataType -> BondPut t
-putTag = putWord8 . fromIntegral . fromEnum
-
-putStruct :: (BondProto t, BondStruct a) => StructLevel -> a -> BondPut t
-putStruct level a = do
-    t <- checkPutType bT_STRUCT
-    schema <- BondPut (asks fst)
-    let struct = structs schema ! fromIntegral (TD.struct_def t)
-    let fieldsInfo = M.fromList $ V.toList $ V.map (Ordinal . FD.id &&& id) $ fields struct
-
-    plocal (second (const fieldsInfo)) $ bondStructPut a
-    case level of
-        TopLevelStruct -> putTag bT_STOP
-        BaseStruct -> putTag bT_STOP_BASE
-
-putBaseStruct :: (BondProto t, BondStruct a) => a -> BondPut t
-putBaseStruct v = do
-    rootT <- checkPutType bT_STRUCT
-    schemaStructs <- BondPut (asks $ structs . fst)
-    let struct = schemaStructs ! fromIntegral (TD.struct_def rootT)
-    case base_def struct of
-        Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
-        Just t -> putAs t $ putStruct BaseStruct v
-
-putField :: forall a t. (BondProto t, BondSerializable a) => Ordinal -> a -> BondPut t
-putField n a = do
-    fieldTypes <- BondPut (asks snd)
-    let Just f = M.lookup n fieldTypes
-    let t = FD.typedef f
-    let tag = getWireType (Proxy :: Proxy a)
-    checkSchemaMismatch (TD.id t) tag
-
-    let needToSave = not (equalToDefault (default_value $ FD.metadata f) a) ||
-           modifier (FD.metadata f) /= optional
-    when needToSave $ do
-        putFieldHeader tag n
-        putAs t $ bondPut a
-
-putList :: forall a t. (ProtocolSpecific t, BondSerializable a) => [a] -> BondPut t
+putList :: forall a t. (CompactProtocol t, BondSerializable a) => [a] -> BondPut t
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     putAs t $ mapM_ bondPut xs
 
-putHashSet :: forall a t. (ProtocolSpecific t, BondSerializable a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (CompactProtocol t, BondSerializable a) => HashSet a -> BondPut t
 putHashSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     putAs t $ mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (ProtocolSpecific t, BondSerializable a) => Set a -> BondPut t
+putSet :: forall a t. (CompactProtocol t, BondSerializable a) => Set a -> BondPut t
 putSet xs = do
     t <- checkPutContainerType bT_SET
 
@@ -505,7 +383,7 @@ putMap m = do
         putAs tk $ bondPut k
         putAs tv $ bondPut v
 
-putVector :: forall a t. (ProtocolSpecific t, BondSerializable a) => Vector a -> BondPut t
+putVector :: forall a t. (CompactProtocol t, BondSerializable a) => Vector a -> BondPut t
 putVector xs = do
     t <- checkPutContainerType bT_LIST
 

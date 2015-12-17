@@ -4,21 +4,20 @@ module Data.Bond.FastBinaryProto (
     ) where
 
 import Data.Bond.Cast
-import Data.Bond.Default
 import Data.Bond.Monads
 import Data.Bond.Proto
+import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
 
-import Control.Applicative hiding (optional)
-import Control.Arrow ((&&&), second)
+import Data.Bond.Schema.BondDataType
+
+import Control.Applicative
 import Control.Monad
-import Control.Monad.Reader (asks)
 import Data.List
 import Data.Maybe
 import Data.Proxy
-import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.ByteString as BS
@@ -27,18 +26,58 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-import qualified Data.Bond.Schema.FieldDef as FD
-import qualified Data.Bond.Schema.TypeDef as TD
-import Data.Bond.Schema.BondDataType
-import Data.Bond.Schema.Metadata
-import Data.Bond.Schema.Modifier
-import Data.Bond.Schema.SchemaDef
-import Data.Bond.Schema.StructDef
-
 data FastBinaryProto
 
-data StructLevel = TopLevelStruct | BaseStruct
-    deriving (Show, Eq)
+instance TaggedProtocol FastBinaryProto where
+    getFieldHeader = do
+        t <- BondDataType . fromIntegral <$> getWord8
+        n <- if t == bT_STOP || t == bT_STOP_BASE then return 0 else getWord16le
+        return (t, Ordinal n)
+    putFieldHeader t (Ordinal n) = do
+        putTag t
+        putWord16le n
+    skipStruct =
+        let loop = do
+                (td, _) <- getFieldHeader
+                if | td == bT_STOP -> return ()
+                   | td == bT_STOP_BASE -> loop
+                   | otherwise -> skipType td >> loop
+         in loop
+    skipRestOfStruct = skipType bT_STRUCT
+    skipType t =
+        if | t == bT_BOOL -> skip 1
+           | t == bT_UINT8 -> skip 1
+           | t == bT_UINT16 -> skip 2
+           | t == bT_UINT32 -> skip 4
+           | t == bT_UINT64 -> skip 8
+           | t == bT_FLOAT -> skip 4
+           | t == bT_DOUBLE -> skip 8
+           | t == bT_STRING -> getVarInt >>= skip
+           | t == bT_STRUCT ->
+                let loop = do
+                        td <- BondDataType . fromIntegral <$> getWord8
+                        if | td == bT_STOP -> return ()
+                           | td == bT_STOP_BASE -> loop
+                           | otherwise -> skip 2 >> skipType td >> loop
+                 in loop
+           | t == bT_LIST -> do
+                td <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                replicateM_ n (skipType td)
+           | t == bT_SET -> skipType bT_LIST
+           | t == bT_MAP -> do
+                tk <- BondDataType . fromIntegral <$> getWord8
+                tv <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                replicateM_ n $ skipType tk >> skipType tv
+           | t == bT_INT8 -> skip 1
+           | t == bT_INT16 -> skip 2
+           | t == bT_INT32 -> skip 4
+           | t == bT_INT64 -> skip 8
+           | t == bT_WSTRING -> do
+                n <- getVarInt
+                skip $ n * 2
+           | otherwise -> fail $ "Invalid type to skip " ++ show t
 
 instance BondProto FastBinaryProto where
     bondGetStruct = getStruct TopLevelStruct
@@ -107,13 +146,7 @@ instance BondProto FastBinaryProto where
         return $ BondedStream bs
 
     bondPutStruct = putStruct TopLevelStruct
-    bondPutBaseStruct v = do
-        rootT <- checkPutType bT_STRUCT
-        schemaStructs <- BondPut (asks $ structs . fst)
-        let struct = schemaStructs ! fromIntegral (TD.struct_def rootT)
-        case base_def struct of
-            Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
-            Just t -> putAs t $ putStruct BaseStruct v
+    bondPutBaseStruct = putBaseStruct
     bondPutField = putField
     bondPutDefNothingField _ Nothing = return () -- FIXME check for required
     bondPutDefNothingField n (Just v) = putField n v
@@ -148,153 +181,6 @@ instance BondProto FastBinaryProto where
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
-
-getAs :: TD.TypeDef -> BondGet FastBinaryProto a -> BondGet FastBinaryProto a
-getAs typedef = glocal (\s -> s{root = typedef})
-
-putAs :: TD.TypeDef -> BondPut FastBinaryProto -> BondPut FastBinaryProto
-putAs typedef = plocal $ \(s, _) -> (s{root = typedef}, error "uninitialized cache")
-
-checkSchemaMismatch :: (Eq a, Show a, Monad f) => a -> a -> f ()
-checkSchemaMismatch typeSchema typeStream =
-    unless (typeStream == typeSchema) $
-        fail $ "Schema do not match stream: stream/struct type " ++ show typeStream ++ ", schema type " ++ show typeSchema
-
-checkGetType :: BondDataType -> BondGet FastBinaryProto TD.TypeDef
-checkGetType expected = do
-    t <- BondGet $ asks root
-    checkSchemaMismatch (TD.id t) expected
-    return t
-
-checkElementGetType :: BondDataType -> BondGet FastBinaryProto TD.TypeDef
-checkElementGetType expected = do
-    t <- BondGet $ asks (TD.element . root)
-    checkSchemaMismatch (TD.id <$> t) (Just expected)
-    return (fromJust t)
-
-checkKeyGetType :: BondDataType -> BondGet FastBinaryProto TD.TypeDef
-checkKeyGetType expected = do
-    t <- BondGet $ asks (TD.key . root)
-    checkSchemaMismatch (TD.id <$> t) (Just expected)
-    return (fromJust t)
-
-getStruct :: BondStruct a => StructLevel -> BondGet FastBinaryProto a
-getStruct level = do
-    rootT <- checkGetType bT_STRUCT
-    schemaStructs <- BondGet (asks structs)
-    let struct = schemaStructs ! fromIntegral (TD.struct_def rootT)
-    base <- case base_def struct of
-        Nothing -> return defaultValue
-        Just t -> getAs t (bondStructGetBase defaultValue)
-    -- iterate over stream, update fields
-    let fieldTypes = M.fromList $ V.toList $ V.map (FD.id &&& FD.typedef) $ fields struct
-    let readField wiretype s = do
-            ordinal <- getWord16le
-            case M.lookup ordinal fieldTypes of
-                Nothing -> do
-                    skipType wiretype -- unknown field, ignore it
-                    return s
-                Just t -> do
-                    checkSchemaMismatch (TD.id t) wiretype
-                    getAs t $ bondStructGetField (Ordinal ordinal) s
-    let loop s = do
-            wiretype <- BondDataType . fromIntegral <$> getWord8
-            if | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
-               | wiretype == bT_STOP && level == TopLevelStruct -> return s
-               | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
-               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipType bT_STRUCT >> return s
-               | otherwise -> readField wiretype s >>= loop
-
-    loop base
-
-skipType :: BondDataType -> BondGet FastBinaryProto ()
-skipType t = case True of
-     _ | t == bT_BOOL -> skip 1
-       | t == bT_UINT8 -> skip 1
-       | t == bT_UINT16 -> skip 2
-       | t == bT_UINT32 -> skip 4
-       | t == bT_UINT64 -> skip 8
-       | t == bT_FLOAT -> skip 4
-       | t == bT_DOUBLE -> skip 8
-       | t == bT_STRING -> getVarInt >>= skip
-       | t == bT_STRUCT ->
-            let loop = do
-                    td <- BondDataType . fromIntegral <$> getWord8
-                    case td of
-                     _ | td == bT_STOP -> return ()
-                       | td == bT_STOP_BASE -> loop
-                       | otherwise -> skip 2 >> skipType td >> loop
-             in loop
-       | t == bT_LIST -> do
-            td <- BondDataType . fromIntegral <$> getWord8
-            n <- getVarInt
-            replicateM_ n (skipType td)
-       | t == bT_SET -> skipType bT_LIST
-       | t == bT_MAP -> do
-            tk <- BondDataType . fromIntegral <$> getWord8
-            tv <- BondDataType . fromIntegral <$> getWord8
-            n <- getVarInt
-            replicateM_ n $ skipType tk >> skipType tv
-       | t == bT_INT8 -> skip 1
-       | t == bT_INT16 -> skip 2
-       | t == bT_INT32 -> skip 4
-       | t == bT_INT64 -> skip 8
-       | t == bT_WSTRING -> do
-            n <- getVarInt
-            skip $ n * 2
-       | otherwise -> error $ "Invalid type to skip " ++ show t
-
-checkPutType :: BondDataType -> BondPutM FastBinaryProto TD.TypeDef
-checkPutType expected = do
-    t <- BondPut $ asks (root . fst)
-    checkSchemaMismatch (TD.id t) expected
-    return t
-
-checkPutContainerType :: BondDataType -> BondPutM FastBinaryProto TD.TypeDef
-checkPutContainerType expected = do
-    t <- checkPutType expected
-    let elementT = TD.element t
-    when (isNothing elementT) $ fail $ "Malformed schema: " ++ show expected ++
-        " expected to be container, but has no element type defined"
-    return (fromJust elementT)
-
-checkPutMapType :: BondPutM FastBinaryProto (TD.TypeDef, TD.TypeDef)
-checkPutMapType = do
-    t <- checkPutType bT_MAP
-    let keyT = TD.key t
-    let elementT = TD.element t
-    when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
-    return (fromJust keyT, fromJust elementT)
-
-putTag :: BondDataType -> BondPut FastBinaryProto
-putTag = putWord8 . fromIntegral . fromEnum
-
-putStruct :: BondStruct a => StructLevel -> a -> BondPut FastBinaryProto
-putStruct level a = do
-    t <- checkPutType bT_STRUCT
-    schema <- BondPut (asks fst)
-    let struct = structs schema ! fromIntegral (TD.struct_def t)
-    let fieldsInfo = M.fromList $ V.toList $ V.map (Ordinal . FD.id &&& id) $ fields struct
-
-    plocal (second (const fieldsInfo)) $ bondStructPut a
-    case level of
-        TopLevelStruct -> putTag bT_STOP
-        BaseStruct -> putTag bT_STOP_BASE
-
-putField :: forall a. BondSerializable a => Ordinal -> a -> BondPut FastBinaryProto
-putField n a = do
-    fieldTypes <- BondPut (asks snd)
-    let Just f = M.lookup n fieldTypes
-    let t = FD.typedef f
-    let tag = getWireType (Proxy :: Proxy a)
-    checkSchemaMismatch (TD.id t) tag
-
-    let needToSave = not (equalToDefault (default_value $ FD.metadata f) a) ||
-           modifier (FD.metadata f) /= optional
-    when needToSave $ do
-        putTag tag
-        let Ordinal fn = n in putWord16le fn
-        putAs t $ bondPut a
 
 putList :: forall a. BondSerializable a => [a] -> BondPut FastBinaryProto
 putList xs = do
