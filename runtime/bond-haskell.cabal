@@ -26,6 +26,7 @@ library
                        Data.Bond.Schema
   other-modules:       Data.Bond.Cast
                        Data.Bond.CompactBinaryProto
+                       Data.Bond.CompactBinaryV1Proto
                        Data.Bond.Default
                        Data.Bond.FastBinaryProto
                        Data.Bond.Monads

@@ -1,6 +1,6 @@
 {-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf #-}
-module Data.Bond.CompactBinaryProto (
-        CompactBinaryProto
+module Data.Bond.CompactBinaryV1Proto (
+        CompactBinaryV1Proto
     ) where
 
 import Data.Bond.Cast
@@ -14,8 +14,7 @@ import Data.Bond.Wire
 import Control.Applicative hiding (optional)
 import Control.Arrow ((&&&), second)
 import Control.Monad
-import Control.Monad.Reader (runReaderT, ask, asks)
-import Data.Binary.Put (runPut)
+import Control.Monad.Reader (asks)
 import Data.Bits
 import Data.List
 import Data.Maybe
@@ -24,7 +23,6 @@ import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -38,7 +36,7 @@ import Data.Bond.Schema.Modifier
 import Data.Bond.Schema.SchemaDef
 import Data.Bond.Schema.StructDef
 
-data CompactBinaryProto
+data CompactBinaryV1Proto
 
 data StructLevel = TopLevelStruct | BaseStruct
     deriving (Show, Eq)
@@ -54,10 +52,8 @@ wordToZigZag :: Word64 -> ZigZagInt
 wordToZigZag w | even w = ZigZagInt $ fromIntegral (w `div` 2)
 wordToZigZag w = ZigZagInt $ negate $ fromIntegral ((w - 1) `div` 2) + 1
 
-instance BondProto CompactBinaryProto where
-    bondGetStruct = do
-        size <- getVarInt
-        isolate size $ getStruct TopLevelStruct
+instance BondProto CompactBinaryV1Proto where
+    bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
     bondGetBool = do
@@ -108,16 +104,15 @@ instance BondProto CompactBinaryProto where
             [x] -> return (Just x)
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
     bondGetBonded = do
-        size <- getVarInt
-        bs <- getLazyByteString size -- FIXME prepend length to keep correct format
+        size <- lookAhead $ do
+            start <- bytesRead
+            skipType bT_STRUCT
+            stop <- bytesRead
+            return (stop - start)
+        bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
-    bondPutStruct v = do
-        env <- BondPut ask
-        let BondPut g = putStruct TopLevelStruct v
-        let bs = runPut (runReaderT g env)
-        putVarInt $ BL.length bs
-        putLazyByteString bs
+    bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct v = do
         rootT <- checkPutType bT_STRUCT
         schemaStructs <- BondPut (asks $ structs . fst)
@@ -157,29 +152,20 @@ instance BondProto CompactBinaryProto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = do
-        putVarInt (BL.length s)
-        putLazyByteString s -- FIXME handle different protocols
+    bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
 
-getListHeader :: BondGet CompactBinaryProto (BondDataType, Int)
+getListHeader :: BondGet CompactBinaryV1Proto (BondDataType, Int)
 getListHeader = do
-    v <- getWord8
-    if v `shiftR` 5 /= 0
-        then return (BondDataType $ fromIntegral (v .&. 0x1f), fromIntegral (v `shiftR` 5) - 1)
-        else do
-            n <- getVarInt
-            return (BondDataType (fromIntegral v), n)
+    t <- BondDataType . fromIntegral <$> getWord8
+    n <- getVarInt
+    return (t, n)
 
-putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut CompactBinaryProto
+putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut CompactBinaryV1Proto
 putListHeader t n = do
-    let tag = fromIntegral $ fromEnum t
-    if n < 7
-        then putWord8 $ tag .|. fromIntegral ((1 + n) `shiftL` 5)
-        else do
-            putWord8 tag
-            putVarInt n
+    putTag t
+    putVarInt n
 
-getFieldHeader :: BondGet CompactBinaryProto (BondDataType, Ordinal)
+getFieldHeader :: BondGet CompactBinaryV1Proto (BondDataType, Ordinal)
 getFieldHeader = do
     tag <- getWord8
     case tag `shiftR` 5 of
@@ -191,7 +177,7 @@ getFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putFieldHeader :: BondDataType -> Ordinal -> BondPut CompactBinaryProto
+putFieldHeader :: BondDataType -> Ordinal -> BondPut CompactBinaryV1Proto
 putFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
@@ -203,10 +189,10 @@ putFieldHeader t (Ordinal n) =
                     putWord8 $ tbits .|. 0xE0
                     putWord16le n
 
-getAs :: TD.TypeDef -> BondGet CompactBinaryProto a -> BondGet CompactBinaryProto a
+getAs :: TD.TypeDef -> BondGet CompactBinaryV1Proto a -> BondGet CompactBinaryV1Proto a
 getAs typedef = glocal (\s -> s{root = typedef})
 
-putAs :: TD.TypeDef -> BondPut CompactBinaryProto -> BondPut CompactBinaryProto
+putAs :: TD.TypeDef -> BondPut CompactBinaryV1Proto -> BondPut CompactBinaryV1Proto
 putAs typedef = plocal $ \(s, _) -> (s{root = typedef}, error "uninitialized cache")
 
 checkSchemaMismatch :: (Eq a, Show a, Monad f) => a -> a -> f ()
@@ -214,25 +200,25 @@ checkSchemaMismatch typeSchema typeStream =
     unless (typeStream == typeSchema) $
         fail $ "Schema do not match stream: stream/struct type " ++ show typeStream ++ ", schema type " ++ show typeSchema
 
-checkGetType :: BondDataType -> BondGet CompactBinaryProto TD.TypeDef
+checkGetType :: BondDataType -> BondGet CompactBinaryV1Proto TD.TypeDef
 checkGetType expected = do
     t <- BondGet $ asks root
     checkSchemaMismatch (TD.id t) expected
     return t
 
-checkElementGetType :: BondDataType -> BondGet CompactBinaryProto TD.TypeDef
+checkElementGetType :: BondDataType -> BondGet CompactBinaryV1Proto TD.TypeDef
 checkElementGetType expected = do
     t <- BondGet $ asks (TD.element . root)
     checkSchemaMismatch (TD.id <$> t) (Just expected)
     return (fromJust t)
 
-checkKeyGetType :: BondDataType -> BondGet CompactBinaryProto TD.TypeDef
+checkKeyGetType :: BondDataType -> BondGet CompactBinaryV1Proto TD.TypeDef
 checkKeyGetType expected = do
     t <- BondGet $ asks (TD.key . root)
     checkSchemaMismatch (TD.id <$> t) (Just expected)
     return (fromJust t)
 
-getStruct :: BondStruct a => StructLevel -> BondGet CompactBinaryProto a
+getStruct :: BondStruct a => StructLevel -> BondGet CompactBinaryV1Proto a
 getStruct level = do
     rootT <- checkGetType bT_STRUCT
     schemaStructs <- BondGet (asks structs)
@@ -260,19 +246,13 @@ getStruct level = do
 
     loop base
 
-skipVarInt :: BondGet CompactBinaryProto ()
-skipVarInt = void (getVarInt :: BondGet CompactBinaryProto Word64)
+skipVarInt :: BondGet CompactBinaryV1Proto ()
+skipVarInt = void (getVarInt :: BondGet CompactBinaryV1Proto Word64)
 
-skipRestOfStruct :: BondGet CompactBinaryProto ()
-skipRestOfStruct = do
-    let loop = do
-            (wiretype, _) <- getFieldHeader
-            if | wiretype == bT_STOP -> return ()
-               | wiretype == bT_STOP_BASE -> loop
-               | otherwise -> skipType wiretype >> loop
-    loop
+skipRestOfStruct :: BondGet CompactBinaryV1Proto ()
+skipRestOfStruct = skipType bT_STRUCT
 
-skipType :: BondDataType -> BondGet CompactBinaryProto ()
+skipType :: BondDataType -> BondGet CompactBinaryV1Proto ()
 skipType t =
      if | t == bT_BOOL -> skip 1
         | t == bT_UINT8 -> skip 1
@@ -283,8 +263,13 @@ skipType t =
         | t == bT_DOUBLE -> skip 8
         | t == bT_STRING -> getVarInt >>= skip
         | t == bT_STRUCT -> do
-            size <- getVarInt
-            skip size
+            let loop = do
+                    (td, _) <- getFieldHeader
+                    case td of
+                     _ | td == bT_STOP -> return ()
+                       | td == bT_STOP_BASE -> loop
+                       | otherwise -> skipType td >> loop
+             in loop
         | t == bT_LIST -> do
             (td, n) <- getListHeader
             replicateM_ n (skipType td)
@@ -303,13 +288,13 @@ skipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-checkPutType :: BondDataType -> BondPutM CompactBinaryProto TD.TypeDef
+checkPutType :: BondDataType -> BondPutM CompactBinaryV1Proto TD.TypeDef
 checkPutType expected = do
     t <- BondPut $ asks (root . fst)
     checkSchemaMismatch (TD.id t) expected
     return t
 
-checkPutContainerType :: BondDataType -> BondPutM CompactBinaryProto TD.TypeDef
+checkPutContainerType :: BondDataType -> BondPutM CompactBinaryV1Proto TD.TypeDef
 checkPutContainerType expected = do
     t <- checkPutType expected
     let elementT = TD.element t
@@ -317,7 +302,7 @@ checkPutContainerType expected = do
         " expected to be container, but has no element type defined"
     return (fromJust elementT)
 
-checkPutMapType :: BondPutM CompactBinaryProto (TD.TypeDef, TD.TypeDef)
+checkPutMapType :: BondPutM CompactBinaryV1Proto (TD.TypeDef, TD.TypeDef)
 checkPutMapType = do
     t <- checkPutType bT_MAP
     let keyT = TD.key t
@@ -325,10 +310,10 @@ checkPutMapType = do
     when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
     return (fromJust keyT, fromJust elementT)
 
-putTag :: BondDataType -> BondPut CompactBinaryProto
+putTag :: BondDataType -> BondPut CompactBinaryV1Proto
 putTag = putWord8 . fromIntegral . fromEnum
 
-putStruct :: BondStruct a => StructLevel -> a -> BondPut CompactBinaryProto
+putStruct :: BondStruct a => StructLevel -> a -> BondPut CompactBinaryV1Proto
 putStruct level a = do
     t <- checkPutType bT_STRUCT
     schema <- BondPut (asks fst)
@@ -340,7 +325,7 @@ putStruct level a = do
         TopLevelStruct -> putTag bT_STOP
         BaseStruct -> putTag bT_STOP_BASE
 
-putField :: forall a. BondSerializable a => Ordinal -> a -> BondPut CompactBinaryProto
+putField :: forall a. BondSerializable a => Ordinal -> a -> BondPut CompactBinaryV1Proto
 putField n a = do
     fieldTypes <- BondPut (asks snd)
     let Just f = M.lookup n fieldTypes
@@ -354,28 +339,28 @@ putField n a = do
         putFieldHeader tag n
         putAs t $ bondPut a
 
-putList :: forall a. BondSerializable a => [a] -> BondPut CompactBinaryProto
+putList :: forall a. BondSerializable a => [a] -> BondPut CompactBinaryV1Proto
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     putAs t $ mapM_ bondPut xs
 
-putHashSet :: forall a. BondSerializable a => HashSet a -> BondPut CompactBinaryProto
+putHashSet :: forall a. BondSerializable a => HashSet a -> BondPut CompactBinaryV1Proto
 putHashSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     putAs t $ mapM_ bondPut $ H.toList xs
 
-putSet :: forall a. BondSerializable a => Set a -> BondPut CompactBinaryProto
+putSet :: forall a. BondSerializable a => Set a -> BondPut CompactBinaryV1Proto
 putSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     putAs t $ mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v. (BondSerializable k, BondSerializable v) => Map k v -> BondPut CompactBinaryProto
+putMap :: forall k v. (BondSerializable k, BondSerializable v) => Map k v -> BondPut CompactBinaryV1Proto
 putMap m = do
     (tk, tv) <- checkPutMapType
 
@@ -386,7 +371,7 @@ putMap m = do
         putAs tk $ bondPut k
         putAs tv $ bondPut v
 
-putVector :: forall a. BondSerializable a => Vector a -> BondPut CompactBinaryProto
+putVector :: forall a. BondSerializable a => Vector a -> BondPut CompactBinaryV1Proto
 putVector xs = do
     t <- checkPutContainerType bT_LIST
 

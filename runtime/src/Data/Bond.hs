@@ -4,6 +4,7 @@ module Data.Bond (
     BondStruct,
     Schemable,
     CompactBinaryProto,
+    CompactBinaryV1Proto,
     FastBinaryProto,
     SimpleBinaryProto,
     SimpleBinaryV1Proto,
@@ -13,6 +14,7 @@ module Data.Bond (
   ) where
 
 import Data.Bond.CompactBinaryProto
+import Data.Bond.CompactBinaryV1Proto
 import Data.Bond.FastBinaryProto
 import Data.Bond.Monads
 import Data.Bond.Proto

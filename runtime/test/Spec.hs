@@ -43,6 +43,14 @@ tests = testGroup "Haskell runtime tests"
                 readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
               testCase "read/write Another value" $
                 readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy Another) "compat.compact2.dat"
+            ],
+          testGroup "CompactBinary v1"
+            [ testCase "read/write Compat value" $
+                readCompat (Proxy :: Proxy CompactBinaryV1Proto) "compat.compact.dat",
+              testCase "read/write BasicTypes value" $
+                readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy BasicTypes) "compat.compact.dat",
+              testCase "read/write Another value" $
+                readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy Another) "compat.compact.dat"
             ]
         ]
     ]
