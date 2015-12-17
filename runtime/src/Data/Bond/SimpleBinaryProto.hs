@@ -1,6 +1,7 @@
 {-# Language ScopedTypeVariables, EmptyDataDecls #-}
 module Data.Bond.SimpleBinaryProto (
-        SimpleBinaryProto
+        SimpleBinaryProto,
+        SimpleBinaryV1Proto
     ) where
 
 import Data.Bond.Cast
@@ -23,6 +24,7 @@ import qualified Data.Set as S
 import qualified Data.Vector as V
 
 data SimpleBinaryProto
+data SimpleBinaryV1Proto
 
 instance BondProto SimpleBinaryProto where
     bondGetStruct = bondStructGetUntagged
@@ -114,6 +116,102 @@ instance BondProto SimpleBinaryProto where
         V.mapM_ bondPut xs
     bondPutBlob (Blob b) = do
         putVarInt $ BS.length b
+        putByteString b
+    bondPutBonded (BondedObject _) = undefined
+    bondPutBonded (BondedStream s) = do
+        putWord32le $ fromIntegral $ BL.length s
+        putLazyByteString s
+
+instance BondProto SimpleBinaryV1Proto where
+    bondGetStruct = bondStructGetUntagged
+    bondGetBaseStruct = bondStructGetUntagged
+
+    bondGetBool = do
+        v <- getWord8
+        return $ v /= 0
+    bondGetUInt8 = getWord8
+    bondGetUInt16 = getWord16le
+    bondGetUInt32 = getWord32le
+    bondGetUInt64 = getWord64le
+    bondGetInt8 = fromIntegral <$> getWord8
+    bondGetInt16 = fromIntegral <$> getWord16le
+    bondGetInt32 = fromIntegral <$> getWord32le
+    bondGetInt64 = fromIntegral <$> getWord64le
+    bondGetFloat = wordToFloat <$> getWord32le
+    bondGetDouble = wordToDouble <$> getWord64le
+    bondGetString = do
+        n <- fromIntegral <$> getWord32le
+        Utf8 <$> getByteString n
+    bondGetWString = do
+        n <- fromIntegral <$> getWord32le
+        Utf16 <$> getByteString (n * 2)
+    bondGetBlob = do
+        n <- fromIntegral <$> getWord32le
+        Blob <$> getByteString n
+    bondGetDefNothing = Just <$> bondGet
+    bondGetList = do
+        n <- fromIntegral <$> getWord32le
+        replicateM n bondGet
+    bondGetHashSet = H.fromList <$> bondGetList
+    bondGetSet = S.fromList <$> bondGetList
+    bondGetMap = do
+        n <- fromIntegral <$> getWord32le
+        fmap M.fromList $ replicateM n $ liftM2 (,) bondGet bondGet
+    bondGetVector = do
+        n <- fromIntegral <$> getWord32le
+        V.replicateM n bondGet
+    bondGetNullable = do
+        v <- bondGetList
+        case v of
+            [] -> return Nothing
+            [x] -> return (Just x)
+            _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
+    bondGetBonded = do
+        size <- getWord32le
+--        sig <- BondGet getWord32be
+        bs <- getLazyByteString (fromIntegral size)
+        return $ BondedStream bs
+
+    bondPutStruct = bondStructPut
+    bondPutBaseStruct = bondStructPut
+    bondPutField _ = bondPut
+    bondPutDefNothingField _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
+    bondPutDefNothingField _ (Just v) = bondPut v
+
+    bondPutBool True = putWord8 1
+    bondPutBool False = putWord8 0
+    bondPutUInt8 = putWord8
+    bondPutUInt16 = putWord16le
+    bondPutUInt32 = putWord32le
+    bondPutUInt64 = putWord64le
+    bondPutInt8 = putWord8 . fromIntegral
+    bondPutInt16 = putWord16le . fromIntegral
+    bondPutInt32 = putWord32le . fromIntegral
+    bondPutInt64 = putWord64le . fromIntegral
+    bondPutFloat = putWord32le . floatToWord
+    bondPutDouble = putWord64le . doubleToWord
+    bondPutString (Utf8 s) = do
+        putWord32le $ fromIntegral $ BS.length s
+        putByteString s
+    bondPutWString (Utf16 s) = do
+        putWord32le $ fromIntegral $ BS.length s `div` 2
+        putByteString s
+    bondPutList xs = do
+        putWord32le $ fromIntegral $ length xs
+        mapM_ bondPut xs
+    bondPutNullable = bondPutList . maybeToList
+    bondPutHashSet = bondPutList . H.toList
+    bondPutSet = bondPutList . S.toList
+    bondPutMap m = do
+        putWord32le $ fromIntegral $ M.size m
+        forM_ (M.toList m) $ \(k, v) -> do
+            bondPut k
+            bondPut v
+    bondPutVector xs = do
+        putWord32le $ fromIntegral $ V.length xs
+        V.mapM_ bondPut xs
+    bondPutBlob (Blob b) = do
+        putWord32le $ fromIntegral $ BS.length b
         putByteString b
     bondPutBonded (BondedObject _) = undefined
     bondPutBonded (BondedStream s) = do

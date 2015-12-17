@@ -32,7 +32,6 @@ library
                        Data.Bond.Monads
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
-                       Data.Bond.SimpleBinaryV1Proto
                        Data.Bond.Types
                        Data.Bond.Utils
                        Data.Bond.Wire
