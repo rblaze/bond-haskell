@@ -96,7 +96,10 @@ instance BondProto CompactBinaryV1Proto where
             k <- getAs keytype bondGet
             v <- getAs elemtype bondGet
             return (k, v)
-    bondGetVector = V.fromList <$> bondGetList
+    bondGetVector = do
+        (t, n) <- getListHeader
+        elemtype <- checkElementGetType t
+        getAs elemtype $ V.replicateM n bondGet
     bondGetNullable = do
         v <- bondGetList
         case v of

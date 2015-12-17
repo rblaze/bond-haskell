@@ -59,7 +59,9 @@ instance BondProto SimpleBinaryProto where
     bondGetMap = do
         n <- getVarInt
         fmap M.fromList $ replicateM n $ liftM2 (,) bondGet bondGet
-    bondGetVector = V.fromList <$> bondGetList
+    bondGetVector = do
+        n <- getVarInt
+        V.replicateM n bondGet
     bondGetNullable = do
         v <- bondGetList
         case v of

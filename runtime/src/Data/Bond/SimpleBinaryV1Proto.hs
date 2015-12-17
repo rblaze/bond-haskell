@@ -58,7 +58,9 @@ instance BondProto SimpleBinaryV1Proto where
     bondGetMap = do
         n <- fromIntegral <$> getWord32le
         fmap M.fromList $ replicateM n $ liftM2 (,) bondGet bondGet
-    bondGetVector = V.fromList <$> bondGetList
+    bondGetVector = do
+        n <- fromIntegral <$> getWord32le
+        V.replicateM n bondGet
     bondGetNullable = do
         v <- bondGetList
         case v of

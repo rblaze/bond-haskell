@@ -86,7 +86,11 @@ instance BondProto FastBinaryProto where
             k <- getAs keytype bondGet
             v <- getAs elemtype bondGet
             return (k, v)
-    bondGetVector = V.fromList <$> bondGetList
+    bondGetVector = do
+        t <- BondDataType . fromIntegral <$> getWord8
+        elemtype <- checkElementGetType t
+        n <- getVarInt
+        getAs elemtype $ V.replicateM n bondGet
     bondGetNullable = do
         v <- bondGetList
         case v of
