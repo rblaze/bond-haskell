@@ -1,13 +1,12 @@
 {-# Language ScopedTypeVariables, EmptyDataDecls #-}
-module Data.Bond.SimpleBinaryProto (
-        SimpleBinaryProto
+module Data.Bond.SimpleBinaryV1Proto (
+        SimpleBinaryV1Proto
     ) where
 
 import Data.Bond.Cast
 import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.Types
-import Data.Bond.Utils
 
 import Control.Applicative
 import Control.Monad
@@ -22,9 +21,9 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-data SimpleBinaryProto
+data SimpleBinaryV1Proto
 
-instance BondProto SimpleBinaryProto where
+instance BondProto SimpleBinaryV1Proto where
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -42,22 +41,22 @@ instance BondProto SimpleBinaryProto where
     bondGetFloat = wordToFloat <$> getWord32le
     bondGetDouble = wordToDouble <$> getWord64le
     bondGetString = do
-        n <- getVarInt
+        n <- fromIntegral <$> getWord32le
         Utf8 <$> getByteString n
     bondGetWString = do
-        n <- getVarInt
+        n <- fromIntegral <$> getWord32le
         Utf16 <$> getByteString (n * 2)
     bondGetBlob = do
-        n <- getVarInt
+        n <- fromIntegral <$> getWord32le
         Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
     bondGetList = do
-        n <- getVarInt
+        n <- fromIntegral <$> getWord32le
         replicateM n bondGet
     bondGetHashSet = H.fromList <$> bondGetList
     bondGetSet = S.fromList <$> bondGetList
     bondGetMap = do
-        n <- getVarInt
+        n <- fromIntegral <$> getWord32le
         fmap M.fromList $ replicateM n $ liftM2 (,) bondGet bondGet
     bondGetVector = V.fromList <$> bondGetList
     bondGetNullable = do
@@ -91,27 +90,27 @@ instance BondProto SimpleBinaryProto where
     bondPutFloat = putWord32le . floatToWord
     bondPutDouble = putWord64le . doubleToWord
     bondPutString (Utf8 s) = do
-        putVarInt $ BS.length s
+        putWord32le $ fromIntegral $ BS.length s
         putByteString s
     bondPutWString (Utf16 s) = do
-        putVarInt $ BS.length s `div` 2
+        putWord32le $ fromIntegral $ BS.length s `div` 2
         putByteString s
     bondPutList xs = do
-        putVarInt $ length xs
+        putWord32le $ fromIntegral $ length xs
         mapM_ bondPut xs
     bondPutNullable = bondPutList . maybeToList
     bondPutHashSet = bondPutList . H.toList
     bondPutSet = bondPutList . S.toList
     bondPutMap m = do
-        putVarInt $ M.size m
+        putWord32le $ fromIntegral $ M.size m
         forM_ (M.toList m) $ \(k, v) -> do
             bondPut k
             bondPut v
     bondPutVector xs = do
-        putVarInt $ V.length xs
+        putWord32le $ fromIntegral $ V.length xs
         V.mapM_ bondPut xs
     bondPutBlob (Blob b) = do
-        putVarInt $ BS.length b
+        putWord32le $ fromIntegral $ BS.length b
         putByteString b
     bondPutBonded (BondedObject _) = undefined
     bondPutBonded (BondedStream s) = do

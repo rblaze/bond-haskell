@@ -28,6 +28,10 @@ tests = testGroup "Haskell runtime tests"
             [ testCase "read/write Compat value" $
                 readCompat (Proxy :: Proxy SimpleBinaryProto) "compat.simple2.dat"
             ],
+          testGroup "SimpleBinary v1"
+            [ testCase "read/write Compat value" $
+                readCompat (Proxy :: Proxy SimpleBinaryV1Proto) "compat.simple.dat"
+            ],
           testGroup "FastBinary"
             [ testCase "read/write Compat value" $
                 readCompat (Proxy :: Proxy FastBinaryProto) "compat.fast.dat",

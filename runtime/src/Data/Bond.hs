@@ -20,6 +20,7 @@ import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
+import Data.Bond.SimpleBinaryV1Proto
 
 import Control.Monad.Reader
 import Data.Binary.Get
