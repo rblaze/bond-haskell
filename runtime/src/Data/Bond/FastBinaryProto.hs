@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf #-}
+{-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf, TypeFamilies #-}
 module Data.Bond.FastBinaryProto (
         FastBinaryProto
     ) where
@@ -20,6 +20,8 @@ import Data.Maybe
 import Data.Proxy
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
+import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.HashSet as H
 import qualified Data.Map as M
@@ -80,6 +82,10 @@ instance TaggedProtocol FastBinaryProto where
            | otherwise -> fail $ "Invalid type to skip " ++ show t
 
 instance BondProto FastBinaryProto where
+    type ReaderM FastBinaryProto = B.Get
+    type WriterM FastBinaryProto = B.PutM
+
+    bondDecode = binaryDecode
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
@@ -145,6 +151,7 @@ instance BondProto FastBinaryProto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
+    bondEncode = binaryEncode
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
@@ -182,7 +189,7 @@ instance BondProto FastBinaryProto where
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
 
-putList :: forall a. BondSerializable a => [a] -> BondPut FastBinaryProto
+putList :: forall a. BondSerializable a => [a] -> BondPut FastBinaryProto B.PutM
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
@@ -190,7 +197,7 @@ putList xs = do
     putVarInt $ length xs
     putAs t $ mapM_ bondPut xs
 
-putHashSet :: forall a. BondSerializable a => HashSet a -> BondPut FastBinaryProto
+putHashSet :: forall a. BondSerializable a => HashSet a -> BondPut FastBinaryProto B.PutM
 putHashSet xs = do
     t <- checkPutContainerType bT_SET
 
@@ -198,7 +205,7 @@ putHashSet xs = do
     putVarInt $ H.size xs
     putAs t $ mapM_ bondPut $ H.toList xs
 
-putSet :: forall a. BondSerializable a => Set a -> BondPut FastBinaryProto
+putSet :: forall a. BondSerializable a => Set a -> BondPut FastBinaryProto B.PutM
 putSet xs = do
     t <- checkPutContainerType bT_SET
 
@@ -206,7 +213,7 @@ putSet xs = do
     putVarInt $ S.size xs
     putAs t $ mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v. (BondSerializable k, BondSerializable v) => Map k v -> BondPut FastBinaryProto
+putMap :: forall k v. (BondSerializable k, BondSerializable v) => Map k v -> BondPut FastBinaryProto B.PutM
 putMap m = do
     (tk, tv) <- checkPutMapType
 
@@ -217,7 +224,7 @@ putMap m = do
         putAs tk $ bondPut k
         putAs tv $ bondPut v
 
-putVector :: forall a. BondSerializable a => Vector a -> BondPut FastBinaryProto
+putVector :: forall a. BondSerializable a => Vector a -> BondPut FastBinaryProto B.PutM
 putVector xs = do
     t <- checkPutContainerType bT_LIST
 

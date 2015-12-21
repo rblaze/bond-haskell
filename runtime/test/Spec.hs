@@ -74,22 +74,21 @@ readCompat p f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat
     case parse of
-        Left (_, used, msg) -> assertFailure $ "parse error at " ++ show used ++ ": " ++ msg
-        Right (rest, used, s) -> let _ = s :: Compat -- type binding
-                                  in do
-                                    assertBool ("incomplete parse, used " ++ show used ++ ", left " ++ show (L.length rest)) (L.null rest)
-                                    let d' = bondWrite p s
-                                    L.writeFile ("/tmp" </> f) d'
-                                    assertEqual "serialized value do not match original" dat d'
+        Left msg -> assertFailure msg
+        Right s -> let _ = s :: Compat -- type binding
+                    in do
+                        let Right d' = bondWrite p s
+--                        L.writeFile ("/tmp" </> f) d'
+                        assertEqual "serialized value do not match original" dat d'
 
 readAsType :: forall t a. (BondProto t, Schemable a, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat
     case parse of
-        Left (_, used, msg) -> assertFailure $ "parse error at " ++ show used ++ ": " ++ msg
-        Right (rest, used, s) -> let _ = s :: a -- type binding
-                                  in assertBool ("incomplete parse, used " ++ show used ++ ", left " ++ show (L.length rest)) (L.null rest)
+        Left msg -> assertFailure msg
+        Right s -> let _ = s :: a -- type binding
+                    in return ()
 
 createSchemaDef :: Assertion
 createSchemaDef = do

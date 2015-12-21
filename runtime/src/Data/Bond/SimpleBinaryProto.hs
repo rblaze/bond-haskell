@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls #-}
+{-# Language ScopedTypeVariables, EmptyDataDecls, TypeFamilies #-}
 module Data.Bond.SimpleBinaryProto (
         SimpleBinaryProto,
         SimpleBinaryV1Proto
@@ -16,6 +16,8 @@ import Data.List
 import Data.Maybe
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
+import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
@@ -27,6 +29,10 @@ data SimpleBinaryProto
 data SimpleBinaryV1Proto
 
 instance BondProto SimpleBinaryProto where
+    type ReaderM SimpleBinaryProto = B.Get
+    type WriterM SimpleBinaryProto = B.PutM
+
+    bondDecode = binaryDecode
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -76,6 +82,7 @@ instance BondProto SimpleBinaryProto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
+    bondEncode = binaryEncode
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -123,6 +130,10 @@ instance BondProto SimpleBinaryProto where
         putLazyByteString s
 
 instance BondProto SimpleBinaryV1Proto where
+    type ReaderM SimpleBinaryV1Proto = B.Get
+    type WriterM SimpleBinaryV1Proto = B.PutM
+
+    bondDecode = binaryDecode
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -172,6 +183,7 @@ instance BondProto SimpleBinaryV1Proto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
+    bondEncode = binaryEncode
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut

@@ -6,7 +6,6 @@ module Data.Bond.Imports (
   ) where
 
 import Control.Monad (ap)
---import Data.Bond.Monads as X
 import Data.Bond.Proto as X
 import Data.Bond.Default as X
 import Data.Bond.Types as X
