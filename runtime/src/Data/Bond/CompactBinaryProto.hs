@@ -9,13 +9,13 @@ import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
-import Data.Bond.Utils
 import Data.Bond.Wire
 import Data.Bond.ZigZag
+import qualified Data.Bond.Utils as U
 
 import Control.Applicative hiding (optional)
 import Control.Monad
-import Control.Monad.Reader (runReaderT, ask)
+import Control.Monad.Reader
 import Data.Binary.Put (runPut)
 import Data.Bits
 import Data.List
@@ -38,8 +38,8 @@ data CompactBinaryProto
 data CompactBinaryV1Proto
 
 class TaggedProtocol t => CompactProtocol t where
-    getListHeader :: BondGet t (ReaderM t) (BondDataType, Int)
-    putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut t (WriterM t)
+    getListHeader :: ReaderM t ~ ReaderT c B.Get => BondGet t (BondDataType, Int)
+    putListHeader :: (Integral a, FiniteBits a, WriterM t ~ ReaderT c B.PutM) => BondDataType -> a -> BondPut t
 
 instance CompactProtocol CompactBinaryProto where
     getListHeader = do
@@ -71,8 +71,8 @@ instance TaggedProtocol CompactBinaryProto where
     skipType = compactSkipType
 
 instance BondProto CompactBinaryProto where
-    type ReaderM CompactBinaryProto = B.Get
-    type WriterM CompactBinaryProto = B.PutM
+    type ReaderM CompactBinaryProto = ReaderT GetContext B.Get
+    type WriterM CompactBinaryProto = ReaderT PutContext B.PutM
 
     bondDecode = binaryDecode
     bondGetStruct = do
@@ -117,7 +117,7 @@ instance BondProto CompactBinaryProto where
     bondEncode = binaryEncode
     bondPutStruct v = do
         env <- BondPut ask
-        let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto B.PutM
+        let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
         let bs = runPut (runReaderT g env)
         putVarInt $ BL.length bs
         putLazyByteString bs
@@ -179,8 +179,8 @@ instance TaggedProtocol CompactBinaryV1Proto where
     skipType = compactSkipType
 
 instance BondProto CompactBinaryV1Proto where
-    type ReaderM CompactBinaryV1Proto = B.Get
-    type WriterM CompactBinaryV1Proto = B.PutM
+    type ReaderM CompactBinaryV1Proto = ReaderT GetContext B.Get
+    type WriterM CompactBinaryV1Proto = ReaderT PutContext B.PutM
 
     bondDecode = binaryDecode
     bondGetStruct = getStruct TopLevelStruct
@@ -257,7 +257,7 @@ instance BondProto CompactBinaryV1Proto where
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
 
-getCompactFieldHeader :: BondGet t B.Get (BondDataType, Ordinal)
+getCompactFieldHeader :: (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t (BondDataType, Ordinal)
 getCompactFieldHeader = do
     tag <- getWord8
     case tag `shiftR` 5 of
@@ -269,7 +269,7 @@ getCompactFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putCompactFieldHeader :: BondDataType -> Ordinal -> BondPut t B.PutM
+putCompactFieldHeader :: (BondProto t, WriterM t ~ ReaderT c B.PutM) => BondDataType -> Ordinal -> BondPut t
 putCompactFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
@@ -281,25 +281,25 @@ putCompactFieldHeader t (Ordinal n) =
                     putWord8 $ tbits .|. 0xE0
                     putWord16le n
 
-getBlob :: (CompactProtocol t, ReaderM t ~ B.Get) => BondGet t B.Get Blob
+getBlob :: (CompactProtocol t, ReaderM t ~ ReaderT c B.Get) => BondGet t Blob
 getBlob = do
     (t, n) <- getListHeader
     unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
     Blob <$> getByteString n
 
-getList :: (CompactProtocol t, ProtoR t m, BondSerializable a) => BondGet t m [a]
+getList :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, BondSerializable a) => BondGet t [a]
 getList = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ replicateM n bondGet
 
-getVector :: (CompactProtocol t, ProtoR t m, BondSerializable a) => BondGet t m (Vector a)
+getVector :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, BondSerializable a) => BondGet t (Vector a)
 getVector = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ V.replicateM n bondGet
 
-getMap :: (TaggedProtocol t, ReaderM t ~ B.Get, Ord k, BondSerializable k, BondSerializable v) => BondGet t B.Get (Map k v)
+getMap :: (TaggedProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Ord k, BondSerializable k, BondSerializable v) => BondGet t (Map k v)
 getMap = do
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
@@ -311,7 +311,7 @@ getMap = do
         v <- getAs elemtype bondGet
         return (k, v)
 
-getBonded :: (TaggedProtocol t, ReaderM t ~ B.Get)  => BondGet t B.Get (Bonded a)
+getBonded :: (TaggedProtocol t, ReaderM t ~ ReaderT c B.Get)  => BondGet t (Bonded a)
 getBonded = do
     size <- lookAhead $ do
         start <- bytesRead
@@ -321,10 +321,10 @@ getBonded = do
     bs <- getLazyByteString (fromIntegral size)
     return $ BondedStream bs
 
-skipVarInt :: forall t. BondGet t B.Get ()
-skipVarInt = void (getVarInt :: BondGet t B.Get Word64)
+skipVarInt :: forall t c. (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t ()
+skipVarInt = void (getVarInt :: BondGet t Word64)
 
-compactSkipType :: (CompactProtocol t, ReaderM t ~ B.Get) => BondDataType -> BondGet t B.Get ()
+compactSkipType :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get) => BondDataType -> BondGet t ()
 compactSkipType t =
      if | t == bT_BOOL -> skip 1
         | t == bT_UINT8 -> skip 1
@@ -353,28 +353,28 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-putList :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, BondSerializable a) => [a] -> BondPut t B.PutM
+putList :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => [a] -> BondPut t
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     putAs t $ mapM_ bondPut xs
 
-putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, BondSerializable a) => HashSet a -> BondPut t B.PutM
+putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => HashSet a -> BondPut t
 putHashSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     putAs t $ mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, BondSerializable a) => Set a -> BondPut t B.PutM
+putSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Set a -> BondPut t
 putSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     putAs t $ mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (BondProto t, WriterM t ~ B.PutM, BondSerializable k, BondSerializable v) => Map k v -> BondPut t B.PutM
+putMap :: forall k v t. (BondProto t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable k, BondSerializable v) => Map k v -> BondPut t
 putMap m = do
     (tk, tv) <- checkPutMapType
 
@@ -385,9 +385,15 @@ putMap m = do
         putAs tk $ bondPut k
         putAs tv $ bondPut v
 
-putVector :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, BondSerializable a) => Vector a -> BondPut t B.PutM
+putVector :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Vector a -> BondPut t
 putVector xs = do
     t <- checkPutContainerType bT_LIST
 
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     putAs t $ V.mapM_ bondPut xs
+
+getVarInt :: (FiniteBits a, Num a, ReaderM t ~ ReaderT c B.Get) => BondGet t a
+getVarInt = BondGet $ lift $ U.getVarInt
+
+putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ReaderT c B.PutM) => a -> BondPut t
+putVarInt = BondPut . lift . U.putVarInt

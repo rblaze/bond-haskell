@@ -5,15 +5,17 @@ module Data.Bond.SimpleBinaryProto (
     ) where
 
 import Data.Bond.Cast
-import Data.Bond.Monads
+--import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.Types
-import Data.Bond.Utils
+import qualified Data.Bond.Utils as U
 
 import Control.Applicative
 import Control.Monad
+import Data.Bits
 import Data.List
 import Data.Maybe
+import Data.Proxy
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -32,7 +34,7 @@ instance BondProto SimpleBinaryProto where
     type ReaderM SimpleBinaryProto = B.Get
     type WriterM SimpleBinaryProto = B.PutM
 
-    bondDecode = binaryDecode
+    bondDecode = decode
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -82,7 +84,7 @@ instance BondProto SimpleBinaryProto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
-    bondEncode = binaryEncode
+    bondEncode = encode
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -133,7 +135,7 @@ instance BondProto SimpleBinaryV1Proto where
     type ReaderM SimpleBinaryV1Proto = B.Get
     type WriterM SimpleBinaryV1Proto = B.PutM
 
-    bondDecode = binaryDecode
+    bondDecode = decode
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -183,7 +185,7 @@ instance BondProto SimpleBinaryV1Proto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
-    bondEncode = binaryEncode
+    bondEncode = encode
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -229,3 +231,58 @@ instance BondProto SimpleBinaryV1Proto where
     bondPutBonded (BondedStream s) = do
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
+
+decode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ B.Get) => Proxy t -> BL.ByteString -> Either String a
+decode _ s =
+    let BondGet g = bondGetStruct :: BondGet t a
+     in case B.runGetOrFail g s of
+            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+            Right (_, _, a) -> Right a
+
+encode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ B.PutM) => Proxy t -> a -> Either String BL.ByteString
+encode _ a =
+    let BondPut g = bondPutStruct a :: BondPut t
+     in Right $ B.runPut g
+
+getWord8 :: ReaderM t ~ B.Get => BondGet t Word8
+getWord8 = BondGet B.getWord8
+
+getWord16le :: ReaderM t ~ B.Get => BondGet t Word16
+getWord16le = BondGet B.getWord16le
+
+getWord32le :: ReaderM t ~ B.Get => BondGet t Word32
+getWord32le = BondGet B.getWord32le
+
+getWord64le :: ReaderM t ~ B.Get => BondGet t Word64
+getWord64le = BondGet B.getWord64le
+
+getByteString :: ReaderM t ~ B.Get => Int -> BondGet t BS.ByteString
+getByteString = BondGet . B.getByteString
+
+getLazyByteString :: ReaderM t ~ B.Get => Int64 -> BondGet t BL.ByteString
+getLazyByteString = BondGet . B.getLazyByteString
+
+putWord8 :: WriterM t ~ B.PutM => Word8 -> BondPut t
+putWord8 = BondPut . B.putWord8
+
+putWord16le :: WriterM t ~ B.PutM => Word16 -> BondPut t
+putWord16le = BondPut . B.putWord16le
+
+putWord32le :: WriterM t ~ B.PutM => Word32 -> BondPut t
+putWord32le = BondPut . B.putWord32le
+
+putWord64le :: WriterM t ~ B.PutM => Word64 -> BondPut t
+putWord64le = BondPut . B.putWord64le
+
+putByteString :: WriterM t ~ B.PutM => BS.ByteString -> BondPut t
+putByteString = BondPut . B.putByteString
+
+putLazyByteString :: WriterM t ~ B.PutM => BL.ByteString -> BondPut t
+putLazyByteString = BondPut . B.putLazyByteString
+
+getVarInt :: (BondProto t, ReaderM t ~ B.Get, FiniteBits a, Num a) => BondGet t a
+getVarInt = BondGet U.getVarInt
+
+putVarInt :: (BondProto t, WriterM t ~ B.PutM, FiniteBits a, Integral a) => a -> BondPut t
+putVarInt = BondPut . U.putVarInt

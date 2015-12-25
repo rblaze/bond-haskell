@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, ConstraintKinds #-}
+{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies #-}
 module Data.Bond.TaggedProtocol where
 
 import qualified Data.Bond.Schema.FieldDef as FD
@@ -12,12 +12,13 @@ import Data.Bond.Schema.StructDef
 import Data.Bond.Default
 import Data.Bond.Monads
 import Data.Bond.Proto
+import Data.Bond.Schema (getSchema)
 import Data.Bond.Wire
 
 import Control.Applicative hiding (optional)
 import Control.Arrow ((&&&), second)
 import Control.Monad
-import Control.Monad.Reader (asks)
+import Control.Monad.Reader (ReaderT(..), asks)
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -25,20 +26,26 @@ import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
+import qualified Data.ByteString.Lazy as L
 import qualified Data.Map as M
 import qualified Data.Vector as V
 
 data StructLevel = TopLevelStruct | BaseStruct
     deriving (Show, Eq)
 
-class BondProto t => TaggedProtocol t where
-    putFieldHeader :: BondDataType -> Ordinal -> BondPut t (WriterM t)
-    getFieldHeader :: BondGet t (ReaderM t) (BondDataType, Ordinal)
-    skipStruct :: BondGet t (ReaderM t) ()
-    skipRestOfStruct :: BondGet t (ReaderM t) ()
-    skipType :: TaggedProtocol t => BondDataType -> BondGet t (ReaderM t) ()
+type GetContext = SchemaDef
+type BinReader = ReaderT GetContext B.Get
+type PutContext = (SchemaDef, M.Map Ordinal FD.FieldDef)
+type BinWriter = ReaderT PutContext B.PutM
 
-getStruct :: (TaggedProtocol t, ReaderM t ~ B.Get, BondStruct a) => StructLevel -> BondGet t B.Get a
+class BondProto t => TaggedProtocol t where
+    putFieldHeader :: BondDataType -> Ordinal -> BondPut t
+    getFieldHeader :: BondGet t (BondDataType, Ordinal)
+    skipStruct :: BondGet t ()
+    skipRestOfStruct :: BondGet t ()
+    skipType :: TaggedProtocol t => BondDataType -> BondGet t ()
+
+getStruct :: (TaggedProtocol t, ReaderM t ~ BinReader, BondStruct a) => StructLevel -> BondGet t a
 getStruct level = do
     rootT <- checkGetType bT_STRUCT
     schemaStructs <- BondGet (asks structs)
@@ -66,7 +73,7 @@ getStruct level = do
 
     loop base
 
-putStruct :: (TaggedProtocol t, WriterM t ~ B.PutM, BondStruct a) => StructLevel -> a -> BondPut t B.PutM
+putStruct :: (TaggedProtocol t, WriterM t ~ BinWriter, BondStruct a) => StructLevel -> a -> BondPut t
 putStruct level a = do
     t <- checkPutType bT_STRUCT
     schema <- BondPut (asks fst)
@@ -78,7 +85,7 @@ putStruct level a = do
         TopLevelStruct -> putTag bT_STOP
         BaseStruct -> putTag bT_STOP_BASE
 
-putBaseStruct :: (TaggedProtocol t, WriterM t ~ B.PutM, BondStruct a) => a -> BondPut t B.PutM
+putBaseStruct :: (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondStruct a) => a -> BondPut t
 putBaseStruct v = do
     rootT <- checkPutType bT_STRUCT
     schemaStructs <- BondPut (asks $ structs . fst)
@@ -87,7 +94,7 @@ putBaseStruct v = do
         Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
         Just t -> putAs t $ putStruct BaseStruct v
 
-putField :: forall a t m. (TaggedProtocol t, ProtoW t m, BondSerializable a) => Ordinal -> a -> BondPut t (WriterM t)
+putField :: forall a t. (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Ordinal -> a -> BondPut t
 putField n a = do
     fieldTypes <- BondPut (asks snd)
     let Just f = M.lookup n fieldTypes
@@ -101,7 +108,7 @@ putField n a = do
         putFieldHeader tag n
         putAs t $ bondPut a
 
-putTag :: BondDataType -> BondPut t B.PutM
+putTag :: WriterM t ~ ReaderT c B.PutM => BondDataType -> BondPut t
 putTag = putWord8 . fromIntegral . fromEnum
 
 checkSchemaMismatch :: (Eq a, Show a, Monad f) => a -> a -> f ()
@@ -109,31 +116,31 @@ checkSchemaMismatch schemaType streamType =
     unless (schemaType == streamType) $
         fail $ "Schema do not match stream: stream/struct type " ++ show streamType ++ ", schema type " ++ show schemaType
 
-checkPutType :: ProtoW t m => BondDataType -> BondPutM t (WriterM t) TD.TypeDef
+checkPutType :: (Monad m, WriterM t ~ ReaderT PutContext m) => BondDataType -> BondPutM t TD.TypeDef
 checkPutType expected = do
     t <- BondPut $ asks (root . fst)
     checkSchemaMismatch (TD.id t) expected
     return t
 
-checkGetType :: ProtoR t m => BondDataType -> BondGet t (ReaderM t) TD.TypeDef
+checkGetType :: (Monad m, ReaderM t ~ ReaderT GetContext m) => BondDataType -> BondGet t TD.TypeDef
 checkGetType expected = do
     t <- BondGet $ asks root
     checkSchemaMismatch (TD.id t) expected
     return t
 
-checkElementGetType :: ProtoR t m => BondDataType -> BondGet t (ReaderM t) TD.TypeDef
+checkElementGetType :: (Monad m, ReaderM t ~ ReaderT GetContext m) => BondDataType -> BondGet t TD.TypeDef
 checkElementGetType expected = do
     t <- BondGet $ asks (TD.element . root)
     checkSchemaMismatch (TD.id <$> t) (Just expected)
     return (fromJust t)
 
-checkKeyGetType :: ProtoR t m => BondDataType -> BondGet t (ReaderM t) TD.TypeDef
+checkKeyGetType :: (Monad m, ReaderM t ~ ReaderT GetContext m) => BondDataType -> BondGet t TD.TypeDef
 checkKeyGetType expected = do
     t <- BondGet $ asks (TD.key . root)
     checkSchemaMismatch (TD.id <$> t) (Just expected)
     return (fromJust t)
 
-checkPutContainerType :: ProtoW t m => BondDataType -> BondPutM t (WriterM t) TD.TypeDef
+checkPutContainerType :: (Monad m, WriterM t ~ ReaderT PutContext m) => BondDataType -> BondPutM t TD.TypeDef
 checkPutContainerType expected = do
     t <- checkPutType expected
     let elementT = TD.element t
@@ -141,7 +148,7 @@ checkPutContainerType expected = do
         " expected to be container, but has no element type defined"
     return (fromJust elementT)
 
-checkPutMapType :: ProtoW t m => BondPutM t (WriterM t) (TD.TypeDef, TD.TypeDef)
+checkPutMapType :: (Monad m, WriterM t ~ ReaderT PutContext m) => BondPutM t (TD.TypeDef, TD.TypeDef)
 checkPutMapType = do
     t <- checkPutType bT_MAP
     let keyT = TD.key t
@@ -149,8 +156,23 @@ checkPutMapType = do
     when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
     return (fromJust keyT, fromJust elementT)
 
-getAs :: ProtoR t m => TD.TypeDef -> BondGet t (ReaderM t) a -> BondGet t (ReaderM t) a
+getAs :: (Monad m, ReaderM t ~ ReaderT GetContext m) => TD.TypeDef -> BondGet t a -> BondGet t a
 getAs typedef = glocal (\s -> s{root = typedef})
 
-putAs :: ProtoW t m => TD.TypeDef -> BondPut t (WriterM t) -> BondPut t (WriterM t)
+putAs :: (Monad m, WriterM t ~ ReaderT PutContext m) => TD.TypeDef -> BondPut t -> BondPut t
 putAs typedef = plocal $ \(s, _) -> (s{root = typedef}, error "uninitialized cache")
+
+binaryDecode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT GetContext B.Get) => Proxy t -> L.ByteString -> Either String a
+binaryDecode _ s =
+    let BondGet g = bondGetStruct :: BondGet t a
+        schema = getSchema (Proxy :: Proxy a)
+     in case B.runGetOrFail (runReaderT g schema) s of
+            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+            Right (rest, used, _) | not (L.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (L.length rest)
+            Right (_, _, a) -> Right a
+
+binaryEncode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT PutContext B.PutM) => Proxy t -> a -> Either String L.ByteString
+binaryEncode _ a =
+    let BondPut g = bondPutStruct a :: BondPut t
+        schema = getSchema (Proxy :: Proxy a)
+     in Right $ B.runPut (runReaderT g (schema, error "Thou shalt not touch this"))

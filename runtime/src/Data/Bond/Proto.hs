@@ -1,42 +1,53 @@
-{-# LANGUAGE ScopedTypeVariables, TypeFamilies, ConstraintKinds #-}
+{-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies #-}
 module Data.Bond.Proto (
         BondSerializable(..),
         BondStruct(..),
         BondProto(..),
-        ProtoR,
-        ProtoW
+        BondGet(..),
+        BondPutM(..),
+        BondPut
   ) where
 
 import Data.Bond.Default
-import Data.Bond.Monads
 import {-# SOURCE #-} Data.Bond.Schema
 import Data.Bond.Types
 import Data.Bond.Wire
+
+import Control.Applicative
 import Data.Hashable
 import Data.Proxy
+import Prelude
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
--- Functor context below is for ghc 7.8 (lts-2.22) which can't get it from Monad
-type ProtoR t m = (BondProto t, Functor m, Monad m, ReaderM t ~ m)
-type ProtoW t m = (BondProto t, Monad m, WriterM t ~ m)
+newtype BondGet t a = BondGet ((ReaderM t) a)
+deriving instance (Functor (ReaderM t)) => Functor (BondGet t)
+deriving instance (Applicative (ReaderM t)) => Applicative (BondGet t)
+deriving instance (Monad (ReaderM t)) => Monad (BondGet t)
+
+newtype BondPutM t a = BondPut ((WriterM t) a)
+deriving instance (Functor (WriterM t)) => Functor (BondPutM t)
+deriving instance (Applicative (WriterM t)) => Applicative (BondPutM t)
+deriving instance (Monad (WriterM t)) => Monad (BondPutM t)
+
+type BondPut t = BondPutM t ()
 
 class (Default a, WireType a) => BondSerializable a where
     -- | Read field value.
-    bondGet :: ProtoR t m => BondGet t (ReaderM t) a
+    bondGet :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
     -- | Put field into stream.
-    bondPut :: BondProto t => a -> BondPut t (WriterM t)
+    bondPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
 
 class (Default a, BondSerializable a, Schemable a) => BondStruct a where
     -- | Read struct from untagged stream
-    bondStructGetUntagged :: ProtoR t m => BondGet t (ReaderM t) a
-    bondStructGetBase :: ProtoR t m => a -> BondGet t (ReaderM t) a
-    bondStructGetField :: ProtoR t m => Ordinal -> a -> BondGet t (ReaderM t) a
+    bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
+    bondStructGetBase :: (Monad (ReaderM t), BondProto t) => a -> BondGet t a
+    bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => Ordinal -> a -> BondGet t a
     -- | Put struct
-    bondStructPut :: ProtoW t m => a -> BondPut t (WriterM t)
+    bondStructPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
 
 class BondProto t where
     type ReaderM t :: * -> *
@@ -46,61 +57,61 @@ class BondProto t where
     -- | run encoder
     bondEncode :: BondStruct a => Proxy t -> a -> Either String BS.ByteString
     -- | encode top-level struct
-    bondPutStruct :: BondStruct a => a -> BondPut t (WriterM t)
+    bondPutStruct :: BondStruct a => a -> BondPut t
     -- | encode base struct
-    bondPutBaseStruct :: BondStruct a => a -> BondPut t (WriterM t)
+    bondPutBaseStruct :: BondStruct a => a -> BondPut t
     -- | decode top-level struct
-    bondGetStruct :: BondStruct a => BondGet t (ReaderM t) a
+    bondGetStruct :: BondStruct a => BondGet t a
     -- | decode top-level struct
-    bondGetBaseStruct :: BondStruct a => BondGet t (ReaderM t) a
+    bondGetBaseStruct :: BondStruct a => BondGet t a
 
-    bondPutField :: BondSerializable a => Ordinal -> a -> BondPut t (WriterM t)
-    bondPutDefNothingField :: BondSerializable a => Ordinal -> Maybe a -> BondPut t (WriterM t)
+    bondPutField :: BondSerializable a => Ordinal -> a -> BondPut t
+    bondPutDefNothingField :: BondSerializable a => Ordinal -> Maybe a -> BondPut t
 
-    bondPutBool :: Bool -> BondPut t (WriterM t)
-    bondPutUInt8 :: Word8 -> BondPut t (WriterM t)
-    bondPutUInt16 :: Word16 -> BondPut t (WriterM t)
-    bondPutUInt32 :: Word32 -> BondPut t (WriterM t)
-    bondPutUInt64 :: Word64 -> BondPut t (WriterM t)
-    bondPutInt8 :: Int8 -> BondPut t (WriterM t)
-    bondPutInt16 :: Int16 -> BondPut t (WriterM t)
-    bondPutInt32 :: Int32 -> BondPut t (WriterM t)
-    bondPutInt64 :: Int64 -> BondPut t (WriterM t)
-    bondPutFloat :: Float -> BondPut t (WriterM t)
-    bondPutDouble :: Double -> BondPut t (WriterM t)
-    bondPutString :: Utf8 -> BondPut t (WriterM t)
-    bondPutWString :: Utf16 -> BondPut t (WriterM t)
-    bondPutBlob :: Blob -> BondPut t (WriterM t)
-    bondPutList :: BondSerializable a => [a] -> BondPut t (WriterM t)
-    bondPutVector :: BondSerializable a => V.Vector a -> BondPut t (WriterM t)
-    bondPutHashSet :: BondSerializable a => H.HashSet a -> BondPut t (WriterM t)
-    bondPutSet :: BondSerializable a => S.Set a -> BondPut t (WriterM t)
-    bondPutMap :: (BondSerializable k, BondSerializable v) => M.Map k v -> BondPut t (WriterM t)
-    bondPutNullable :: BondSerializable a => Maybe a -> BondPut t (WriterM t)
-    bondPutBonded :: BondStruct a => Bonded a -> BondPut t (WriterM t)
+    bondPutBool :: Bool -> BondPut t
+    bondPutUInt8 :: Word8 -> BondPut t
+    bondPutUInt16 :: Word16 -> BondPut t
+    bondPutUInt32 :: Word32 -> BondPut t
+    bondPutUInt64 :: Word64 -> BondPut t
+    bondPutInt8 :: Int8 -> BondPut t
+    bondPutInt16 :: Int16 -> BondPut t
+    bondPutInt32 :: Int32 -> BondPut t
+    bondPutInt64 :: Int64 -> BondPut t
+    bondPutFloat :: Float -> BondPut t
+    bondPutDouble :: Double -> BondPut t
+    bondPutString :: Utf8 -> BondPut t
+    bondPutWString :: Utf16 -> BondPut t
+    bondPutBlob :: Blob -> BondPut t
+    bondPutList :: BondSerializable a => [a] -> BondPut t
+    bondPutVector :: BondSerializable a => V.Vector a -> BondPut t
+    bondPutHashSet :: BondSerializable a => H.HashSet a -> BondPut t
+    bondPutSet :: BondSerializable a => S.Set a -> BondPut t
+    bondPutMap :: (BondSerializable k, BondSerializable v) => M.Map k v -> BondPut t
+    bondPutNullable :: BondSerializable a => Maybe a -> BondPut t
+    bondPutBonded :: BondStruct a => Bonded a -> BondPut t
 
-    bondGetBool :: BondGet t (ReaderM t) Bool
-    bondGetUInt8 :: BondGet t (ReaderM t) Word8
-    bondGetUInt16 :: BondGet t (ReaderM t) Word16
-    bondGetUInt32 :: BondGet t (ReaderM t) Word32
-    bondGetUInt64 :: BondGet t (ReaderM t) Word64
-    bondGetInt8 :: BondGet t (ReaderM t) Int8
-    bondGetInt16 :: BondGet t (ReaderM t) Int16
-    bondGetInt32 :: BondGet t (ReaderM t) Int32
-    bondGetInt64 :: BondGet t (ReaderM t) Int64
-    bondGetFloat :: BondGet t (ReaderM t) Float
-    bondGetDouble :: BondGet t (ReaderM t) Double
-    bondGetString :: BondGet t (ReaderM t) Utf8
-    bondGetWString :: BondGet t (ReaderM t) Utf16
-    bondGetBlob :: BondGet t (ReaderM t) Blob
-    bondGetList :: BondSerializable a => BondGet t (ReaderM t) [a]
-    bondGetVector :: BondSerializable a => BondGet t (ReaderM t) (V.Vector a)
-    bondGetHashSet :: (Eq a, Hashable a, BondSerializable a) => BondGet t (ReaderM t) (H.HashSet a)
-    bondGetSet :: (Ord a, BondSerializable a) => BondGet t (ReaderM t) (S.Set a)
-    bondGetMap :: (Ord k, BondSerializable k, BondSerializable v) => BondGet t (ReaderM t) (M.Map k v)
-    bondGetNullable :: BondSerializable a => BondGet t (ReaderM t) (Maybe a)
-    bondGetDefNothing :: BondSerializable a => BondGet t (ReaderM t) (Maybe a)
-    bondGetBonded :: BondStruct a => BondGet t (ReaderM t) (Bonded a)
+    bondGetBool :: BondGet t Bool
+    bondGetUInt8 :: BondGet t Word8
+    bondGetUInt16 :: BondGet t Word16
+    bondGetUInt32 :: BondGet t Word32
+    bondGetUInt64 :: BondGet t Word64
+    bondGetInt8 :: BondGet t Int8
+    bondGetInt16 :: BondGet t Int16
+    bondGetInt32 :: BondGet t Int32
+    bondGetInt64 :: BondGet t Int64
+    bondGetFloat :: BondGet t Float
+    bondGetDouble :: BondGet t Double
+    bondGetString :: BondGet t Utf8
+    bondGetWString :: BondGet t Utf16
+    bondGetBlob :: BondGet t Blob
+    bondGetList :: BondSerializable a => BondGet t [a]
+    bondGetVector :: BondSerializable a => BondGet t (V.Vector a)
+    bondGetHashSet :: (Eq a, Hashable a, BondSerializable a) => BondGet t (H.HashSet a)
+    bondGetSet :: (Ord a, BondSerializable a) => BondGet t (S.Set a)
+    bondGetMap :: (Ord k, BondSerializable k, BondSerializable v) => BondGet t (M.Map k v)
+    bondGetNullable :: BondSerializable a => BondGet t (Maybe a)
+    bondGetDefNothing :: BondSerializable a => BondGet t (Maybe a)
+    bondGetBonded :: BondStruct a => BondGet t (Bonded a)
 
 instance BondSerializable Float where
     bondGet = bondGetFloat
