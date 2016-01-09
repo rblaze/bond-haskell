@@ -15,6 +15,7 @@ module Data.Bond.Types (
     Int8,
     Maybe,
     M.Map,
+    Ordinal(..),
     Utf16(..),
     Utf8(..),
     V.Vector,
@@ -61,3 +62,6 @@ data Bonded a = BondedStream Lazy.ByteString | BondedObject a
 instance Show a => Show (Bonded a) where
     show BondedStream{} = "BondedStream"
     show (BondedObject v) = show v
+
+newtype Ordinal = Ordinal Word16
+    deriving (Eq, Ord, Show)

@@ -116,7 +116,7 @@ instance BondProto CompactBinaryProto where
 
     bondEncode = binaryEncode
     bondPutStruct v = do
-        env <- BondPut ask
+        env <- ask
         let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
         let bs = runPut (runReaderT g env)
         putVarInt $ BL.length bs

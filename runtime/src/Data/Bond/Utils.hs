@@ -2,6 +2,7 @@
 module Data.Bond.Utils where
 
 import Control.Applicative
+import Control.Monad
 import Data.Bits
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
@@ -24,3 +25,8 @@ putVarInt i = let iLow = fromIntegral $ i .&. 0x7F
                in do
                     putWord8 $ iLow `setBit` 7
                     putVarInt (i `shiftR` 7)
+
+checkSchemaMismatch :: (Eq a, Show a, Monad f) => a -> a -> f ()
+checkSchemaMismatch schemaType streamType =
+    unless (schemaType == streamType) $
+        fail $ "Schema do not match stream: stream/struct type " ++ show streamType ++ ", schema type " ++ show schemaType

@@ -6,6 +6,7 @@ module Data.Bond (
     CompactBinaryProto,
     CompactBinaryV1Proto,
     FastBinaryProto,
+    JsonProto,
     SimpleBinaryProto,
     SimpleBinaryV1Proto,
     bondRead,
@@ -15,6 +16,7 @@ module Data.Bond (
 
 import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
+import Data.Bond.JsonProto
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto

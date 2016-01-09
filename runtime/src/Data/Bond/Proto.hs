@@ -1,4 +1,4 @@
-{-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies, FlexibleInstances, MultiParamTypeClasses #-}
 module Data.Bond.Proto (
         BondSerializable(..),
         BondStruct(..),
@@ -14,6 +14,8 @@ import Data.Bond.Types
 import Data.Bond.Wire
 
 import Control.Applicative
+import Control.Monad.Reader.Class
+import Control.Monad.State.Class
 import Data.Hashable
 import Data.Proxy
 import Prelude
@@ -27,11 +29,15 @@ newtype BondGet t a = BondGet ((ReaderM t) a)
 deriving instance (Functor (ReaderM t)) => Functor (BondGet t)
 deriving instance (Applicative (ReaderM t)) => Applicative (BondGet t)
 deriving instance (Monad (ReaderM t)) => Monad (BondGet t)
+deriving instance (MonadReader r (ReaderM t)) => MonadReader r (BondGet t)
+deriving instance (MonadState s (ReaderM t)) => MonadState s (BondGet t)
 
 newtype BondPutM t a = BondPut ((WriterM t) a)
 deriving instance (Functor (WriterM t)) => Functor (BondPutM t)
 deriving instance (Applicative (WriterM t)) => Applicative (BondPutM t)
 deriving instance (Monad (WriterM t)) => Monad (BondPutM t)
+deriving instance (MonadReader r (WriterM t)) => MonadReader r (BondPutM t)
+deriving instance (MonadState s (WriterM t)) => MonadState s (BondPutM t)
 
 type BondPut t = BondPutM t ()
 

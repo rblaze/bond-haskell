@@ -39,26 +39,34 @@ tests = testGroup "Haskell runtime tests"
           testGroup "FastBinary"
             [ testCase "read/write Compat value" $
                 readCompat (Proxy :: Proxy FastBinaryProto) "compat.fast.dat",
-              testCase "read/write BasicTypes value" $
+              testCase "read BasicTypes value" $
                 readAsType (Proxy :: Proxy FastBinaryProto) (Proxy :: Proxy BasicTypes) "compat.fast.dat",
-              testCase "read/write Another value" $
+              testCase "read Another value" $
                 readAsType (Proxy :: Proxy FastBinaryProto) (Proxy :: Proxy Another) "compat.fast.dat"
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
                 readCompat (Proxy :: Proxy CompactBinaryProto) "compat.compact2.dat",
-              testCase "read/write BasicTypes value" $
+              testCase "read BasicTypes value" $
                 readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
-              testCase "read/write Another value" $
+              testCase "read Another value" $
                 readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy Another) "compat.compact2.dat"
             ],
           testGroup "CompactBinary v1"
             [ testCase "read/write Compat value" $
                 readCompat (Proxy :: Proxy CompactBinaryV1Proto) "compat.compact.dat",
-              testCase "read/write BasicTypes value" $
+              testCase "read BasicTypes value" $
                 readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy BasicTypes) "compat.compact.dat",
-              testCase "read/write Another value" $
+              testCase "read Another value" $
                 readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy Another) "compat.compact.dat"
+            ],
+          testGroup "JSON"
+            [ testCase "read/write Compat value" $
+                readCompat (Proxy :: Proxy JsonProto) "compat.json.dat",
+              testCase "read BasicTypes value" $
+                readAsType (Proxy :: Proxy JsonProto) (Proxy :: Proxy BasicTypes) "compat.json.dat",
+              testCase "read Another value" $
+                readAsType (Proxy :: Proxy JsonProto) (Proxy :: Proxy Another) "compat.json.dat"
             ],
           testGroup "ZigZag encoding"
             [ testProperty "Int16" zigzagInt16,

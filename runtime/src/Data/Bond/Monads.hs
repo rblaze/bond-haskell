@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts #-}
 module Data.Bond.Monads where
 
 import Data.Bond.Proto
@@ -15,12 +15,12 @@ import qualified Data.ByteString.Lazy as BL
 isolate :: ReaderM t ~ ReaderT c B.Get => Int -> BondGet t a -> BondGet t a
 isolate _ = Prelude.id
 --isolate n (BondGet g) = do
---    env <- BondGet ask
+--    env <- ask
 --    BondGet $ lift $ B.isolate n (runReaderT g env)
 
 lookAhead :: ReaderM t ~ ReaderT c B.Get => BondGet t a -> BondGet t a
 lookAhead (BondGet g) = do
-    env <- BondGet ask
+    env <- ask
     BondGet $ lift $ B.lookAhead (runReaderT g env)
 
 skip :: ReaderM t ~ ReaderT c B.Get => Int -> BondGet t ()
@@ -64,9 +64,3 @@ putByteString = BondPut . lift . B.putByteString
 
 putLazyByteString :: WriterM t ~ ReaderT c B.PutM => BL.ByteString -> BondPut t
 putLazyByteString = BondPut . lift . B.putLazyByteString
-
-glocal :: (Monad m, ReaderM t ~ ReaderT c m) => (c -> c) -> BondGet t a -> BondGet t a
-glocal f (BondGet g) = BondGet (local f g)
-
-plocal :: (Monad m, WriterM t ~ ReaderT c m) => (c -> c) -> BondPut t -> BondPut t
-plocal f (BondPut g) = BondPut (local f g)

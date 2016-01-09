@@ -1,6 +1,5 @@
 {-# Language ScopedTypeVariables #-}
 module Data.Bond.Wire (
-    Ordinal(..),
     WireType(..),
     bT_STRUCT
   ) where
@@ -33,6 +32,3 @@ instance WireType (HashSet a) where getWireType _ = bT_SET
 instance WireType (Set a) where getWireType _ = bT_SET
 instance WireType (Vector a) where getWireType _ = bT_LIST
 instance WireType (Bonded a) where getWireType _ = bT_STRUCT
-
-newtype Ordinal = Ordinal Word16
-    deriving (Eq, Ord, Show)

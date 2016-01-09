@@ -29,6 +29,7 @@ library
                        Data.Bond.CompactBinaryProto
                        Data.Bond.Default
                        Data.Bond.FastBinaryProto
+                       Data.Bond.JsonProto
                        Data.Bond.Monads
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
@@ -46,12 +47,15 @@ library
                        Data.Bond.Schema.Variant
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
+                     , aeson
                      , array
                      , binary >= 0.7.0.0
                      , bytestring >= 0.10
                      , containers >= 0.4
+                     , extra >= 1.0
                      , hashable >= 1.0
                      , mtl >= 2.1
+                     , scientific
                      , text >= 0.11
                      , unordered-containers >= 0.2
                      , vector >= 0.10
@@ -63,6 +67,7 @@ test-suite bond-haskell-test
   hs-source-dirs:      test
   main-is:             Spec.hs
   build-depends:       base
+                     , aeson
                      , bond-haskell
                      , bytestring >= 0.10
                      , filepath >= 1.0
