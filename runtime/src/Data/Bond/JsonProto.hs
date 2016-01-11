@@ -14,6 +14,7 @@ import qualified Data.Bond.Schema.FieldDef as FD
 import qualified Data.Bond.Schema.TypeDef as TD
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Metadata
+import Data.Bond.Schema.Modifier
 import Data.Bond.Schema.SchemaDef
 import Data.Bond.Schema.StructDef
 
@@ -269,12 +270,14 @@ putField n a = do
     let tag = getWireType (Proxy :: Proxy a)
     checkSchemaMismatch (TD.id t) tag
 
-    -- XXX omit optional fields?
-    let Utf8 fieldName = M.findWithDefault (name $ FD.metadata f) (fromString "JsonName") (attributes $ FD.metadata f)
-    Object obj <- get
-    putAs t $ bondPut a
-    v <- get
-    put $ Object $ HM.insert (decodeUtf8 fieldName) v obj
+    let needToSave = not (equalToDefault (default_value $ FD.metadata f) a) ||
+           modifier (FD.metadata f) /= optional
+    when needToSave $ do
+        let Utf8 fieldName = M.findWithDefault (name $ FD.metadata f) (fromString "JsonName") (attributes $ FD.metadata f)
+        Object obj <- get
+        putAs t $ bondPut a
+        v <- get
+        put $ Object $ HM.insert (decodeUtf8 fieldName) v obj
 
 putStruct :: BondStruct a => a -> BondPut JsonProto
 putStruct v = do

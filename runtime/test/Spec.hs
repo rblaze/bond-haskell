@@ -11,6 +11,7 @@ import Data.Proxy
 import Data.Word
 import System.FilePath
 import Test.Tasty
+import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as L
@@ -61,8 +62,8 @@ tests = testGroup "Haskell runtime tests"
                 readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy Another) "compat.compact.dat"
             ],
           testGroup "JSON"
-            [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy JsonProto) "compat.json.dat",
+            [ testJson "read/write original Compat value" "compat.json.dat",
+              testJson "read/write golden Compat value" "golden.json.dat",
               testCase "read BasicTypes value" $
                 readAsType (Proxy :: Proxy JsonProto) (Proxy :: Proxy BasicTypes) "compat.json.dat",
               testCase "read Another value" $
@@ -86,8 +87,30 @@ readCompat p f = do
         Right s -> let _ = s :: Compat -- type binding
                     in do
                         let Right d' = bondWrite p s
---                        L.writeFile ("/tmp" </> f) d'
+--                        L.writeFile ("/tmp" </> (f ++ ".out")) d'
                         assertEqual "serialized value do not match original" dat d'
+
+-- compat.json.dat file has several properties making it incompatible with usual test:
+-- all float values saved with extra precision
+-- double values are saved in a way different from one used by scientific
+-- fields are saved in declaration order, while aeson saves them in pseudorandom hash order
+-- optional fields with default values are present
+
+-- Golden file is manually checked to match compat data as best as it could
+
+testJson :: String -> FilePath -> TestTree
+testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ do
+    dat <- L.readFile (defaultDataPath </> f)
+    let p = Proxy :: Proxy JsonProto
+    let parse = bondRead p dat
+    case parse of
+        Left msg -> do
+            assertFailure msg
+            return L.empty
+        Right s -> let _ = s :: Compat -- type binding
+                    in do
+                        let Right d' = bondWrite p s
+                        return d'
 
 readAsType :: forall t a. (BondProto t, Schemable a, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
 readAsType p _ f = do

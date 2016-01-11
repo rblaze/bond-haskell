@@ -72,6 +72,7 @@ test-suite bond-haskell-test
                      , bytestring >= 0.10
                      , filepath >= 1.0
                      , tasty
+                     , tasty-golden
                      , tasty-hunit
                      , tasty-quickcheck
   ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
