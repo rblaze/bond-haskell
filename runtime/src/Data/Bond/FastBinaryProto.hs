@@ -235,7 +235,7 @@ putVector xs = do
     putAs t $ V.mapM_ bondPut xs
 
 getVarInt :: (FiniteBits a, Num a) => BondGet FastBinaryProto a
-getVarInt = BondGet $ lift $ U.getVarInt
+getVarInt = BondGet $ lift U.getVarInt
 
 putVarInt :: (FiniteBits a, Integral a) => a -> BondPut FastBinaryProto
 putVarInt = BondPut . lift . U.putVarInt

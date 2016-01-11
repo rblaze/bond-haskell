@@ -393,7 +393,7 @@ putVector xs = do
     putAs t $ V.mapM_ bondPut xs
 
 getVarInt :: (FiniteBits a, Num a, ReaderM t ~ ReaderT c B.Get) => BondGet t a
-getVarInt = BondGet $ lift $ U.getVarInt
+getVarInt = BondGet $ lift U.getVarInt
 
 putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ReaderT c B.PutM) => a -> BondPut t
 putVarInt = BondPut . lift . U.putVarInt
