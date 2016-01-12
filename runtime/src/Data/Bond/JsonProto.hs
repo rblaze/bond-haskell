@@ -7,7 +7,7 @@ import Data.Bond.Default
 import Data.Bond.Proto
 import Data.Bond.Schema (getSchema)
 import Data.Bond.Types
-import Data.Bond.Utils
+import Data.Bond.ContextWriter
 import Data.Bond.Wire
 
 import qualified Data.Bond.Schema.FieldDef as FD
@@ -48,7 +48,6 @@ data JsonProto
 data ReaderCtx = ReaderCtx { rdSchema :: SchemaDef, rdValue :: Value }
 type ReadM = ReaderT ReaderCtx Parser
 
-data PutContext = PutContext { putSchema :: SchemaDef, putFields :: M.Map Ordinal FD.FieldDef }
 type WriteM = RWS PutContext () Value
 
 instance BondProto JsonProto where
@@ -236,31 +235,6 @@ parseStruct = do
                     Nothing -> return s
                     Just v -> getAsTypeValue (FD.typedef f) v $ bondStructGetField ordinal s
         foldM parseField base (fields struct)
-
-checkPutType :: MonadReader PutContext (WriterM t) => BondDataType -> BondPutM t TD.TypeDef
-checkPutType expected = do
-    t <- asks (root . putSchema)
-    checkSchemaMismatch (TD.id t) expected
-    return t
-
-checkPutContainerType :: MonadReader PutContext (WriterM t) => BondDataType -> BondPutM t TD.TypeDef
-checkPutContainerType expected = do
-    t <- checkPutType expected
-    let elementT = TD.element t
-    when (isNothing elementT) $ fail $ "Malformed schema: " ++ show expected ++
-        " expected to be container, but has no element type defined"
-    return (fromJust elementT)
-
-checkPutMapType :: MonadReader PutContext (WriterM t) => BondPutM t (TD.TypeDef, TD.TypeDef)
-checkPutMapType = do
-    t <- checkPutType bT_MAP
-    let keyT = TD.key t
-    let elementT = TD.element t
-    when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
-    return (fromJust keyT, fromJust elementT)
-
-putAs :: MonadReader PutContext (WriterM t) => TD.TypeDef -> BondPut t -> BondPut t
-putAs typedef = local $ \ctx -> PutContext (putSchema ctx){root = typedef} (error "uninitialized cache")
 
 putField :: forall a . BondSerializable a => Ordinal -> a -> BondPut JsonProto
 putField n a = do

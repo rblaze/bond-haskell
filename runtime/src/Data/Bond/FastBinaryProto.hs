@@ -3,20 +3,18 @@ module Data.Bond.FastBinaryProto (
         FastBinaryProto
     ) where
 
+import Data.Bond.BinaryUtils
 import Data.Bond.Cast
-import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Wire
-import qualified Data.Bond.Utils as U
 
 import Data.Bond.Schema.BondDataType
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Reader
-import Data.Bits
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -233,9 +231,3 @@ putVector xs = do
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ V.length xs
     putAs t $ V.mapM_ bondPut xs
-
-getVarInt :: (FiniteBits a, Num a) => BondGet FastBinaryProto a
-getVarInt = BondGet $ lift U.getVarInt
-
-putVarInt :: (FiniteBits a, Integral a) => a -> BondPut FastBinaryProto
-putVarInt = BondPut . lift . U.putVarInt

@@ -4,14 +4,13 @@ module Data.Bond.CompactBinaryProto (
         CompactBinaryV1Proto
     ) where
 
+import Data.Bond.BinaryUtils
 import Data.Bond.Cast
-import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Wire
 import Data.Bond.ZigZag
-import qualified Data.Bond.Utils as U
 
 import Control.Applicative hiding (optional)
 import Control.Monad
@@ -391,9 +390,3 @@ putVector xs = do
 
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     putAs t $ V.mapM_ bondPut xs
-
-getVarInt :: (FiniteBits a, Num a, ReaderM t ~ ReaderT c B.Get) => BondGet t a
-getVarInt = BondGet $ lift U.getVarInt
-
-putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ReaderT c B.PutM) => a -> BondPut t
-putVarInt = BondPut . lift . U.putVarInt

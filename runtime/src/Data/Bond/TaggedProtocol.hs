@@ -1,5 +1,8 @@
 {-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, FlexibleContexts #-}
-module Data.Bond.TaggedProtocol where
+module Data.Bond.TaggedProtocol (
+    module Data.Bond.TaggedProtocol,
+    module Data.Bond.ContextWriter
+  ) where
 
 import qualified Data.Bond.Schema.FieldDef as FD
 import qualified Data.Bond.Schema.TypeDef as TD
@@ -9,16 +12,16 @@ import Data.Bond.Schema.Modifier
 import Data.Bond.Schema.SchemaDef
 import Data.Bond.Schema.StructDef
 
+import Data.Bond.BinaryUtils
 import Data.Bond.Default
-import Data.Bond.Monads
 import Data.Bond.Proto
 import Data.Bond.Schema (getSchema)
 import Data.Bond.Types
-import Data.Bond.Utils
+import Data.Bond.ContextWriter
 import Data.Bond.Wire
 
 import Control.Applicative hiding (optional)
-import Control.Arrow ((&&&), second)
+import Control.Arrow ((&&&))
 import Control.Monad
 import Control.Monad.Reader
 import Data.List
@@ -37,7 +40,6 @@ data StructLevel = TopLevelStruct | BaseStruct
 
 type GetContext = SchemaDef
 type BinReader = ReaderT GetContext B.Get
-type PutContext = (SchemaDef, M.Map Ordinal FD.FieldDef)
 type BinWriter = ReaderT PutContext B.PutM
 
 class BondProto t => TaggedProtocol t where
@@ -78,11 +80,11 @@ getStruct level = do
 putStruct :: (TaggedProtocol t, WriterM t ~ BinWriter, BondStruct a) => StructLevel -> a -> BondPut t
 putStruct level a = do
     t <- checkPutType bT_STRUCT
-    schema <- asks fst
+    schema <- asks putSchema
     let struct = structs schema ! fromIntegral (TD.struct_def t)
     let fieldsInfo = M.fromList $ V.toList $ V.map (Ordinal . FD.id &&& id) $ fields struct
 
-    local (second (const fieldsInfo)) $ bondStructPut a
+    local (\ s -> s { putFields = fieldsInfo }) $ bondStructPut a
     case level of
         TopLevelStruct -> putTag bT_STOP
         BaseStruct -> putTag bT_STOP_BASE
@@ -90,7 +92,7 @@ putStruct level a = do
 putBaseStruct :: (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondStruct a) => a -> BondPut t
 putBaseStruct v = do
     rootT <- checkPutType bT_STRUCT
-    schemaStructs <- asks $ structs . fst
+    schemaStructs <- asks $ structs . putSchema
     let struct = schemaStructs ! fromIntegral (TD.struct_def rootT)
     case base_def struct of
         Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
@@ -98,7 +100,7 @@ putBaseStruct v = do
 
 putField :: forall a t. (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Ordinal -> a -> BondPut t
 putField n a = do
-    fieldTypes <- asks snd
+    fieldTypes <- asks putFields
     let Just f = M.lookup n fieldTypes
     let t = FD.typedef f
     let tag = getWireType (Proxy :: Proxy a)
@@ -112,12 +114,6 @@ putField n a = do
 
 putTag :: WriterM t ~ ReaderT c B.PutM => BondDataType -> BondPut t
 putTag = putWord8 . fromIntegral . fromEnum
-
-checkPutType :: MonadReader PutContext (WriterM t) => BondDataType -> BondPutM t TD.TypeDef
-checkPutType expected = do
-    t <- asks (root . fst)
-    checkSchemaMismatch (TD.id t) expected
-    return t
 
 checkGetType :: MonadReader GetContext (ReaderM t) => BondDataType -> BondGet t TD.TypeDef
 checkGetType expected = do
@@ -137,27 +133,8 @@ checkKeyGetType expected = do
     checkSchemaMismatch (TD.id <$> t) (Just expected)
     return (fromJust t)
 
-checkPutContainerType :: MonadReader PutContext (WriterM t) => BondDataType -> BondPutM t TD.TypeDef
-checkPutContainerType expected = do
-    t <- checkPutType expected
-    let elementT = TD.element t
-    when (isNothing elementT) $ fail $ "Malformed schema: " ++ show expected ++
-        " expected to be container, but has no element type defined"
-    return (fromJust elementT)
-
-checkPutMapType :: MonadReader PutContext (WriterM t) => BondPutM t (TD.TypeDef, TD.TypeDef)
-checkPutMapType = do
-    t <- checkPutType bT_MAP
-    let keyT = TD.key t
-    let elementT = TD.element t
-    when (isNothing keyT || isNothing elementT) $ fail "Malformed schema: map without key or value types"
-    return (fromJust keyT, fromJust elementT)
-
 getAs :: MonadReader GetContext (ReaderM t) => TD.TypeDef -> BondGet t a -> BondGet t a
 getAs typedef = local (\s -> s{root = typedef})
-
-putAs :: MonadReader PutContext (WriterM t) => TD.TypeDef -> BondPut t -> BondPut t
-putAs typedef = local $ \(s, _) -> (s{root = typedef}, error "uninitialized cache")
 
 binaryDecode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT GetContext B.Get) => Proxy t -> L.ByteString -> Either String a
 binaryDecode _ s =
@@ -172,4 +149,4 @@ binaryEncode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT PutC
 binaryEncode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
         schema = getSchema (Proxy :: Proxy a)
-     in Right $ B.runPut (runReaderT g (schema, error "Thou shalt not touch this"))
+     in Right $ B.runPut (runReaderT g (PutContext schema (error "Thou shalt not touch this")))

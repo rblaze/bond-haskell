@@ -25,17 +25,17 @@ library
                        Data.Bond.Imports
                        Data.Bond.Schema
                        Data.Bond.ZigZag
-  other-modules:       Data.Bond.Cast
+  other-modules:       Data.Bond.BinaryUtils
+                       Data.Bond.Cast
                        Data.Bond.CompactBinaryProto
+                       Data.Bond.ContextWriter
                        Data.Bond.Default
                        Data.Bond.FastBinaryProto
                        Data.Bond.JsonProto
-                       Data.Bond.Monads
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
                        Data.Bond.TaggedProtocol
                        Data.Bond.Types
-                       Data.Bond.Utils
                        Data.Bond.Wire
                        Data.Bond.Schema.BondDataType
                        Data.Bond.Schema.FieldDef

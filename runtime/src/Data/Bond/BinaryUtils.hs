@@ -1,11 +1,12 @@
 {-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts #-}
-module Data.Bond.Monads where
+module Data.Bond.BinaryUtils where
 
 import Data.Bond.Proto
 import Data.Bond.Types
 
 import Control.Monad.Trans
 import Control.Monad.Reader
+import Data.Bits
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
@@ -64,3 +65,20 @@ putByteString = BondPut . lift . B.putByteString
 
 putLazyByteString :: WriterM t ~ ReaderT c B.PutM => BL.ByteString -> BondPut t
 putLazyByteString = BondPut . lift . B.putLazyByteString
+
+getVarInt :: forall a t c. (FiniteBits a, Num a, ReaderM t ~ ReaderT c B.Get) => BondGet t a
+getVarInt = step 0
+    where
+    step n | n > finiteBitSize (0 :: a) `div` 7 = fail "VarInt: sequence too long"
+    step n = do
+        b <- fromIntegral <$> getWord8
+        rest <- if b `testBit` 7 then step (n + 1)  else return 0
+        return $ (b `clearBit` 7) .|. (rest `shiftL` 7)
+
+putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ReaderT c B.PutM) => a -> BondPut t
+putVarInt i | i < 0 = error "VarInt with negative value"
+putVarInt i | i < 128 = putWord8 $ fromIntegral i
+putVarInt i = let iLow = fromIntegral $ i .&. 0x7F
+               in do
+                    putWord8 $ iLow `setBit` 7
+                    putVarInt (i `shiftR` 7)
