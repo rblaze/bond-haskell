@@ -26,6 +26,7 @@ import Control.Monad.Reader
 import Control.Monad.RWS
 import Data.Aeson
 import Data.Aeson.Types
+import Data.Foldable
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -234,7 +235,7 @@ parseStruct = do
                 case HM.lookup (decodeUtf8 fieldName) obj of
                     Nothing -> return s
                     Just v -> getAsTypeValue (FD.typedef f) v $ bondStructGetField ordinal s
-        foldM parseField base (fields struct)
+        foldlM parseField base (fields struct)
 
 putField :: forall a . BondSerializable a => Ordinal -> a -> BondPut JsonProto
 putField n a = do

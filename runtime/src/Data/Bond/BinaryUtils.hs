@@ -4,9 +4,11 @@ module Data.Bond.BinaryUtils where
 import Data.Bond.Proto
 import Data.Bond.Types
 
+import Control.Applicative
 import Control.Monad.Trans
 import Control.Monad.Reader
 import Data.Bits
+import Prelude -- workaround for Control.Applicative in ghc 7.10
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
