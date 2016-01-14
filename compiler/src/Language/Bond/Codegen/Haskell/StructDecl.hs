@@ -160,9 +160,9 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
         ]
     bondSerializableDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "Default") declParams ++
-            map (typeParamConstraint $ implQual "BondSerializable") declParams ++
+            map (typeParamConstraint $ implQual "Serializable") declParams ++
             map (typeParamConstraint $ sQual "TypeDefGen") declParams)
-        (implQual "BondSerializable")
+        (implQual "Serializable")
         [makeType True typeName declParams]
         [InsDecl $
             patBind noLoc (PVar $ Ident "bondGet") $
@@ -173,7 +173,7 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
         ]
     bondStructDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "Default") declParams ++
-            map (typeParamConstraint $ implQual "BondSerializable") declParams ++
+            map (typeParamConstraint $ implQual "Serializable") declParams ++
             map (typeParamConstraint $ sQual "TypeDefGen") declParams)
         (implQual "BondStruct")
         [makeType True typeName declParams]

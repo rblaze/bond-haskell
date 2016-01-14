@@ -1,6 +1,6 @@
 {-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies, FlexibleInstances, MultiParamTypeClasses #-}
 module Data.Bond.Proto (
-        BondSerializable(..),
+        Serializable(..),
         BondStruct(..),
         BondProto(..),
         BondGet(..),
@@ -41,13 +41,13 @@ deriving instance (MonadState s (WriterM t)) => MonadState s (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
-class (Default a, WireType a) => BondSerializable a where
+class (Default a, WireType a) => Serializable a where
     -- | Read field value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
     -- | Put field into stream.
     bondPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
 
-class (Default a, BondSerializable a, Schemable a) => BondStruct a where
+class (Default a, Serializable a, Schemable a) => BondStruct a where
     -- | Read struct from untagged stream
     bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
     bondStructGetBase :: (Monad (ReaderM t), BondProto t) => a -> BondGet t a
@@ -71,8 +71,8 @@ class BondProto t where
     -- | decode top-level struct
     bondGetBaseStruct :: BondStruct a => BondGet t a
 
-    bondPutField :: BondSerializable a => Ordinal -> a -> BondPut t
-    bondPutDefNothingField :: BondSerializable a => Ordinal -> Maybe a -> BondPut t
+    bondPutField :: Serializable a => Ordinal -> a -> BondPut t
+    bondPutDefNothingField :: Serializable a => Ordinal -> Maybe a -> BondPut t
 
     bondPutBool :: Bool -> BondPut t
     bondPutUInt8 :: Word8 -> BondPut t
@@ -88,12 +88,12 @@ class BondProto t where
     bondPutString :: Utf8 -> BondPut t
     bondPutWString :: Utf16 -> BondPut t
     bondPutBlob :: Blob -> BondPut t
-    bondPutList :: BondSerializable a => [a] -> BondPut t
-    bondPutVector :: BondSerializable a => V.Vector a -> BondPut t
-    bondPutHashSet :: BondSerializable a => H.HashSet a -> BondPut t
-    bondPutSet :: BondSerializable a => S.Set a -> BondPut t
-    bondPutMap :: (BondSerializable k, BondSerializable v) => M.Map k v -> BondPut t
-    bondPutNullable :: BondSerializable a => Maybe a -> BondPut t
+    bondPutList :: Serializable a => [a] -> BondPut t
+    bondPutVector :: Serializable a => V.Vector a -> BondPut t
+    bondPutHashSet :: Serializable a => H.HashSet a -> BondPut t
+    bondPutSet :: Serializable a => S.Set a -> BondPut t
+    bondPutMap :: (Serializable k, Serializable v) => M.Map k v -> BondPut t
+    bondPutNullable :: Serializable a => Maybe a -> BondPut t
     bondPutBonded :: BondStruct a => Bonded a -> BondPut t
 
     bondGetBool :: BondGet t Bool
@@ -110,95 +110,95 @@ class BondProto t where
     bondGetString :: BondGet t Utf8
     bondGetWString :: BondGet t Utf16
     bondGetBlob :: BondGet t Blob
-    bondGetList :: BondSerializable a => BondGet t [a]
-    bondGetVector :: BondSerializable a => BondGet t (V.Vector a)
-    bondGetHashSet :: (Eq a, Hashable a, BondSerializable a) => BondGet t (H.HashSet a)
-    bondGetSet :: (Ord a, BondSerializable a) => BondGet t (S.Set a)
-    bondGetMap :: (Ord k, BondSerializable k, BondSerializable v) => BondGet t (M.Map k v)
-    bondGetNullable :: BondSerializable a => BondGet t (Maybe a)
-    bondGetDefNothing :: BondSerializable a => BondGet t (Maybe a)
+    bondGetList :: Serializable a => BondGet t [a]
+    bondGetVector :: Serializable a => BondGet t (V.Vector a)
+    bondGetHashSet :: (Eq a, Hashable a, Serializable a) => BondGet t (H.HashSet a)
+    bondGetSet :: (Ord a, Serializable a) => BondGet t (S.Set a)
+    bondGetMap :: (Ord k, Serializable k, Serializable v) => BondGet t (M.Map k v)
+    bondGetNullable :: Serializable a => BondGet t (Maybe a)
+    bondGetDefNothing :: Serializable a => BondGet t (Maybe a)
     bondGetBonded :: BondStruct a => BondGet t (Bonded a)
 
-instance BondSerializable Float where
+instance Serializable Float where
     bondGet = bondGetFloat
     bondPut = bondPutFloat
 
-instance BondSerializable Double where
+instance Serializable Double where
     bondGet = bondGetDouble
     bondPut = bondPutDouble
 
-instance BondSerializable Bool where
+instance Serializable Bool where
     bondGet = bondGetBool
     bondPut = bondPutBool
 
-instance BondSerializable Int8 where
+instance Serializable Int8 where
     bondGet = bondGetInt8
     bondPut = bondPutInt8
 
-instance BondSerializable Int16 where
+instance Serializable Int16 where
     bondGet = bondGetInt16
     bondPut = bondPutInt16
 
-instance BondSerializable Int32 where
+instance Serializable Int32 where
     bondGet = bondGetInt32
     bondPut = bondPutInt32
 
-instance BondSerializable Int64 where
+instance Serializable Int64 where
     bondGet = bondGetInt64
     bondPut = bondPutInt64
 
-instance BondSerializable Word8 where
+instance Serializable Word8 where
     bondGet = bondGetUInt8
     bondPut = bondPutUInt8
 
-instance BondSerializable Word16 where
+instance Serializable Word16 where
     bondGet = bondGetUInt16
     bondPut = bondPutUInt16
 
-instance BondSerializable Word32 where
+instance Serializable Word32 where
     bondGet = bondGetUInt32
     bondPut = bondPutUInt32
 
-instance BondSerializable Word64 where
+instance Serializable Word64 where
     bondGet = bondGetUInt64
     bondPut = bondPutUInt64
 
-instance BondSerializable Utf8 where
+instance Serializable Utf8 where
     bondGet = bondGetString
     bondPut = bondPutString
 
-instance BondSerializable Utf16 where
+instance Serializable Utf16 where
     bondGet = bondGetWString
     bondPut = bondPutWString
 
-instance BondSerializable Blob where
+instance Serializable Blob where
     bondGet = bondGetBlob
     bondPut = bondPutBlob
 
-instance BondSerializable a => BondSerializable [a] where
+instance Serializable a => Serializable [a] where
     bondGet = bondGetList
     bondPut = bondPutList
 
-instance BondSerializable a => BondSerializable (V.Vector a) where
+instance Serializable a => Serializable (V.Vector a) where
     bondGet = bondGetVector
     bondPut = bondPutVector
 
-instance (Eq a, Hashable a, BondSerializable a) => BondSerializable (H.HashSet a) where
+instance (Eq a, Hashable a, Serializable a) => Serializable (H.HashSet a) where
     bondGet = bondGetHashSet
     bondPut = bondPutHashSet
 
-instance (Ord a, BondSerializable a) => BondSerializable (S.Set a) where
+instance (Ord a, Serializable a) => Serializable (S.Set a) where
     bondGet = bondGetSet
     bondPut = bondPutSet
 
-instance (Ord k, BondSerializable k, BondSerializable v) => BondSerializable (M.Map k v) where
+instance (Ord k, Serializable k, Serializable v) => Serializable (M.Map k v) where
     bondGet = bondGetMap
     bondPut = bondPutMap
 
-instance BondStruct a => BondSerializable (Bonded a) where
+instance BondStruct a => Serializable (Bonded a) where
     bondGet = bondGetBonded
     bondPut = bondPutBonded
 
-instance BondSerializable a => BondSerializable (Maybe a) where
+instance Serializable a => Serializable (Maybe a) where
     bondGet = bondGetNullable
     bondPut = bondPutNullable

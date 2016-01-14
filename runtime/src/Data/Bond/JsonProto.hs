@@ -237,7 +237,7 @@ parseStruct = do
                     Just v -> getAsTypeValue (FD.typedef f) v $ bondStructGetField ordinal s
         foldlM parseField base (fields struct)
 
-putField :: forall a . BondSerializable a => Ordinal -> a -> BondPut JsonProto
+putField :: forall a . Serializable a => Ordinal -> a -> BondPut JsonProto
 putField n a = do
     fieldTypes <- asks putFields
     let Just f = M.lookup n fieldTypes
@@ -271,7 +271,7 @@ putBaseStruct v = do
         Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
         Just t -> putAs t $ putStruct v
 
-putList :: forall a. BondSerializable a => [a] -> BondPut JsonProto
+putList :: forall a. Serializable a => [a] -> BondPut JsonProto
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
@@ -280,7 +280,7 @@ putList xs = do
         get
     put $ Array $ V.fromList vs
 
-putMap :: forall k v. (BondSerializable k, BondSerializable v) => Map k v -> BondPut JsonProto
+putMap :: forall k v. (Serializable k, Serializable v) => Map k v -> BondPut JsonProto
 putMap m = do
     (tk, tv) <- checkPutMapType
 

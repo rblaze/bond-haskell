@@ -32,7 +32,7 @@ enumDecl mode _ moduleName decl@Enum{} = Just source
          (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", []),
          (sQual "TypeDefGen", [])
         ]
-    serializableDecl = InstDecl noLoc Nothing [] [] (implQual "BondSerializable")
+    serializableDecl = InstDecl noLoc Nothing [] [] (implQual "Serializable")
         [typeCon]
         [InsDecl $
             FunBind

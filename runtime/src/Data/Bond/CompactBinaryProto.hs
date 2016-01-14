@@ -286,19 +286,19 @@ getBlob = do
     unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
     Blob <$> getByteString n
 
-getList :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, BondSerializable a) => BondGet t [a]
+getList :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Serializable a) => BondGet t [a]
 getList = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ replicateM n bondGet
 
-getVector :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, BondSerializable a) => BondGet t (Vector a)
+getVector :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Serializable a) => BondGet t (Vector a)
 getVector = do
     (t, n) <- getListHeader
     elemtype <- checkElementGetType t
     getAs elemtype $ V.replicateM n bondGet
 
-getMap :: (TaggedProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Ord k, BondSerializable k, BondSerializable v) => BondGet t (Map k v)
+getMap :: (TaggedProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Ord k, Serializable k, Serializable v) => BondGet t (Map k v)
 getMap = do
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
@@ -352,28 +352,28 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-putList :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => [a] -> BondPut t
+putList :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => [a] -> BondPut t
 putList xs = do
     t <- checkPutContainerType bT_LIST
 
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     putAs t $ mapM_ bondPut xs
 
-putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => HashSet a -> BondPut t
 putHashSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     putAs t $ mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Set a -> BondPut t
+putSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => Set a -> BondPut t
 putSet xs = do
     t <- checkPutContainerType bT_SET
 
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     putAs t $ mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (BondProto t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable k, BondSerializable v) => Map k v -> BondPut t
+putMap :: forall k v t. (BondProto t, WriterM t ~ ReaderT PutContext B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
 putMap m = do
     (tk, tv) <- checkPutMapType
 
@@ -384,7 +384,7 @@ putMap m = do
         putAs tk $ bondPut k
         putAs tv $ bondPut v
 
-putVector :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Vector a -> BondPut t
+putVector :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => Vector a -> BondPut t
 putVector xs = do
     t <- checkPutContainerType bT_LIST
 

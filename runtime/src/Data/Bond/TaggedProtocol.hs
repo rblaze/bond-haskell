@@ -98,7 +98,7 @@ putBaseStruct v = do
         Nothing -> fail "Schema do not match structure: attempt to save base of struct w/o base"
         Just t -> putAs t $ putStruct BaseStruct v
 
-putField :: forall a t. (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, BondSerializable a) => Ordinal -> a -> BondPut t
+putField :: forall a t. (TaggedProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => Ordinal -> a -> BondPut t
 putField n a = do
     fieldTypes <- asks putFields
     let Just f = M.lookup n fieldTypes
