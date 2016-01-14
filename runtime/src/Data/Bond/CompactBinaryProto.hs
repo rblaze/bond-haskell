@@ -1,7 +1,7 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf, TypeFamilies, ConstraintKinds #-}
+{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, ConstraintKinds #-}
 module Data.Bond.CompactBinaryProto (
-        CompactBinaryProto,
-        CompactBinaryV1Proto
+        CompactBinaryProto(..),
+        CompactBinaryV1Proto(..)
     ) where
 
 import Data.Bond.BinaryUtils
@@ -33,8 +33,8 @@ import qualified Data.Vector as V
 
 import Data.Bond.Schema.BondDataType
 
-data CompactBinaryProto
-data CompactBinaryV1Proto
+data CompactBinaryProto = CompactBinaryProto
+data CompactBinaryV1Proto = CompactBinaryV1Proto
 
 class TaggedProtocol t => CompactProtocol t where
     getListHeader :: ReaderM t ~ ReaderT c B.Get => BondGet t (BondDataType, Int)

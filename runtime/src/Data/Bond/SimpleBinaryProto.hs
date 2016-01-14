@@ -1,7 +1,7 @@
 {-# Language ScopedTypeVariables, EmptyDataDecls, TypeFamilies #-}
 module Data.Bond.SimpleBinaryProto (
-        SimpleBinaryProto,
-        SimpleBinaryV1Proto
+        SimpleBinaryProto(..),
+        SimpleBinaryV1Proto(..)
     ) where
 
 import Data.Bond.BinaryUtils
@@ -14,7 +14,6 @@ import Control.Monad
 import Control.Monad.Reader
 import Data.List
 import Data.Maybe
-import Data.Proxy
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -26,8 +25,8 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-data SimpleBinaryProto
-data SimpleBinaryV1Proto
+data SimpleBinaryProto = SimpleBinaryProto
+data SimpleBinaryV1Proto = SimpleBinaryV1Proto
 
 instance BondProto SimpleBinaryProto where
     type ReaderM SimpleBinaryProto = ReaderT () B.Get
@@ -231,7 +230,7 @@ instance BondProto SimpleBinaryV1Proto where
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
 
-decode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT () B.Get) => Proxy t -> BL.ByteString -> Either String a
+decode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT () B.Get) => t -> BL.ByteString -> Either String a
 decode _ s =
     let BondGet g = bondGetStruct :: BondGet t a
      in case B.runGetOrFail (runReaderT g ()) s of
@@ -239,7 +238,7 @@ decode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-encode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT () B.PutM) => Proxy t -> a -> Either String BL.ByteString
+encode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT () B.PutM) => t -> a -> Either String BL.ByteString
 encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
      in Right $ B.runPut (runReaderT g ())

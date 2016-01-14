@@ -1,6 +1,6 @@
-{-# Language MultiWayIf, ScopedTypeVariables, FlexibleContexts, EmptyDataDecls, TypeFamilies #-}
+{-# Language MultiWayIf, ScopedTypeVariables, FlexibleContexts, TypeFamilies #-}
 module Data.Bond.JsonProto (
-        JsonProto
+        JsonProto(..)
     ) where
 
 import Data.Bond.Default
@@ -44,7 +44,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-data JsonProto
+data JsonProto = JsonProto
 
 data ReaderCtx = ReaderCtx { rdSchema :: SchemaDef, rdValue :: Value }
 type ReadM = ReaderT ReaderCtx Parser

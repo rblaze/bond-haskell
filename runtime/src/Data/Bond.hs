@@ -2,12 +2,12 @@
 module Data.Bond (
     BondProto,
     BondStruct,
-    CompactBinaryProto,
-    CompactBinaryV1Proto,
-    FastBinaryProto,
-    JsonProto,
-    SimpleBinaryProto,
-    SimpleBinaryV1Proto,
+    CompactBinaryProto(..),
+    CompactBinaryV1Proto(..),
+    FastBinaryProto(..),
+    JsonProto(..),
+    SimpleBinaryProto(..),
+    SimpleBinaryV1Proto(..),
     bondRead,
     bondWrite,
     getSchema
@@ -20,11 +20,10 @@ import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
 
-import Data.Proxy
 import qualified Data.ByteString.Lazy as L
 
-bondRead :: forall a t . (BondStruct a, BondProto t) => Proxy t -> L.ByteString -> Either String a
+bondRead :: forall a t . (BondStruct a, BondProto t) => t -> L.ByteString -> Either String a
 bondRead = bondDecode
 
-bondWrite :: forall a t . (BondStruct a, BondProto t) => Proxy t -> a -> Either String L.ByteString
+bondWrite :: forall a t . (BondStruct a, BondProto t) => t -> a -> Either String L.ByteString
 bondWrite = bondEncode

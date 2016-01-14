@@ -17,7 +17,6 @@ import Control.Applicative
 import Control.Monad.Reader.Class
 import Control.Monad.State.Class
 import Data.Hashable
-import Data.Proxy
 import Prelude
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.HashSet as H
@@ -59,9 +58,9 @@ class BondProto t where
     type ReaderM t :: * -> *
     type WriterM t :: * -> *
     -- | run decoder
-    bondDecode :: BondStruct a => Proxy t -> BS.ByteString -> Either String a
+    bondDecode :: BondStruct a => t -> BS.ByteString -> Either String a
     -- | run encoder
-    bondEncode :: BondStruct a => Proxy t -> a -> Either String BS.ByteString
+    bondEncode :: BondStruct a => t -> a -> Either String BS.ByteString
     -- | encode top-level struct
     bondPutStruct :: BondStruct a => a -> BondPut t
     -- | encode base struct

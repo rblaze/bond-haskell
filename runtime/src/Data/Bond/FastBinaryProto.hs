@@ -1,6 +1,6 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls, MultiWayIf, TypeFamilies #-}
+{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies #-}
 module Data.Bond.FastBinaryProto (
-        FastBinaryProto
+        FastBinaryProto(..)
     ) where
 
 import Data.Bond.BinaryUtils
@@ -28,7 +28,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
-data FastBinaryProto
+data FastBinaryProto = FastBinaryProto
 
 instance TaggedProtocol FastBinaryProto where
     getFieldHeader = do

@@ -31,43 +31,43 @@ tests = testGroup "Haskell runtime tests"
       testGroup "Compile-time schema tests"
         [ testGroup "SimpleBinary"
             [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy SimpleBinaryProto) "compat.simple2.dat"
+                readCompat SimpleBinaryProto "compat.simple2.dat"
             ],
           testGroup "SimpleBinary v1"
             [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy SimpleBinaryV1Proto) "compat.simple.dat"
+                readCompat SimpleBinaryV1Proto "compat.simple.dat"
             ],
           testGroup "FastBinary"
             [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy FastBinaryProto) "compat.fast.dat",
+                readCompat FastBinaryProto "compat.fast.dat",
               testCase "read BasicTypes value" $
-                readAsType (Proxy :: Proxy FastBinaryProto) (Proxy :: Proxy BasicTypes) "compat.fast.dat",
+                readAsType FastBinaryProto (Proxy :: Proxy BasicTypes) "compat.fast.dat",
               testCase "read Another value" $
-                readAsType (Proxy :: Proxy FastBinaryProto) (Proxy :: Proxy Another) "compat.fast.dat"
+                readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat"
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy CompactBinaryProto) "compat.compact2.dat",
+                readCompat CompactBinaryProto "compat.compact2.dat",
               testCase "read BasicTypes value" $
-                readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
+                readAsType CompactBinaryProto (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
               testCase "read Another value" $
-                readAsType (Proxy :: Proxy CompactBinaryProto) (Proxy :: Proxy Another) "compat.compact2.dat"
+                readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat"
             ],
           testGroup "CompactBinary v1"
             [ testCase "read/write Compat value" $
-                readCompat (Proxy :: Proxy CompactBinaryV1Proto) "compat.compact.dat",
+                readCompat CompactBinaryV1Proto "compat.compact.dat",
               testCase "read BasicTypes value" $
-                readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy BasicTypes) "compat.compact.dat",
+                readAsType CompactBinaryV1Proto (Proxy :: Proxy BasicTypes) "compat.compact.dat",
               testCase "read Another value" $
-                readAsType (Proxy :: Proxy CompactBinaryV1Proto) (Proxy :: Proxy Another) "compat.compact.dat"
+                readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat"
             ],
           testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
               testJson "read/write golden Compat value" "golden.json.dat",
               testCase "read BasicTypes value" $
-                readAsType (Proxy :: Proxy JsonProto) (Proxy :: Proxy BasicTypes) "compat.json.dat",
+                readAsType JsonProto (Proxy :: Proxy BasicTypes) "compat.json.dat",
               testCase "read Another value" $
-                readAsType (Proxy :: Proxy JsonProto) (Proxy :: Proxy Another) "compat.json.dat"
+                readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
             ],
           testGroup "ZigZag encoding"
             [ testProperty "Int16" zigzagInt16,
@@ -78,7 +78,7 @@ tests = testGroup "Haskell runtime tests"
         ]
     ]
 
-readCompat :: BondProto t => Proxy t -> String -> Assertion
+readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat
@@ -101,18 +101,17 @@ readCompat p f = do
 testJson :: String -> FilePath -> TestTree
 testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ do
     dat <- L.readFile (defaultDataPath </> f)
-    let p = Proxy :: Proxy JsonProto
-    let parse = bondRead p dat
+    let parse = bondRead JsonProto dat
     case parse of
         Left msg -> do
             assertFailure msg
             return L.empty
         Right s -> let _ = s :: Compat -- type binding
                     in do
-                        let Right d' = bondWrite p s
+                        let Right d' = bondWrite JsonProto s
                         return d'
 
-readAsType :: forall t a. (BondProto t, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
+readAsType :: forall t a. (BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat
