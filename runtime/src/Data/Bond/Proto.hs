@@ -47,7 +47,7 @@ class (Default a, WireType a) => Serializable a where
     -- | Put field into stream.
     bondPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
 
-class (Default a, Serializable a, Schemable a) => BondStruct a where
+class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     -- | Read struct from untagged stream
     bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
     bondStructGetBase :: (Monad (ReaderM t), BondProto t) => a -> BondGet t a

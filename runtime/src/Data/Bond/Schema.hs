@@ -7,14 +7,14 @@ module Data.Bond.Schema (
     required,
     requiredOptional,
     SchemaState,
-    Schemable(..),
     TypeDefGen(..),
     makeFieldDef,
     makeStructMeta,
     makeFieldMeta,
     makeFieldMetaWithDef,
     withStruct,
-    findTypeDef
+    findTypeDef,
+    getSchema
   ) where
 
 import Data.Bond.Schema.BondDataType
@@ -27,6 +27,7 @@ import Data.Bond.Schema.StructDef as SD
 import Data.Bond.Schema.TypeDef as TD
 
 import Data.Bond.Default
+import Data.Bond.Proto
 import Data.Bond.Types
 
 import Control.Arrow
@@ -43,13 +44,12 @@ import qualified Data.Vector as V
 type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq StructDef)
 type SchemaState = SchemaMonad TypeDef
 
-class TypeDefGen a => Schemable a where
-    getSchema :: Proxy a -> SchemaDef
-    getSchema p = let (t, (_, ss)) = runState (getTypeDef p) (M.empty, S.empty)
-                   in SchemaDef { structs = V.fromList $ toList ss, root = t }
-
 class Typeable a => TypeDefGen a where
     getTypeDef :: Proxy a -> SchemaState
+
+getSchema :: BondStruct a => Proxy a -> SchemaDef
+getSchema p = let (t, (_, ss)) = runState (getTypeDef p) (M.empty, S.empty)
+               in SchemaDef { structs = V.fromList $ toList ss, root = t }
 
 -- dumb wrappers for breaking module cycles
 makeStructMeta :: String -> String -> [(String, String)] -> Metadata

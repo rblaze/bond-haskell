@@ -120,7 +120,7 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
         Nothing
         (Just [EThingAll $ UnQual typeName])
         imports
-        [dataDecl, defaultDecl, wiretypeDecl, schemableDecl, bondSerializableDecl,
+        [dataDecl, defaultDecl, wiretypeDecl, bondSerializableDecl,
          bondStructDecl, typeDefGenDecl setType ctx decl
         ]
 
@@ -182,11 +182,6 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
          getBase decl,
          getField decl
         ]
-    schemableDecl = InstDecl noLoc Nothing []
-        (map (typeParamConstraint $ sQual "TypeDefGen") declParams)
-        (sQual "Schemable")
-        [makeType True typeName declParams]
-        []
 
 structDecl _ _ _ _ _ = error "structDecl called for invalid type"
 

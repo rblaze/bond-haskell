@@ -112,7 +112,7 @@ testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ 
                         let Right d' = bondWrite p s
                         return d'
 
-readAsType :: forall t a. (BondProto t, Schemable a, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
+readAsType :: forall t a. (BondProto t, BondStruct a) => Proxy t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat

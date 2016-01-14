@@ -3,7 +3,6 @@ module Data.Bond.Schema (
     Metadata(..),
     FieldDef(..),
     SchemaState,
-    Schemable,
     TypeDefGen(..),
     Variant(..),
     findTypeDef,
@@ -32,7 +31,6 @@ import qualified Data.Map.Strict as M
 type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq StructDef)
 type SchemaState = SchemaMonad TypeDef
 
-class Schemable a
 class Typeable a => TypeDefGen a where
     getTypeDef :: Proxy a -> SchemaState
 

@@ -2,7 +2,6 @@
 module Data.Bond (
     BondProto,
     BondStruct,
-    Schemable,
     CompactBinaryProto,
     CompactBinaryV1Proto,
     FastBinaryProto,
