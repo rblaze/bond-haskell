@@ -8,9 +8,11 @@ import Data.Bond.Cast
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
+import Data.Bond.Utils
 import Data.Bond.Wire
 
 import Data.Bond.Schema.BondDataType
+import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
 import Control.Monad
@@ -86,6 +88,7 @@ instance BondProto FastBinaryProto where
     type WriterM FastBinaryProto = ReaderT PutContext B.PutM
 
     bondDecode = binaryDecode
+    bondDecodeMarshalled = decodeWithHdr fAST_PROTOCOL 1
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
@@ -152,6 +155,7 @@ instance BondProto FastBinaryProto where
         return $ BondedStream bs
 
     bondEncode = binaryEncode
+    bondEncodeMarshalled = encodeWithHdr fAST_PROTOCOL 1
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField

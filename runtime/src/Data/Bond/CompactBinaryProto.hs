@@ -9,8 +9,12 @@ import Data.Bond.Cast
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
+import Data.Bond.Utils
 import Data.Bond.Wire
 import Data.Bond.ZigZag
+
+import Data.Bond.Schema.BondDataType
+import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative hiding (optional)
 import Control.Monad
@@ -30,8 +34,6 @@ import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
-
-import Data.Bond.Schema.BondDataType
 
 data CompactBinaryProto = CompactBinaryProto
 data CompactBinaryV1Proto = CompactBinaryV1Proto
@@ -74,6 +76,7 @@ instance BondProto CompactBinaryProto where
     type WriterM CompactBinaryProto = ReaderT PutContext B.PutM
 
     bondDecode = binaryDecode
+    bondDecodeMarshalled = decodeWithHdr cOMPACT_PROTOCOL 2
     bondGetStruct = do
         size <- getVarInt
         isolate size $ getStruct TopLevelStruct
@@ -114,6 +117,7 @@ instance BondProto CompactBinaryProto where
     bondGetBonded = getBonded
 
     bondEncode = binaryEncode
+    bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 2
     bondPutStruct v = do
         env <- ask
         let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
@@ -182,6 +186,7 @@ instance BondProto CompactBinaryV1Proto where
     type WriterM CompactBinaryV1Proto = ReaderT PutContext B.PutM
 
     bondDecode = binaryDecode
+    bondDecodeMarshalled = decodeWithHdr cOMPACT_PROTOCOL 1
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
@@ -220,6 +225,7 @@ instance BondProto CompactBinaryV1Proto where
     bondGetBonded = getBonded
 
     bondEncode = binaryEncode
+    bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 1
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField

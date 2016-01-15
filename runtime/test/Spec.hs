@@ -27,8 +27,9 @@ tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "create SchemaDef schema" createSchemaDef,
           testCase "create Compat schema" createCompatSchema
+--          testCase "check saved schema matching our schema" matchSchemaDef
         ],
-      testGroup "Compile-time schema tests"
+      testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
             [ testCase "read/write Compat value" $
                 readCompat SimpleBinaryProto "compat.simple2.dat"
@@ -69,12 +70,15 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
             ],
-          testGroup "ZigZag encoding"
-            [ testProperty "Int16" zigzagInt16,
-              testProperty "Int32" zigzagInt32,
-              testProperty "Int64" zigzagInt64,
-              testProperty "Word64" zigzagWord64
+          testGroup "Marshalling"
+            [ testCase "read/write SchemaDef value" readSchema
             ]
+        ],
+      testGroup "ZigZag encoding"
+        [ testProperty "Int16" zigzagInt16,
+          testProperty "Int32" zigzagInt32,
+          testProperty "Int64" zigzagInt64,
+          testProperty "Word64" zigzagWord64
         ]
     ]
 
@@ -87,6 +91,18 @@ readCompat p f = do
         Right s -> let _ = s :: Compat -- type binding
                     in do
                         let Right d' = bondWrite p s
+--                        L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                        assertEqual "serialized value do not match original" dat d'
+
+readSchema :: Assertion
+readSchema = do
+    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    let parse = bondReadMarshalled dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> let _ = s :: SchemaDef -- type binding
+                    in do
+                        let Right d' = bondWriteMarshalled CompactBinaryV1Proto s
 --                        L.writeFile ("/tmp" </> (f ++ ".out")) d'
                         assertEqual "serialized value do not match original" dat d'
 

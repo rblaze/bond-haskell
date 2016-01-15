@@ -8,6 +8,9 @@ import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
 import Data.Bond.Types
+import Data.Bond.Utils
+
+import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
 import Control.Monad
@@ -33,6 +36,7 @@ instance BondProto SimpleBinaryProto where
     type WriterM SimpleBinaryProto = ReaderT () B.PutM
 
     bondDecode = decode
+    bondDecodeMarshalled = decodeWithHdr sIMPLE_PROTOCOL 2
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -83,6 +87,7 @@ instance BondProto SimpleBinaryProto where
         return $ BondedStream bs
 
     bondEncode = encode
+    bondEncodeMarshalled = encodeWithHdr sIMPLE_PROTOCOL 2
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -134,6 +139,7 @@ instance BondProto SimpleBinaryV1Proto where
     type WriterM SimpleBinaryV1Proto = ReaderT () B.PutM
 
     bondDecode = decode
+    bondDecodeMarshalled = decodeWithHdr sIMPLE_PROTOCOL 1
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -184,6 +190,7 @@ instance BondProto SimpleBinaryV1Proto where
         return $ BondedStream bs
 
     bondEncode = encode
+    bondEncodeMarshalled = encodeWithHdr sIMPLE_PROTOCOL 1
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut

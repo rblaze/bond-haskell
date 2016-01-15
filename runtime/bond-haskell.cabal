@@ -32,15 +32,18 @@ library
                        Data.Bond.Default
                        Data.Bond.FastBinaryProto
                        Data.Bond.JsonProto
+                       Data.Bond.Marshal
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
                        Data.Bond.TaggedProtocol
                        Data.Bond.Types
+                       Data.Bond.Utils
                        Data.Bond.Wire
                        Data.Bond.Schema.BondDataType
                        Data.Bond.Schema.FieldDef
                        Data.Bond.Schema.Metadata
                        Data.Bond.Schema.Modifier
+                       Data.Bond.Schema.ProtocolType
                        Data.Bond.Schema.SchemaDef
                        Data.Bond.Schema.StructDef
                        Data.Bond.Schema.TypeDef

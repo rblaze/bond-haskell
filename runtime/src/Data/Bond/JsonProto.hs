@@ -3,11 +3,12 @@ module Data.Bond.JsonProto (
         JsonProto(..)
     ) where
 
+import Data.Bond.ContextWriter
 import Data.Bond.Default
 import Data.Bond.Proto
 import Data.Bond.Schema (getSchema)
 import Data.Bond.Types
-import Data.Bond.ContextWriter
+import Data.Bond.Utils
 import Data.Bond.Wire
 
 import qualified Data.Bond.Schema.FieldDef as FD
@@ -15,6 +16,7 @@ import qualified Data.Bond.Schema.TypeDef as TD
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.Modifier
+import Data.Bond.Schema.ProtocolType
 import Data.Bond.Schema.SchemaDef
 import Data.Bond.Schema.StructDef
 
@@ -56,6 +58,7 @@ instance BondProto JsonProto where
     type WriterM JsonProto = WriteM
 
     bondDecode _ = jsonDecode
+    bondDecodeMarshalled = decodeWithHdr sIMPLE_JSON_PROTOCOL 1
     bondGetStruct = parseStruct
     bondGetBaseStruct = parseStruct
 
@@ -123,6 +126,7 @@ instance BondProto JsonProto where
         return $ BondedStream $ encode v
 
     bondEncode _ = jsonEncode
+    bondEncodeMarshalled = encodeWithHdr sIMPLE_JSON_PROTOCOL 1
     bondPutStruct v = do
         put emptyObject
         putStruct v
