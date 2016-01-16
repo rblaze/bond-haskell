@@ -7,9 +7,10 @@ module Data.Bond.Schema (
     Variant(..),
     findTypeDef,
     makeFieldDef,
-    makeStructMeta,
     makeFieldMeta,
     makeFieldMetaWithDef,
+    makeGenericTypeName,
+    makeStructMeta,
     optional,
     withStruct
   ) where
@@ -33,13 +34,16 @@ type SchemaState = SchemaMonad TypeDef
 
 class Typeable a => TypeDefGen a where
     getTypeDef :: Proxy a -> SchemaState
+    getTypeName :: Proxy a -> String
+    getQualifiedTypeName :: Proxy a -> String
 
 makeStructMeta :: String -> String -> [(String, String)] -> Metadata
 makeFieldMeta :: String -> [(String, String)] -> Modifier -> Metadata
 makeFieldMetaWithDef :: Variant -> String -> [(String, String)] -> Modifier -> Metadata
 makeFieldDef :: Metadata -> Word16 -> TypeDef -> FieldDef
-withStruct :: Typeable a => SchemaMonad (Metadata, Maybe TypeDef, [FieldDef]) -> Proxy a -> SchemaState
+withStruct :: Typeable a => Proxy a -> SchemaMonad (Metadata, Maybe TypeDef, [FieldDef]) -> SchemaState
 findTypeDef :: TypeDefGen a => Proxy a -> SchemaState
+makeGenericTypeName :: String -> [String] -> String
 
 instance TypeDefGen Bool
 instance TypeDefGen Int8

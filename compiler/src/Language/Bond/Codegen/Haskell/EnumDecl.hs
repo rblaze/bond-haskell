@@ -11,7 +11,7 @@ import Language.Haskell.Exts hiding (mode)
 import Language.Haskell.Exts.SrcLoc (noLoc)
 
 enumDecl :: CodegenMode -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumDecl mode _ moduleName decl@Enum{} = Just source
+enumDecl mode ctx moduleName decl@Enum{} = Just source
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
@@ -20,7 +20,7 @@ enumDecl mode _ moduleName decl@Enum{} = Just source
         Nothing
         Nothing
         imports
-        (dataDecl : serializableDecl : typeSig : values)
+        (dataDecl : serializableDecl : typeDefGenDecl (error "do not use") ctx decl : typeSig : values)
     imports | mode == SchemaDef = [importInternalModule, importPrelude, importSchema{importSrc = True}]
             | otherwise = [importInternalModule, importPrelude, importSchema]
     typeName = mkType $ makeDeclName decl
@@ -29,8 +29,7 @@ enumDecl mode _ moduleName decl@Enum{} = Just source
         [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])]
         [(pQual "Show", []), (pQual "Eq", []), (pQual "Ord", []), (pQual "Enum", []),
          (implQual "Hashable", []),
-         (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", []),
-         (sQual "TypeDefGen", [])
+         (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", [])
         ]
     serializableDecl = InstDecl noLoc Nothing [] [] (implQual "Serializable")
         [typeCon]

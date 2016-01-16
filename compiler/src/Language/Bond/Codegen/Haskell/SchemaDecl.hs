@@ -83,8 +83,8 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
     (map (typeParamConstraint $ sQual "TypeDefGen") (declParams decl))
     (sQual "TypeDefGen")
     [makeType True typeName (declParams decl)]
-    [InsDecl $ nameBind noLoc (Ident "getTypeDef") $
-        App (Var $ sQual "withStruct") $ Paren $ Do $
+    [InsDecl $ simpleFun noLoc (Ident "getTypeDef") proxyVar $
+        App (App (Var $ sQual "withStruct") (Var $ UnQual proxyVar)) $ Paren $ Do $
         -- get base typedef
         (case structBase decl of
             Just t -> (mkFindType baseTypeVar (hsType setType ctx t) :)
@@ -96,24 +96,45 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
         [Qualifier $ App (Var $ pQual "return") $
             Tuple Boxed [
                 App (App (App (Var $ sQual "makeStructMeta")
-                    (stringL $ declName decl))
-                    (stringL $ getDeclTypeName ctx decl))
+                    (Paren $ App (Var $ sQual "getTypeName") (Var $ UnQual proxyVar)))
+                    (Paren $ App (Var $ sQual "getQualifiedTypeName") (Var $ UnQual proxyVar)))
                     (List $ map (makeAttr ctx) $ declAttributes decl),
                 case structBase decl of
                     Nothing -> Con $ pQual "Nothing"
                     Just _ -> App (Con $ pQual "Just") (Var $ UnQual baseTypeVar),
                 List $ map (makeFieldDef ctx) (structFields decl)
             ]
-        ])
+        ]),
+     InsDecl $ wildcardFunc "getTypeName" $
+        if null (declParams decl)
+            then stringL $ declName decl
+            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ declName decl))
+                    (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies),
+     InsDecl $ wildcardFunc "getQualifiedTypeName" $
+        if null (declParams decl)
+            then stringL $ getDeclTypeName ctx decl
+            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ getDeclTypeName ctx decl))
+                    (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies)
     ]
     where
     typeName = mkType (makeDeclName decl)
-    baseTypeVar = Ident "type'base"
+    proxyVar = Ident "type''proxy"
+    baseTypeVar = Ident "type''base"
     hsUnwrappedType (BT_Maybe t) = hsType setType ctx t
     hsUnwrappedType t = hsType setType ctx t
     mkFindType varname typ =
         Generator noLoc (PVar varname) $
             App (Var $ sQual "findTypeDef") $ Paren $
                 ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") typ)
+    paramProxies = map (Paren . ExpTypeSig noLoc (Con $ implQual "Proxy") . TyApp (TyCon $ implQual "Proxy") . TyVar . mkVar . paramName) (declParams decl)
+
+typeDefGenDecl _ ctx decl@Enum{} = InstDecl noLoc Nothing [] []
+    (sQual "TypeDefGen")
+    [TyCon $ UnQual $ mkType $ makeDeclName decl]
+    [InsDecl $ wildcardFunc "getTypeDef" $ App (Var $ sQual "getTypeDef") $
+        ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") (implType "Int32")),
+     InsDecl $ wildcardFunc "getTypeName" $ stringL (declName decl),
+     InsDecl $ wildcardFunc "getQualifiedTypeName" $ stringL (getDeclTypeName ctx decl)
+    ]
 
 typeDefGenDecl _ _ _ = error "typeDefGenDecl called for invalid type"

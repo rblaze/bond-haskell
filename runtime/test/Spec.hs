@@ -26,8 +26,8 @@ tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "create SchemaDef schema" createSchemaDef,
-          testCase "create Compat schema" createCompatSchema
---          testCase "check saved schema matching our schema" matchSchemaDef
+          testCase "create Compat schema" createCompatSchema,
+          testCase "check saved schema matching our schema" matchSchemaDef
         ],
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
@@ -88,11 +88,11 @@ readCompat p f = do
     let parse = bondRead p dat
     case parse of
         Left msg -> assertFailure msg
-        Right s -> let _ = s :: Compat -- type binding
-                    in do
-                        let Right d' = bondWrite p s
---                        L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                        assertEqual "serialized value do not match original" dat d'
+        Right s -> do
+                    let _ = s :: Compat -- type binding
+                    let Right d' = bondWrite p s
+--                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                    assertEqual "serialized value do not match original" dat d'
 
 readSchema :: Assertion
 readSchema = do
@@ -100,11 +100,11 @@ readSchema = do
     let parse = bondReadMarshalled dat
     case parse of
         Left msg -> assertFailure msg
-        Right s -> let _ = s :: SchemaDef -- type binding
-                    in do
-                        let Right d' = bondWriteMarshalled CompactBinaryV1Proto s
---                        L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                        assertEqual "serialized value do not match original" dat d'
+        Right s -> do
+                    let _ = s :: SchemaDef -- type binding
+                    let Right d' = bondWriteMarshalled CompactBinaryV1Proto s
+--                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                    assertEqual "serialized value do not match original" dat d'
 
 -- compat.json.dat file has several properties making it incompatible with usual test:
 -- all float values saved with extra precision
@@ -122,10 +122,10 @@ testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ 
         Left msg -> do
             assertFailure msg
             return L.empty
-        Right s -> let _ = s :: Compat -- type binding
-                    in do
-                        let Right d' = bondWrite JsonProto s
-                        return d'
+        Right s -> do
+                    let _ = s :: Compat -- type binding
+                    let Right d' = bondWrite JsonProto s
+                    return d'
 
 readAsType :: forall t a. (BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
@@ -149,6 +149,17 @@ createCompatSchema = do
     let reprlen = length $ show schema
     -- the point of this test is to force schema creation and see if it is finite
     assertBool "impossible schema length 0" (reprlen > 0)
+
+matchSchemaDef :: Assertion
+matchSchemaDef = do
+    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    let parse = bondReadMarshalled dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> do
+                    let _ = s :: SchemaDef -- type binding
+                    let s' = getSchema (Proxy :: Proxy Compat)
+                    assertEqual "schemas do not match" (show s) (show s')
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == (fromZigZag $ toZigZag x)

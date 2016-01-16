@@ -152,12 +152,7 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
         ]
     wiretypeDecl = InstDecl noLoc Nothing [] [] (implQual "WireType")
         [makeType True typeName declParams]
-        [InsDecl $
-            FunBind
-                [Match noLoc (Ident "getWireType") [PWildCard] Nothing
-                    (UnGuardedRhs (Con $ implQual "bT_STRUCT")) noBinds
-                ]
-        ]
+        [InsDecl $ wildcardFunc "getWireType" (Con $ implQual "bT_STRUCT")]
     bondSerializableDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "Default") declParams ++
             map (typeParamConstraint $ implQual "Serializable") declParams ++

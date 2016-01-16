@@ -90,6 +90,9 @@ mkModuleName ns typename = ModuleName $ intercalate "." $ map capitalize $ ns ++
 typeParamConstraint :: QName -> TypeParam -> Asst
 typeParamConstraint className t = ClassA className [TyVar $ mkVar $ paramName t]
 
+wildcardFunc :: String -> Exp -> Decl
+wildcardFunc f rhs = FunBind [Match noLoc (Ident f) [PWildCard] Nothing (UnGuardedRhs rhs) noBinds]
+
 makeType :: Bool -> Name -> [TypeParam] -> Language.Haskell.Exts.Type
 makeType _ typeName [] = TyCon $ UnQual typeName
 makeType needParen typeName params
