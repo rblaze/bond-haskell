@@ -7,7 +7,7 @@ module Language.Bond.Codegen.Haskell.SchemaDecl (
   ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext)
+import Language.Bond.Codegen.TypeMapping (MappingContext(..))
 import Language.Bond.Codegen.Haskell.Util
 
 import Language.Haskell.Exts
@@ -112,8 +112,8 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
                     (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies),
      InsDecl $ wildcardFunc "getQualifiedTypeName" $
         if null (declParams decl)
-            then stringL $ getDeclTypeName ctx decl
-            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ getDeclTypeName ctx decl))
+            then stringL $ getDeclTypeName ctx{namespaceMapping = []} decl
+            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ getDeclTypeName ctx{namespaceMapping = []} decl))
                     (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies)
     ]
     where
@@ -134,7 +134,7 @@ typeDefGenDecl _ ctx decl@Enum{} = InstDecl noLoc Nothing [] []
     [InsDecl $ wildcardFunc "getTypeDef" $ App (Var $ sQual "getTypeDef") $
         ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") (implType "Int32")),
      InsDecl $ wildcardFunc "getTypeName" $ stringL (declName decl),
-     InsDecl $ wildcardFunc "getQualifiedTypeName" $ stringL (getDeclTypeName ctx decl)
+     InsDecl $ wildcardFunc "getQualifiedTypeName" $ stringL (getDeclTypeName ctx{namespaceMapping = []} decl)
     ]
 
 typeDefGenDecl _ _ _ = error "typeDefGenDecl called for invalid type"

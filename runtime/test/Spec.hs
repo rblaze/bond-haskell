@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables #-}
+{-# Language OverloadedStrings, ScopedTypeVariables #-}
 import Data.Bond
 import Data.Bond.ZigZag
 import Data.Bond.Schema.SchemaDef
@@ -16,6 +16,8 @@ import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as L
 
+import DataPath
+
 main :: IO ()
 main = defaultMain tests
 
@@ -25,9 +27,8 @@ defaultDataPath = "compat" </> "data"
 tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
-        [ testCase "create SchemaDef schema" createSchemaDef,
-          testCase "create Compat schema" createCompatSchema,
-          testCase "check saved schema matching our schema" matchSchemaDef
+        [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
+          testCase "check generated SchemaDef matching our" matchGeneratedSchemaDef
         ],
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
@@ -136,22 +137,8 @@ readAsType p _ f = do
         Right s -> let _ = s :: a -- type binding
                     in return ()
 
-createSchemaDef :: Assertion
-createSchemaDef = do
-    let schema = getSchema (Proxy :: Proxy SchemaDef)
-    let reprlen = length $ show schema
-    -- the point of this test is to force schema creation and see if it is finite
-    assertBool "impossible schema length 0" (reprlen > 0)
-
-createCompatSchema :: Assertion
-createCompatSchema = do
-    let schema = getSchema (Proxy :: Proxy Compat)
-    let reprlen = length $ show schema
-    -- the point of this test is to force schema creation and see if it is finite
-    assertBool "impossible schema length 0" (reprlen > 0)
-
-matchSchemaDef :: Assertion
-matchSchemaDef = do
+matchCompatSchemaDef :: Assertion
+matchCompatSchemaDef = do
     dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
     let parse = bondReadMarshalled dat
     case parse of
@@ -159,6 +146,19 @@ matchSchemaDef = do
         Right s -> do
                     let _ = s :: SchemaDef -- type binding
                     let s' = getSchema (Proxy :: Proxy Compat)
+                    assertEqual "schemas do not match" (show s) (show s')
+
+-- gbc's json schemas slightly differ from bond.bond definition,
+-- so I can't compare json representations.
+matchGeneratedSchemaDef :: Assertion
+matchGeneratedSchemaDef = do
+    dat <- L.readFile (autogenPath </> "bond.SchemaDef.json")
+    let parse = bondRead JsonProto dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> do
+                    let _ = s :: SchemaDef -- type binding
+                    let s' = getSchema (Proxy :: Proxy SchemaDef)
                     assertEqual "schemas do not match" (show s) (show s')
 
 zigzagInt16 :: Int16 -> Bool

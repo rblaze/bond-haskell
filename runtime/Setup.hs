@@ -12,7 +12,7 @@ import System.Directory
 import System.FilePath
 
 main = defaultMainWithHooks $ simpleUserHooks {
-    hookedPrograms = [simpleProgram "hbc"],
+    hookedPrograms = [simpleProgram "hbc", simpleProgram "gbc"],
     postConf = runHbc
 }
 
@@ -20,9 +20,11 @@ runHbc :: Args -> ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 runHbc _ conf _ lbi = do
     let verbosity = fromFlagOrDefault normal $ configVerbosity conf
     (hbc, _) <- requireProgram verbosity (simpleProgram "hbc") (configPrograms conf)
+    (gbc, _) <- requireProgram verbosity (simpleProgram "gbc") (configPrograms conf)
     let schemaPath = "schema"
     let outPath = autogenModulesDir lbi
 
+    -- generate code for SchemaDef & Co
     let schemaFlag = outPath </> "schemagen.flg"
     schemaGenFlagExists <- doesFileExist schemaFlag
     needSchemaRegen <- if schemaGenFlagExists
@@ -36,6 +38,14 @@ runHbc _ conf _ lbi = do
         runProgram verbosity hbc ["-h", "-o", outPath, "--schema-bootstrap", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
         writeFile schemaFlag ""
 
+    -- generate json schemas for unittests
+    runProgram verbosity gbc ["schema", "-o", outPath, "-r", schemaPath </> "bond.bond"]
+    writeFile (outPath </> "DataPath.hs") $
+        "module DataPath where\n\
+        \autogenPath :: String\n\
+        \autogenPath = " ++ show outPath
+
+    -- generate code for unittests
     let testSchemasPath = "compat" </> "schemas"
     let compatFlag = outPath </> "compatgen.flg"
     testSchemaFiles <- map (testSchemasPath </>) . filter (".bond" `isSuffixOf`) <$>
