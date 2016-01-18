@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings, ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables #-}
 import Data.Bond
 import Data.Bond.ZigZag
 import Data.Bond.Schema.SchemaDef
@@ -73,7 +73,8 @@ tests = testGroup "Haskell runtime tests"
             ],
           testGroup "Marshalling"
             [ testCase "read/write SchemaDef value" readSchema
-            ]
+            ],
+          testGroup "Cross-tests" crossTests
         ],
       testGroup "ZigZag encoding"
         [ testProperty "Int16" zigzagInt16,
@@ -82,6 +83,38 @@ tests = testGroup "Haskell runtime tests"
           testProperty "Word64" zigzagWord64
         ]
     ]
+
+crossTests :: [TestTree]
+crossTests =
+    [crossTest left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
+    [crossTest left right | left <- protos, right <- protos, getName left < getName right]
+    where
+    -- Simple protocol has different m_defaults from all others. Also some enum values differ.
+    -- Json differs in uint64 values.
+    -- See comments in https://github.com/Microsoft/bond/blob/master/cpp/test/compat/serialization.cpp
+    simpleProtos = [
+        ("Simple", bondRead SimpleBinaryProto, "compat.simple2.dat"),
+        ("Simple v1", bondRead SimpleBinaryV1Proto, "compat.simple.dat")
+     ]
+    protos = [
+        ("Compact", bondRead CompactBinaryProto, "compat.compact2.dat"),
+        ("Compact v1", bondRead CompactBinaryV1Proto, "compat.compact.dat"),
+        ("Fast", bondRead FastBinaryProto, "compat.fast.dat")
+     ]
+    getName (n, _, _) = n
+    crossTest (lname, lreader, lfile) (rname, rreader, rfile)
+        = testCase (lname ++ " - " ++ rname) $ do
+            ldat <- L.readFile (defaultDataPath </> lfile)
+            let lparse = lreader ldat
+            case lparse of
+                Left msg -> assertFailure msg
+                Right s -> let _ = s :: Compat in return ()
+            rdat <- L.readFile (defaultDataPath </> rfile)
+            let rparse = rreader rdat
+            case rparse of
+                Left msg -> assertFailure msg
+                Right s -> let _ = s :: Compat in return ()
+            assertEqual "values do not match" (show lparse) (show rparse)
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = do
