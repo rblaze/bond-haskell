@@ -9,8 +9,12 @@ import Control.Applicative
 import Data.List
 import Data.Maybe
 
-data CodegenMode = Normal | SchemaDef
-    deriving (Show, Eq)
+data CodegenOpts = CodegenOpts
+    { setType :: String
+    , schemaBootstrapMode :: Bool
+    , deriveShow :: Bool
+    , deriveEq :: Bool
+    }
 
 unique :: Ord a => [a] -> [a]
 unique = map head . group . sort

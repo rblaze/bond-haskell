@@ -10,8 +10,8 @@ import Language.Bond.Codegen.Haskell.Util
 import Language.Haskell.Exts hiding (mode)
 import Language.Haskell.Exts.SrcLoc (noLoc)
 
-enumDecl :: CodegenMode -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumDecl mode ctx moduleName decl@Enum{} = Just source
+enumDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
+enumDecl opts ctx moduleName decl@Enum{} = Just source
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
@@ -21,7 +21,7 @@ enumDecl mode ctx moduleName decl@Enum{} = Just source
         Nothing
         imports
         (dataDecl : serializableDecl : typeDefGenDecl (error "do not use") ctx decl : typeSig : values)
-    imports | mode == SchemaDef = [importInternalModule, importPrelude, importSchema{importSrc = True}]
+    imports | schemaBootstrapMode opts = [importInternalModule, importPrelude, importSchema{importSrc = True}]
             | otherwise = [importInternalModule, importPrelude, importSchema]
     typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
@@ -59,8 +59,8 @@ enumDecl mode ctx moduleName decl@Enum{} = Just source
 
 enumDecl _ _ _ _ = error "enumDecl called for invalid type"
 
-enumHsBootDecl :: CodegenMode -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumHsBootDecl mode _ moduleName decl@Enum{} = if mode == SchemaDef then Just hsboot else Nothing
+enumHsBootDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
+enumHsBootDecl opts _ moduleName decl@Enum{} = if schemaBootstrapMode opts then Just hsboot else Nothing
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing [importInternalModule{importSrc = True}] [
                 DataDecl noLoc NewType [] typeName [] [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])] [],

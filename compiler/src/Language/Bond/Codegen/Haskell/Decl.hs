@@ -1,5 +1,5 @@
 module Language.Bond.Codegen.Haskell.Decl (
-        CodegenMode(..),
+        CodegenOpts(..),
         CodegenOutput(..),
         decl_hs,
         decl_hsboot
@@ -20,34 +20,34 @@ data CodegenOutput
     = SingleFile FilePath String
     | MultiFile [(FilePath, String)]
 
-decl_hs :: CodegenMode -> String -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hs genMode setType ctx declarations = MultiFile $ mapMaybe step declarations
+decl_hs :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
+decl_hs opts ctx declarations = MultiFile $ mapMaybe step declarations
     where
-    step = fmap (second prettyPrint) . makeModule genMode setType ctx
+    step = fmap (second prettyPrint) . makeModule opts ctx
 
-decl_hsboot :: CodegenMode -> String -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hsboot genMode setType ctx declarations = MultiFile $ mapMaybe step declarations
+decl_hsboot :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
+decl_hsboot opts ctx declarations = MultiFile $ mapMaybe step declarations
     where
-    step = fmap (second prettyPrint) . makeHsBootModule genMode setType ctx
+    step = fmap (second prettyPrint) . makeHsBootModule opts ctx
 
-makeModule :: CodegenMode -> String -> MappingContext -> Declaration -> Maybe (FilePath, Module)
-makeModule genMode setType ctx decl = fmap ((,) sourceName) code
+makeModule :: CodegenOpts -> MappingContext -> Declaration -> Maybe (FilePath, Module)
+makeModule opts ctx decl = fmap ((,) sourceName) code
     where
     code = case decl of
-        Enum{} -> enumDecl genMode ctx moduleName decl
-        Struct{} -> structDecl genMode setType ctx moduleName decl
+        Enum{} -> enumDecl opts ctx moduleName decl
+        Struct{} -> structDecl opts ctx moduleName decl
         _ -> Nothing
     hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx
     sourceName = joinPath $ hsNamespaces ++ [hsModule ++ ".hs"]
     moduleName = mkModuleName hsNamespaces hsModule
 
-makeHsBootModule :: CodegenMode -> String -> MappingContext -> Declaration -> Maybe (FilePath, Module)
-makeHsBootModule genMode setType ctx decl = fmap ((,) hsBootName) code
+makeHsBootModule :: CodegenOpts -> MappingContext -> Declaration -> Maybe (FilePath, Module)
+makeHsBootModule opts ctx decl = fmap ((,) hsBootName) code
     where
     code = case decl of
-        Enum{} -> enumHsBootDecl genMode ctx moduleName decl
-        Struct{} -> structHsBootDecl genMode setType ctx moduleName decl
+        Enum{} -> enumHsBootDecl opts ctx moduleName decl
+        Struct{} -> structHsBootDecl opts ctx moduleName decl
         _ -> Nothing
     hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx

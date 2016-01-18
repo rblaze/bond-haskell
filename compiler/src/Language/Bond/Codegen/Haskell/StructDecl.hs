@@ -110,8 +110,8 @@ structPut decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [selfPVa
     putFunc f | fieldDefault f == Just DefaultNothing = implQual "bondPutDefNothingField"
               | otherwise = implQual "bondPutField"
 
-structDecl :: CodegenMode -> String -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, declParams} = Just source
+structDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
+structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams} = Just source
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
@@ -121,23 +121,25 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
         (Just [EThingAll $ UnQual typeName])
         imports
         [dataDecl, defaultDecl, wiretypeDecl, bondSerializableDecl,
-         bondStructDecl, typeDefGenDecl setType ctx decl
+         bondStructDecl, typeDefGenDecl (setType opts) ctx decl
         ]
 
-    imports | mode == SchemaDef = importInternalModule : importPrelude : importSchema{importSrc = True} : map (\ m -> importTemplate{importModule = m}) fieldModules
+    imports | schemaBootstrapMode opts = importInternalModule : importPrelude : importSchema{importSrc = True} : map (\ m -> importTemplate{importModule = m}) fieldModules
             | otherwise = importInternalModule : importPrelude : importSchema : map (\ m -> importTemplate{importModule = m}) fieldModules
 
     typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
     fieldModules = unique $ filter (/= moduleName) $ filter (/= internalModuleAlias)
                     $ concatMap (getTypeModules . snd) fields
-    mkField f = ([mkVar $ makeFieldName f], hsType setType ctx (fieldType f))
+    mkField f = ([mkVar $ makeFieldName f], hsType (setType opts) ctx (fieldType f))
     ownFields = map mkField structFields
-    fields | Just base <- structBase = ([baseStructField], hsType setType ctx base) : ownFields
+    fields | Just base <- structBase = ([baseStructField], hsType (setType opts) ctx base) : ownFields
            | otherwise = ownFields
     dataDecl = DataDecl noLoc DataType [] typeName typeParams
               [QualConDecl noLoc [] [] (RecDecl typeName fields)]
-              [(pQual "Show", []), (implQual "Typeable", [])]
+              (derivingShow $ derivingEq [(implQual "Typeable", [])])
+    derivingShow = if deriveShow opts then ((pQual "Show", []) :) else id
+    derivingEq = if deriveEq opts then ((pQual "Eq", []) :) else id
 
     ownFieldDefaults = map (defaultFieldValue ctx) structFields
     fieldDefaults | isNothing structBase = ownFieldDefaults
@@ -178,11 +180,11 @@ structDecl mode setType ctx moduleName decl@Struct{structBase, structFields, dec
          getField decl
         ]
 
-structDecl _ _ _ _ _ = error "structDecl called for invalid type"
+structDecl _ _ _ _ = error "structDecl called for invalid type"
 
-structHsBootDecl :: CodegenMode -> String -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-structHsBootDecl mode setType ctx moduleName decl@Struct{structBase, structFields, declParams} =
-    if mode == SchemaDef then Just hsboot else Nothing
+structHsBootDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
+structHsBootDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams} =
+    if schemaBootstrapMode opts then Just hsboot else Nothing
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing
         (importInternalModule{importSrc = True} : map (\ m -> importTemplate{importModule = m, importSrc = True}) fieldModules)
@@ -198,9 +200,9 @@ structHsBootDecl mode setType ctx moduleName decl@Struct{structBase, structField
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
     fieldModules = unique $ filter (/= moduleName) $ filter (/= internalModuleAlias)
                     $ concatMap (getTypeModules . snd) fields
-    mkField f = ([mkVar $ makeFieldName f], hsType setType ctx (fieldType f))
+    mkField f = ([mkVar $ makeFieldName f], hsType (setType opts) ctx (fieldType f))
     ownFields = map mkField structFields
-    fields | Just base <- structBase = ([baseStructField], hsType setType ctx base) : ownFields
+    fields | Just base <- structBase = ([baseStructField], hsType (setType opts) ctx base) : ownFields
            | otherwise = ownFields
 
-structHsBootDecl _ _ _ _ _ = error "structDecl called for invalid type"
+structHsBootDecl _ _ _ _ = error "structDecl called for invalid type"

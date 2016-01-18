@@ -114,6 +114,7 @@ crossTests =
             case rparse of
                 Left msg -> assertFailure msg
                 Right s -> let _ = s :: Compat in return ()
+            -- FIXME decode bonded values in lparse rparse and compare with Eq
             assertEqual "values do not match" (show lparse) (show rparse)
 
 readCompat :: BondProto t => t -> String -> Assertion
@@ -177,9 +178,8 @@ matchCompatSchemaDef = do
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
-                    let _ = s :: SchemaDef -- type binding
                     let s' = getSchema (Proxy :: Proxy Compat)
-                    assertEqual "schemas do not match" (show s) (show s')
+                    assertEqual "schemas do not match" s s'
 
 -- gbc's json schemas slightly differ from bond.bond definition,
 -- so I can't compare json representations.
@@ -190,9 +190,8 @@ matchGeneratedSchemaDef = do
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
-                    let _ = s :: SchemaDef -- type binding
                     let s' = getSchema (Proxy :: Proxy SchemaDef)
-                    assertEqual "schemas do not match" (show s) (show s')
+                    assertEqual "schemas do not match" s s'
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == (fromZigZag $ toZigZag x)

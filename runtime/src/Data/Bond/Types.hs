@@ -57,7 +57,7 @@ instance Show Utf8 where show (Utf8 s) = show $ T.unpack $ T.decodeUtf8 s
 instance Show Utf16 where show (Utf16 s) = show $ T.unpack $ T.decodeUtf16LE s
 
 data Bonded a = BondedStream Lazy.ByteString | BondedObject a
-    deriving Typeable
+    deriving (Eq, Typeable)
 
 instance Show a => Show (Bonded a) where
     show BondedStream{} = "BondedStream"

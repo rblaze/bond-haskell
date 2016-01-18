@@ -25,6 +25,14 @@ library
                        Data.Bond.Imports
                        Data.Bond.Schema
                        Data.Bond.ZigZag
+                       Data.Bond.Schema.BondDataType
+                       Data.Bond.Schema.FieldDef
+                       Data.Bond.Schema.Metadata
+                       Data.Bond.Schema.Modifier
+                       Data.Bond.Schema.SchemaDef
+                       Data.Bond.Schema.StructDef
+                       Data.Bond.Schema.TypeDef
+                       Data.Bond.Schema.Variant
   other-modules:       Data.Bond.BinaryUtils
                        Data.Bond.Cast
                        Data.Bond.CompactBinaryProto
@@ -39,15 +47,7 @@ library
                        Data.Bond.Types
                        Data.Bond.Utils
                        Data.Bond.Wire
-                       Data.Bond.Schema.BondDataType
-                       Data.Bond.Schema.FieldDef
-                       Data.Bond.Schema.Metadata
-                       Data.Bond.Schema.Modifier
                        Data.Bond.Schema.ProtocolType
-                       Data.Bond.Schema.SchemaDef
-                       Data.Bond.Schema.StructDef
-                       Data.Bond.Schema.TypeDef
-                       Data.Bond.Schema.Variant
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
                      , aeson

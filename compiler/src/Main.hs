@@ -19,9 +19,13 @@ main = do
     args <- getArgs
     options <- (if null args then withArgs ["--help"] else id) getOptions
 
-    let schemaMode = if schema_bootstrap options then SchemaDef else Normal
-    let setType = if hashset options then "HashSet" else "Set"
-    forM_ (files options) $ codegen options [decl_hs schemaMode setType, decl_hsboot schemaMode setType]
+    let opts = CodegenOpts {
+        setType = if hashset options then "HashSet" else "Set",
+        schemaBootstrapMode = schema_bootstrap options,
+        deriveEq = not (noEq options),
+        deriveShow = not (noShow options)
+      }
+    forM_ (files options) $ codegen options [decl_hs opts, decl_hsboot opts]
 
 codegen :: Options -> [Template] -> FilePath -> IO ()
 codegen options templates file = do
