@@ -114,8 +114,7 @@ crossTests =
             case rparse of
                 Left msg -> assertFailure msg
                 Right s -> let _ = s :: Compat in return ()
-            -- FIXME decode bonded values in lparse rparse and compare with Eq
-            assertEqual "values do not match" (show lparse) (show rparse)
+            assertEqual "values do not match" lparse rparse
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = do

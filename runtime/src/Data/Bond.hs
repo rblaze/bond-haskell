@@ -1,4 +1,5 @@
 module Data.Bond (
+    BondedException,
     BondProto,
     BondStruct,
     CompactBinaryProto(..),
@@ -11,9 +12,12 @@ module Data.Bond (
     bondReadMarshalled,
     bondWrite,
     bondWriteMarshalled,
-    getSchema
+    castValue,
+    getSchema,
+    getValue
   ) where
 
+import Data.Bond.Bonded
 import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
 import Data.Bond.JsonProto

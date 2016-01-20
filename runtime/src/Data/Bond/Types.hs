@@ -25,12 +25,13 @@ module Data.Bond.Types (
     Word8
   ) where
 
+import Data.Bond.Bonded
+
 import Data.Data
 import Data.Int
 import Data.Word
 import Data.Hashable
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as Lazy
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -55,13 +56,6 @@ instance EncodedString Utf16 where fromString = Utf16 . T.encodeUtf16LE . T.pack
 
 instance Show Utf8 where show (Utf8 s) = show $ T.unpack $ T.decodeUtf8 s
 instance Show Utf16 where show (Utf16 s) = show $ T.unpack $ T.decodeUtf16LE s
-
-data Bonded a = BondedStream Lazy.ByteString | BondedObject a
-    deriving (Eq, Typeable)
-
-instance Show a => Show (Bonded a) where
-    show BondedStream{} = "BondedStream"
-    show (BondedObject v) = show v
 
 newtype Ordinal = Ordinal Word16
     deriving (Eq, Ord, Show)

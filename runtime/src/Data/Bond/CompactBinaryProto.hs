@@ -114,7 +114,7 @@ instance BondProto CompactBinaryProto where
             [] -> return Nothing
             [x] -> return (Just x)
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
-    bondGetBonded = getBonded
+    bondGetBonded = getBonded cOMPACT_PROTOCOL 2
 
     bondEncode = binaryEncode
     bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 2
@@ -157,7 +157,7 @@ instance BondProto CompactBinaryProto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
+    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
 
 instance CompactProtocol CompactBinaryV1Proto where
     getListHeader = do
@@ -222,7 +222,7 @@ instance BondProto CompactBinaryV1Proto where
             [] -> return Nothing
             [x] -> return (Just x)
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
-    bondGetBonded = getBonded
+    bondGetBonded = getBonded cOMPACT_PROTOCOL 1
 
     bondEncode = binaryEncode
     bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 1
@@ -260,7 +260,7 @@ instance BondProto CompactBinaryV1Proto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
+    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
 
 getCompactFieldHeader :: (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t (BondDataType, Ordinal)
 getCompactFieldHeader = do
@@ -316,15 +316,15 @@ getMap = do
         v <- getAs elemtype bondGet
         return (k, v)
 
-getBonded :: (TaggedProtocol t, ReaderM t ~ ReaderT c B.Get)  => BondGet t (Bonded a)
-getBonded = do
+getBonded :: (TaggedProtocol t, ReaderM t ~ ReaderT c B.Get) => ProtocolType -> Word16 -> BondGet t (Bonded a)
+getBonded sig ver = do
     size <- lookAhead $ do
         start <- bytesRead
         skipType bT_STRUCT
         stop <- bytesRead
         return (stop - start)
     bs <- getLazyByteString (fromIntegral size)
-    return $ BondedStream bs
+    return $ BondedStream $ BL.append (protoHeader sig ver) bs
 
 skipVarInt :: forall t c. (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t ()
 skipVarInt = void (getVarInt :: BondGet t Word64)

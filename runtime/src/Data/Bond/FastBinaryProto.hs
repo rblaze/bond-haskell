@@ -25,6 +25,7 @@ import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -152,7 +153,7 @@ instance BondProto FastBinaryProto where
             stop <- bytesRead
             return (stop - start)
         bs <- getLazyByteString (fromIntegral size)
-        return $ BondedStream bs
+        return $ BondedStream $ BL.append (protoHeader fAST_PROTOCOL 1) bs
 
     bondEncode = binaryEncode
     bondEncodeMarshalled = encodeWithHdr fAST_PROTOCOL 1
@@ -191,7 +192,7 @@ instance BondProto FastBinaryProto where
         putVarInt $ BS.length b
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString s -- FIXME handle different protocols
+    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
 
 putList :: forall a. Serializable a => [a] -> BondPut FastBinaryProto
 putList xs = do

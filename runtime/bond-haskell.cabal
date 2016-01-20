@@ -34,6 +34,7 @@ library
                        Data.Bond.Schema.TypeDef
                        Data.Bond.Schema.Variant
   other-modules:       Data.Bond.BinaryUtils
+                       Data.Bond.Bonded
                        Data.Bond.Cast
                        Data.Bond.CompactBinaryProto
                        Data.Bond.ContextWriter
