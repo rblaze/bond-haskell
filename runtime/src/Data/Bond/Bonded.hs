@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Data.Bond.Bonded where
 
 import {-# SOURCE #-} Data.Bond.Marshal
