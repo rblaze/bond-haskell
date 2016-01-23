@@ -23,6 +23,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.Bond
                        Data.Bond.Imports
+                       Data.Bond.Marshal
                        Data.Bond.Schema
                        Data.Bond.ZigZag
                        Data.Bond.Schema.BondDataType
@@ -41,7 +42,6 @@ library
                        Data.Bond.Default
                        Data.Bond.FastBinaryProto
                        Data.Bond.JsonProto
-                       Data.Bond.Marshal
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
                        Data.Bond.TaggedProtocol

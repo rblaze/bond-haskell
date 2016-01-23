@@ -54,11 +54,13 @@ type ReadM = ReaderT ReaderCtx Parser
 type WriteM = RWS PutContext () Value
 
 instance BondProto JsonProto where
+    bondRead _ = jsonDecode
+    bondWrite _ = jsonEncode
+
+instance Protocol JsonProto where
     type ReaderM JsonProto = ReadM
     type WriterM JsonProto = WriteM
 
-    bondDecode _ = jsonDecode
-    bondDecodeMarshalled = decodeWithHdr sIMPLE_JSON_PROTOCOL 1
     bondGetStruct = parseStruct
     bondGetBaseStruct = parseStruct
 
@@ -125,8 +127,6 @@ instance BondProto JsonProto where
         v <- asks rdValue
         return $ BondedStream $ encode v
 
-    bondEncode _ = jsonEncode
-    bondEncodeMarshalled = encodeWithHdr sIMPLE_JSON_PROTOCOL 1
     bondPutStruct v = do
         put emptyObject
         putStruct v
@@ -181,12 +181,12 @@ jsonDecode s = do
 
     parseEither parser (ReaderCtx schema v)
 
-jsonEncode :: forall a. BondStruct a => a -> Either String BL.ByteString
+jsonEncode :: forall a. BondStruct a => a -> BL.ByteString
 jsonEncode a =
     let BondPut g = bondPutStruct a :: BondPut JsonProto
         schema = getSchema (Proxy :: Proxy a)
         (v, _) = execRWS g (PutContext schema (error "empty cache")) (error "no object")
-     in Right (encode v)
+     in encode v
 
 useObject :: String -> Value -> (Object -> BondGet JsonProto a) -> BondGet JsonProto a
 useObject _ (Object v) p = p v

@@ -33,8 +33,10 @@ instance (BondStruct a, Eq a) => Eq (Bonded a) where
 
 getValue :: BondStruct a => Bonded a -> Either String a
 getValue (BondedObject a) = Right a
-getValue (BondedStream s) = bondReadMarshalled s
+getValue (BondedStream s) = bondUnmarshal s
 
+{-
 castValue :: BondStruct b => Bonded a -> Either String b
 castValue (BondedObject _) = error "can't cast deserialized struct"
 castValue (BondedStream s) = bondReadMarshalled s
+-}

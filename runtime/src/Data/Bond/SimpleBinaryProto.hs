@@ -32,11 +32,13 @@ data SimpleBinaryProto = SimpleBinaryProto
 data SimpleBinaryV1Proto = SimpleBinaryV1Proto
 
 instance BondProto SimpleBinaryProto where
+    bondRead = decode
+    bondWrite = encode
+
+instance Protocol SimpleBinaryProto where
     type ReaderM SimpleBinaryProto = ReaderT () B.Get
     type WriterM SimpleBinaryProto = ReaderT () B.PutM
 
-    bondDecode = decode
-    bondDecodeMarshalled = decodeWithHdr sIMPLE_PROTOCOL 2
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -86,8 +88,6 @@ instance BondProto SimpleBinaryProto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
-    bondEncode = encode
-    bondEncodeMarshalled = encodeWithHdr sIMPLE_PROTOCOL 2
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -135,11 +135,13 @@ instance BondProto SimpleBinaryProto where
         putLazyByteString s
 
 instance BondProto SimpleBinaryV1Proto where
+    bondRead = decode
+    bondWrite = encode
+
+instance Protocol SimpleBinaryV1Proto where
     type ReaderM SimpleBinaryV1Proto = ReaderT () B.Get
     type WriterM SimpleBinaryV1Proto = ReaderT () B.PutM
 
-    bondDecode = decode
-    bondDecodeMarshalled = decodeWithHdr sIMPLE_PROTOCOL 1
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
 
@@ -189,8 +191,6 @@ instance BondProto SimpleBinaryV1Proto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
-    bondEncode = encode
-    bondEncodeMarshalled = encodeWithHdr sIMPLE_PROTOCOL 1
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ = bondPut
@@ -237,7 +237,7 @@ instance BondProto SimpleBinaryV1Proto where
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
 
-decode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT () B.Get) => t -> BL.ByteString -> Either String a
+decode :: forall a t. (BondStruct a, Protocol t, ReaderM t ~ ReaderT () B.Get) => t -> BL.ByteString -> Either String a
 decode _ s =
     let BondGet g = bondGetStruct :: BondGet t a
      in case B.runGetOrFail (runReaderT g ()) s of
@@ -245,7 +245,7 @@ decode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-encode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT () B.PutM) => t -> a -> Either String BL.ByteString
+encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ReaderT () B.PutM) => t -> a -> BL.ByteString
 encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in Right $ B.runPut (runReaderT g ())
+     in B.runPut (runReaderT g ())

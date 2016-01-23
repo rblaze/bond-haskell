@@ -1,6 +1,5 @@
 module Data.Bond (
-    BondedException,
-    BondProto,
+    BondProto(bondRead, bondWrite),
     BondStruct,
     CompactBinaryProto(..),
     CompactBinaryV1Proto(..),
@@ -8,11 +7,6 @@ module Data.Bond (
     JsonProto(..),
     SimpleBinaryProto(..),
     SimpleBinaryV1Proto(..),
-    bondRead,
-    bondReadMarshalled,
-    bondWrite,
-    bondWriteMarshalled,
-    castValue,
     getSchema,
     getValue
   ) where
@@ -21,15 +15,27 @@ import Data.Bond.Bonded
 import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
 import Data.Bond.JsonProto
-import Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
 
-import qualified Data.ByteString.Lazy as L
+-- compile-time schemas API
+-- + bondRead :: BondProto t, BondStruct a => t -> BS.ByteString -> Either String a
+-- + bondWrite :: BondProto t, BondStruct a => t -> a -> BS.ByteString
 
-bondRead :: (BondStruct a, BondProto t) => t -> L.ByteString -> Either String a
-bondRead = bondDecode
+-- + bondUnmarshal :: BondStruct a => BS.ByteString -> Either String a
+-- + bondMarshal :: BondProto t, BondStruct a => t -> a -> BS.ByteString
 
-bondWrite :: (BondStruct a, BondProto t) => t -> a -> Either String L.ByteString
-bondWrite = bondEncode
+-- runtime schema API
+-- bondReadWithSchema :: BondProto t => t -> SchemaDef -> BS.ByteString -> Either String Struct
+-- bondWriteWithSchema :: BondProto t => t -> SchemaDef -> Struct -> BS.ByteString
+
+-- bondUnmarshalWithSchema :: SchemaDef -> BS.ByteString -> Either String Struct
+-- bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> BS.ByteString
+
+-- schemaless API
+-- bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
+-- bondPutTagged :: BondProto t => t -> Struct -> BS.ByteString
+
+-- bondUnmarshalTagged :: BS.ByteString -> Either String Struct
+-- bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString

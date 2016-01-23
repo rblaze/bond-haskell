@@ -1,16 +1,9 @@
 {-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies, FlexibleInstances, MultiParamTypeClasses #-}
-module Data.Bond.Proto (
-        BondStruct(..),
-        BondProto(..),
-        BondGet(..),
-        BondPutM(..),
-        BondPut,
-        MarshalledDecodeResult(..),
-        Serializable(..)
-  ) where
+module Data.Bond.Proto where
 
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
+import {-# SOURCE #-} Data.Bond.Schema.SchemaDef
 import Data.Bond.Types
 import Data.Bond.Wire
 
@@ -41,46 +34,37 @@ deriving instance (MonadState s (WriterM t)) => MonadState s (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
-data MarshalledDecodeResult a = IncorrectSignature | DecodeError String | Decoded a
-instance Functor MarshalledDecodeResult where
-    fmap _ IncorrectSignature = IncorrectSignature
-    fmap _ (DecodeError s) = DecodeError s
-    fmap f (Decoded v) = Decoded (f v)
-instance Applicative MarshalledDecodeResult where
-    pure = Decoded
-    IncorrectSignature <*> _ = IncorrectSignature
-    DecodeError s <*> _ = DecodeError s
-    Decoded f <*> a = fmap f a
-instance Alternative MarshalledDecodeResult where
-    empty = IncorrectSignature
-    IncorrectSignature <|> r = r
-    l <|> _ = l
-
 class (Default a, WireType a) => Serializable a where
     -- | Read field value.
-    bondGet :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
+    bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Put field into stream.
-    bondPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
+    bondPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
 
 class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     -- | Read struct from untagged stream
-    bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => BondGet t a
-    bondStructGetBase :: (Monad (ReaderM t), BondProto t) => a -> BondGet t a
-    bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), BondProto t) => Ordinal -> a -> BondGet t a
+    bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
+    bondStructGetBase :: (Monad (ReaderM t), Protocol t) => a -> BondGet t a
+    bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
     -- | Put struct
-    bondStructPut :: (Monad (WriterM t), BondProto t) => a -> BondPut t
+    bondStructPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
+
+-- public API classes
+data Struct = Struct
 
 class BondProto t where
+    bondRead :: BondStruct a => t -> BS.ByteString -> Either String a
+    bondWrite :: BondStruct a => t -> a -> BS.ByteString
+    bondReadWithSchema :: t -> SchemaDef -> BS.ByteString -> Either String Struct
+    bondWriteWithSchema :: t -> SchemaDef -> Struct -> BS.ByteString
+
+class BondTaggedProto t where
+    bondReadTagged :: t -> BS.ByteString -> Either String Struct
+    bondPutTagged :: t -> Struct -> BS.ByteString
+
+-- internal class
+class Protocol t where
     type ReaderM t :: * -> *
     type WriterM t :: * -> *
-    -- | run decoder
-    bondDecode :: BondStruct a => t -> BS.ByteString -> Either String a
-    -- | check protocol signature and run decoder
-    bondDecodeMarshalled :: BondStruct a => t -> BS.ByteString -> MarshalledDecodeResult a
-    -- | run encoder
-    bondEncode :: BondStruct a => t -> a -> Either String BS.ByteString
-    -- | run encoder amd prepend protocol signature
-    bondEncodeMarshalled :: BondStruct a => t -> a -> Either String BS.ByteString
     -- | encode top-level struct
     bondPutStruct :: BondStruct a => a -> BondPut t
     -- | encode base struct

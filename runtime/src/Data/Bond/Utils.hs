@@ -15,6 +15,7 @@ protoHeader (ProtocolType protoSig) protoVer = BS.pack [s0, s1, v0, v1]
     v0 = fromIntegral protoVer
     v1 = fromIntegral (protoVer `shiftR` 8)
 
+{-
 decodeWithHdr :: (BondProto t, BondStruct a) => ProtocolType -> Word16 -> t -> BS.ByteString -> MarshalledDecodeResult a
 decodeWithHdr protoSig protoVer p s =
     if BS.take 4 s == protoHeader protoSig protoVer
@@ -25,3 +26,4 @@ decodeWithHdr protoSig protoVer p s =
 
 encodeWithHdr :: (BondProto t, BondStruct a) => ProtocolType -> Word16 -> t -> a -> Either String BS.ByteString
 encodeWithHdr protoSig protoVer p = fmap (BS.append $ protoHeader protoSig protoVer) . bondEncode p
+-}

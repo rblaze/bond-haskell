@@ -72,11 +72,13 @@ instance TaggedProtocol CompactBinaryProto where
     skipType = compactSkipType
 
 instance BondProto CompactBinaryProto where
+    bondRead = binaryDecode
+    bondWrite = binaryEncode
+
+instance Protocol CompactBinaryProto where
     type ReaderM CompactBinaryProto = ReaderT GetContext B.Get
     type WriterM CompactBinaryProto = ReaderT PutContext B.PutM
 
-    bondDecode = binaryDecode
-    bondDecodeMarshalled = decodeWithHdr cOMPACT_PROTOCOL 2
     bondGetStruct = do
         size <- getVarInt
         isolate size $ getStruct TopLevelStruct
@@ -116,8 +118,6 @@ instance BondProto CompactBinaryProto where
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
     bondGetBonded = getBonded cOMPACT_PROTOCOL 2
 
-    bondEncode = binaryEncode
-    bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 2
     bondPutStruct v = do
         env <- ask
         let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
@@ -182,11 +182,13 @@ instance TaggedProtocol CompactBinaryV1Proto where
     skipType = compactSkipType
 
 instance BondProto CompactBinaryV1Proto where
+    bondRead = binaryDecode
+    bondWrite = binaryEncode
+
+instance Protocol CompactBinaryV1Proto where
     type ReaderM CompactBinaryV1Proto = ReaderT GetContext B.Get
     type WriterM CompactBinaryV1Proto = ReaderT PutContext B.PutM
 
-    bondDecode = binaryDecode
-    bondDecodeMarshalled = decodeWithHdr cOMPACT_PROTOCOL 1
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
@@ -224,8 +226,6 @@ instance BondProto CompactBinaryV1Proto where
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
     bondGetBonded = getBonded cOMPACT_PROTOCOL 1
 
-    bondEncode = binaryEncode
-    bondEncodeMarshalled = encodeWithHdr cOMPACT_PROTOCOL 1
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
@@ -326,7 +326,7 @@ getBonded sig ver = do
     bs <- getLazyByteString (fromIntegral size)
     return $ BondedStream $ BL.append (protoHeader sig ver) bs
 
-skipVarInt :: forall t c. (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t ()
+skipVarInt :: forall t c. (Protocol t, ReaderM t ~ ReaderT c B.Get) => BondGet t ()
 skipVarInt = void (getVarInt :: BondGet t Word64)
 
 compactSkipType :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get) => BondDataType -> BondGet t ()
@@ -379,7 +379,7 @@ putSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     putAs t $ mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (BondProto t, WriterM t ~ ReaderT PutContext B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
+putMap :: forall k v t. (Protocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
 putMap m = do
     (tk, tv) <- checkPutMapType
 

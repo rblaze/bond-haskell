@@ -42,7 +42,7 @@ type GetContext = SchemaDef
 type BinReader = ReaderT GetContext B.Get
 type BinWriter = ReaderT PutContext B.PutM
 
-class BondProto t => TaggedProtocol t where
+class Protocol t => TaggedProtocol t where
     putFieldHeader :: BondDataType -> Ordinal -> BondPut t
     getFieldHeader :: BondGet t (BondDataType, Ordinal)
     skipStruct :: BondGet t ()
@@ -136,7 +136,7 @@ checkKeyGetType expected = do
 getAs :: MonadReader GetContext (ReaderM t) => TD.TypeDef -> BondGet t a -> BondGet t a
 getAs typedef = local (\s -> s{root = typedef})
 
-binaryDecode :: forall a t. (BondStruct a, BondProto t, ReaderM t ~ ReaderT GetContext B.Get) => t -> L.ByteString -> Either String a
+binaryDecode :: forall a t. (BondStruct a, Protocol t, ReaderM t ~ ReaderT GetContext B.Get) => t -> L.ByteString -> Either String a
 binaryDecode _ s =
     let BondGet g = bondGetStruct :: BondGet t a
         schema = getSchema (Proxy :: Proxy a)
@@ -145,8 +145,8 @@ binaryDecode _ s =
             Right (rest, used, _) | not (L.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (L.length rest)
             Right (_, _, a) -> Right a
 
-binaryEncode :: forall a t. (BondStruct a, BondProto t, WriterM t ~ ReaderT PutContext B.PutM) => t -> a -> Either String L.ByteString
+binaryEncode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ReaderT PutContext B.PutM) => t -> a -> L.ByteString
 binaryEncode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
         schema = getSchema (Proxy :: Proxy a)
-     in Right $ B.runPut (runReaderT g (PutContext schema (error "Thou shalt not touch this")))
+     in B.runPut (runReaderT g (PutContext schema (error "Thou shalt not touch this")))

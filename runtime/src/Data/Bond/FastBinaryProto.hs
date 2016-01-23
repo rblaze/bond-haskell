@@ -85,11 +85,13 @@ instance TaggedProtocol FastBinaryProto where
            | otherwise -> fail $ "Invalid type to skip " ++ show t
 
 instance BondProto FastBinaryProto where
+    bondRead = binaryDecode
+    bondWrite = binaryEncode
+
+instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = ReaderT GetContext B.Get
     type WriterM FastBinaryProto = ReaderT PutContext B.PutM
 
-    bondDecode = binaryDecode
-    bondDecodeMarshalled = decodeWithHdr fAST_PROTOCOL 1
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
 
@@ -155,8 +157,6 @@ instance BondProto FastBinaryProto where
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream $ BL.append (protoHeader fAST_PROTOCOL 1) bs
 
-    bondEncode = binaryEncode
-    bondEncodeMarshalled = encodeWithHdr fAST_PROTOCOL 1
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
