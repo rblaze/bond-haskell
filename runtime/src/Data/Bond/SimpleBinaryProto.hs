@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, EmptyDataDecls, TypeFamilies #-}
+{-# Language ScopedTypeVariables, TypeFamilies #-}
 module Data.Bond.SimpleBinaryProto (
         SimpleBinaryProto(..),
         SimpleBinaryV1Proto(..)
@@ -8,9 +8,6 @@ import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
 import Data.Bond.Types
-import Data.Bond.Utils
-
-import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
 import Control.Monad
