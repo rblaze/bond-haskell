@@ -4,15 +4,17 @@ module Data.Bond.Proto where
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
 import {-# SOURCE #-} Data.Bond.Schema.SchemaDef
+import {-# SOURCE #-} Data.Bond.Schema.ProtocolType
 import Data.Bond.Types
 import Data.Bond.Wire
+--import Data.Bond.Utils
 
 import Control.Applicative
 import Control.Monad.Reader.Class
 import Control.Monad.State.Class
 import Data.Hashable
 import Prelude
-import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -50,18 +52,27 @@ class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
 
 -- public API classes
 data Struct = Struct
+bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> BL.ByteString
+bondMarshal' = bondMarshal
 
-class BondProto t where
-    bondRead :: BondStruct a => t -> BS.ByteString -> Either String a
-    bondWrite :: BondStruct a => t -> a -> BS.ByteString
-    bondReadWithSchema :: t -> SchemaDef -> BS.ByteString -> Either String Struct
-    bondWriteWithSchema :: t -> SchemaDef -> Struct -> BS.ByteString
+class ProtocolMeta t => BondProto t where
+    bondRead :: BondStruct a => t -> BL.ByteString -> Either String a
+    bondWrite :: BondStruct a => t -> a -> BL.ByteString
+    bondReadWithSchema :: t -> SchemaDef -> BL.ByteString -> Either String Struct
+    bondWriteWithSchema :: t -> SchemaDef -> Struct -> BL.ByteString
+    bondMarshal :: BondStruct a => t -> a -> BL.ByteString
+    bondMarshal t = {-BL.append (protoHeader (protoSignature t) (protoVersion t)) .-} bondWrite t
 
-class BondTaggedProto t where
-    bondReadTagged :: t -> BS.ByteString -> Either String Struct
-    bondPutTagged :: t -> Struct -> BS.ByteString
+class BondProto t => BondTaggedProto t where
+    bondReadTagged :: t -> BL.ByteString -> Either String Struct
+    bondPutTagged :: t -> Struct -> BL.ByteString
 
--- internal class
+-- internal classes
+
+class ProtocolMeta t where
+    protoSignature :: t -> ProtocolType
+    protoVersion :: t -> Word16
+
 class Protocol t where
     type ReaderM t :: * -> *
     type WriterM t :: * -> *
@@ -71,7 +82,7 @@ class Protocol t where
     bondPutBaseStruct :: BondStruct a => a -> BondPut t
     -- | decode top-level struct
     bondGetStruct :: BondStruct a => BondGet t a
-    -- | decode top-level struct
+    -- | decode base struct
     bondGetBaseStruct :: BondStruct a => BondGet t a
 
     bondPutField :: Serializable a => Ordinal -> a -> BondPut t

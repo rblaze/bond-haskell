@@ -71,6 +71,10 @@ instance TaggedProtocol CompactBinaryProto where
          in loop
     skipType = compactSkipType
 
+instance ProtocolMeta CompactBinaryProto where
+    protoSignature _ = cOMPACT_PROTOCOL
+    protoVersion _ = 2
+
 instance BondProto CompactBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
@@ -184,6 +188,10 @@ instance TaggedProtocol CompactBinaryV1Proto where
 instance BondProto CompactBinaryV1Proto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
+
+instance ProtocolMeta CompactBinaryV1Proto where
+    protoSignature _ = cOMPACT_PROTOCOL
+    protoVersion _ = 1
 
 instance Protocol CompactBinaryV1Proto where
     type ReaderM CompactBinaryV1Proto = ReaderT GetContext B.Get

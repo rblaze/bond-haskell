@@ -15,6 +15,7 @@ import qualified Data.Bond.Schema.TypeDef as TD
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.Modifier
+import Data.Bond.Schema.ProtocolType
 import Data.Bond.Schema.SchemaDef
 import Data.Bond.Schema.StructDef
 
@@ -54,6 +55,10 @@ type WriteM = RWS PutContext () Value
 instance BondProto JsonProto where
     bondRead _ = jsonDecode
     bondWrite _ = jsonEncode
+
+instance ProtocolMeta JsonProto where
+    protoSignature _ = sIMPLE_JSON_PROTOCOL
+    protoVersion _ = 1
 
 instance Protocol JsonProto where
     type ReaderM JsonProto = ReadM

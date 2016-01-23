@@ -88,6 +88,10 @@ instance BondProto FastBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
 
+instance ProtocolMeta FastBinaryProto where
+    protoSignature _ = fAST_PROTOCOL
+    protoVersion _ = 1
+
 instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = ReaderT GetContext B.Get
     type WriterM FastBinaryProto = ReaderT PutContext B.PutM

@@ -39,3 +39,11 @@ import Data.Bond.SimpleBinaryProto
 
 -- bondUnmarshalTagged :: BS.ByteString -> Either String Struct
 -- bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString
+
+-- Bonded API
+-- + getValue
+-- + castValue
+
+-- + putValue :: a -> Bonded a
+-- + marshalValue :: BondProto t, BondStruct a => t -> a -> Bonded b
+-- private: transcoder

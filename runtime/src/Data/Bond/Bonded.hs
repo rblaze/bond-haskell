@@ -35,8 +35,12 @@ getValue :: BondStruct a => Bonded a -> Either String a
 getValue (BondedObject a) = Right a
 getValue (BondedStream s) = bondUnmarshal s
 
-{-
 castValue :: BondStruct b => Bonded a -> Either String b
 castValue (BondedObject _) = error "can't cast deserialized struct"
-castValue (BondedStream s) = bondReadMarshalled s
--}
+castValue (BondedStream s) = bondUnmarshal s
+
+putValue :: a -> Bonded a
+putValue = BondedObject
+
+marshalValue :: (BondProto t, BondStruct a) => t -> a -> Bonded b
+marshalValue t = BondedStream . bondMarshal' t
