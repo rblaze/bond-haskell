@@ -4,7 +4,6 @@ module Data.Bond.Proto where
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
 import {-# SOURCE #-} Data.Bond.Schema.SchemaDef
-import {-# SOURCE #-} Data.Bond.Schema.ProtocolType
 import Data.Bond.Types
 import Data.Bond.Wire
 --import Data.Bond.Utils
@@ -55,23 +54,18 @@ data Struct = Struct
 bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> BL.ByteString
 bondMarshal' = bondMarshal
 
-class ProtocolMeta t => BondProto t where
+class BondProto t where
     bondRead :: BondStruct a => t -> BL.ByteString -> Either String a
     bondWrite :: BondStruct a => t -> a -> BL.ByteString
     bondReadWithSchema :: t -> SchemaDef -> BL.ByteString -> Either String Struct
     bondWriteWithSchema :: t -> SchemaDef -> Struct -> BL.ByteString
     bondMarshal :: BondStruct a => t -> a -> BL.ByteString
-    bondMarshal t = {-BL.append (protoHeader (protoSignature t) (protoVersion t)) .-} bondWrite t
+    bondMarshal t = BL.append (protoSig t) . bondWrite t
+    protoSig :: t -> BL.ByteString
 
 class BondProto t => BondTaggedProto t where
     bondReadTagged :: t -> BL.ByteString -> Either String Struct
     bondPutTagged :: t -> Struct -> BL.ByteString
-
--- internal classes
-
-class ProtocolMeta t where
-    protoSignature :: t -> ProtocolType
-    protoVersion :: t -> Word16
 
 class Protocol t where
     type ReaderM t :: * -> *

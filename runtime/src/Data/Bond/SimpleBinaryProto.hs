@@ -8,6 +8,7 @@ import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
 import Data.Bond.Types
+import Data.Bond.Utils
 
 import Data.Bond.Schema.ProtocolType
 
@@ -33,10 +34,7 @@ data SimpleBinaryV1Proto = SimpleBinaryV1Proto
 instance BondProto SimpleBinaryProto where
     bondRead = decode
     bondWrite = encode
-
-instance ProtocolMeta SimpleBinaryProto where
-    protoSignature _ = sIMPLE_PROTOCOL
-    protoVersion _ = 2
+    protoSig _ = protoHeader sIMPLE_PROTOCOL 2
 
 instance Protocol SimpleBinaryProto where
     type ReaderM SimpleBinaryProto = ReaderT () B.Get
@@ -140,10 +138,7 @@ instance Protocol SimpleBinaryProto where
 instance BondProto SimpleBinaryV1Proto where
     bondRead = decode
     bondWrite = encode
-
-instance ProtocolMeta SimpleBinaryV1Proto where
-    protoSignature _ = sIMPLE_PROTOCOL
-    protoVersion _ = 1
+    protoSig _ = protoHeader sIMPLE_PROTOCOL 1
 
 instance Protocol SimpleBinaryV1Proto where
     type ReaderM SimpleBinaryV1Proto = ReaderT () B.Get

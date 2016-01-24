@@ -87,10 +87,7 @@ instance TaggedProtocol FastBinaryProto where
 instance BondProto FastBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
-
-instance ProtocolMeta FastBinaryProto where
-    protoSignature _ = fAST_PROTOCOL
-    protoVersion _ = 1
+    protoSig _ = protoHeader fAST_PROTOCOL 1
 
 instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = ReaderT GetContext B.Get
