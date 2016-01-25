@@ -6,6 +6,7 @@ module Data.Bond.FastBinaryProto (
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
+import Data.Bond.Struct
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
@@ -13,6 +14,9 @@ import Data.Bond.Wire
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
+import Data.Bond.Schema.SchemaDef
+import qualified Data.Bond.Schema.TypeDef as TD
+import qualified Data.Bond.Schema.StructDef as SD
 
 import Control.Applicative
 import Control.Monad
@@ -20,6 +24,7 @@ import Control.Monad.Reader
 import Data.List
 import Data.Maybe
 import Data.Proxy
+import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -27,6 +32,7 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
@@ -87,6 +93,7 @@ instance TaggedProtocol FastBinaryProto where
 instance BondProto FastBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
+    bondReadWithSchema _ = readSchema
     protoSig _ = protoHeader fAST_PROTOCOL 1
 
 instance Protocol FastBinaryProto where
@@ -237,3 +244,30 @@ putVector xs = do
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ V.length xs
     putAs t $ V.mapM_ bondPut xs
+
+readSchema :: SchemaDef -> BL.ByteString -> Either String Struct
+readSchema schema s
+    = case B.runGetOrFail rdr s of
+            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+--            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+            Right (_, _, a) -> Right a
+    where
+    rdr = readStruct schema
+    readStruct :: SchemaDef -> B.Get Struct
+    readStruct scm = do
+        let td = root scm
+        when (TD.id td /= bT_STRUCT) $ fail $ show (TD.id td) ++ " found where bT_STRUCT expected"
+        let struct = structs scm ! fromIntegral (TD.struct_def td)
+        -- recurse into base struct
+        structbase <- let b = SD.base_def struct
+                 in if isNothing b
+                    then return Nothing
+                    else Just <$> readStruct (scm { root = fromJust b })
+        -- iterate over stream fields
+        {-
+        let loop = do
+                (t, o) <- getFieldHeader
+                return []
+        -}    
+        -- return value
+        return $ Struct structbase HM.empty

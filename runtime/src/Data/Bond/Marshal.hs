@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 module Data.Bond.Marshal (
+    BondProto(bondMarshal),
     bondUnmarshal
   ) where
 

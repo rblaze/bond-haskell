@@ -1,5 +1,5 @@
 module Data.Bond (
-    BondProto(bondRead, bondWrite),
+    BondProto(bondRead, bondWrite, bondReadWithSchema),
     BondStruct,
     CompactBinaryProto(..),
     CompactBinaryV1Proto(..),
@@ -28,10 +28,10 @@ import Data.Bond.SimpleBinaryProto
 
 -- runtime schema API
 -- bondReadWithSchema :: BondProto t => t -> SchemaDef -> BS.ByteString -> Either String Struct
--- bondWriteWithSchema :: BondProto t => t -> SchemaDef -> Struct -> BS.ByteString
+-- bondWriteWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
 
 -- bondUnmarshalWithSchema :: SchemaDef -> BS.ByteString -> Either String Struct
--- bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> BS.ByteString
+-- bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
 
 -- schemaless API
 -- bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct

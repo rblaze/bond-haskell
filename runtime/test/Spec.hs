@@ -46,7 +46,9 @@ tests = testGroup "Haskell runtime tests"
               testCase "read BasicTypes value" $
                 readAsType FastBinaryProto (Proxy :: Proxy BasicTypes) "compat.fast.dat",
               testCase "read Another value" $
-                readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat"
+                readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithSchema FastBinaryProto "compat.fast.dat"
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
@@ -73,7 +75,7 @@ tests = testGroup "Haskell runtime tests"
                 readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
             ],
           testGroup "Marshalling"
-            [ --testCase "read/write SchemaDef value" readSchema
+            [ testCase "read/write SchemaDef value" readSchema
             ],
           testGroup "Cross-tests" crossTests
         ],
@@ -129,19 +131,27 @@ readCompat p f = do
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 
-{-
+readCompatWithSchema :: BondProto t => t -> String -> Assertion
+readCompatWithSchema p f = do
+    dat <- L.readFile (defaultDataPath </> f)
+    let schema = getSchema (Proxy :: Proxy Compat)
+    let parse = bondReadWithSchema p schema dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> print s
+
 readSchema :: Assertion
 readSchema = do
     dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
-    let parse = bondReadMarshalled dat
+    let parse = bondUnmarshal dat
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
                     let _ = s :: SchemaDef -- type binding
-                    let Right d' = bondWriteMarshalled CompactBinaryV1Proto s
+                    let d' = bondMarshal CompactBinaryV1Proto s
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
--}
+
 -- compat.json.dat file has several properties making it incompatible with usual test:
 -- all float values saved with extra precision
 -- double values are saved in a way different from one used by scientific

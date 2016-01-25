@@ -4,9 +4,9 @@ module Data.Bond.Proto where
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
 import {-# SOURCE #-} Data.Bond.Schema.SchemaDef
+import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Wire
---import Data.Bond.Utils
 
 import Control.Applicative
 import Control.Monad.Reader.Class
@@ -50,15 +50,12 @@ class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     bondStructPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
 
 -- public API classes
-data Struct = Struct
-bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> BL.ByteString
-bondMarshal' = bondMarshal
 
 class BondProto t where
     bondRead :: BondStruct a => t -> BL.ByteString -> Either String a
     bondWrite :: BondStruct a => t -> a -> BL.ByteString
     bondReadWithSchema :: t -> SchemaDef -> BL.ByteString -> Either String Struct
-    bondWriteWithSchema :: t -> SchemaDef -> Struct -> BL.ByteString
+    bondWriteWithSchema :: t -> SchemaDef -> Struct -> Either String BL.ByteString
     bondMarshal :: BondStruct a => t -> a -> BL.ByteString
     bondMarshal t = BL.append (protoSig t) . bondWrite t
     protoSig :: t -> BL.ByteString
@@ -66,6 +63,12 @@ class BondProto t where
 class BondProto t => BondTaggedProto t where
     bondReadTagged :: t -> BL.ByteString -> Either String Struct
     bondPutTagged :: t -> Struct -> BL.ByteString
+
+-- private API
+
+-- XXX workaround for module loops
+bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> BL.ByteString
+bondMarshal' = bondMarshal
 
 class Protocol t where
     type ReaderM t :: * -> *

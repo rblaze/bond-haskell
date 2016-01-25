@@ -44,6 +44,7 @@ library
                        Data.Bond.JsonProto
                        Data.Bond.Proto
                        Data.Bond.SimpleBinaryProto
+                       Data.Bond.Struct
                        Data.Bond.TaggedProtocol
                        Data.Bond.Types
                        Data.Bond.Utils
