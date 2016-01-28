@@ -298,11 +298,11 @@ readSchemaless stream
 writeSchemaless :: Struct -> BL.ByteString
 writeSchemaless struct = let BondPut g = writeStruct TopLevelStruct struct in B.runPut g
     where
-    writeStruct level (Struct base fs) = do
-        case base of
-            Just s -> writeStruct BaseStruct s
+    writeStruct level s = do
+        case base s of
+            Just b -> writeStruct BaseStruct b
             Nothing -> return ()
-        forM_ (M.toList fs) $ \ (o, v) -> do
+        forM_ (M.toList $ fields s) $ \ (o, v) -> do
             let (typ, writer) = saveValue v
             putFieldHeader typ o
             writer
