@@ -64,4 +64,4 @@ instance Show Utf8 where show (Utf8 s) = show $ T.unpack $ T.decodeUtf8 s
 instance Show Utf16 where show (Utf16 s) = show $ T.unpack $ T.decodeUtf16LE s
 
 newtype Ordinal = Ordinal Word16
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Hashable)
