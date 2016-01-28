@@ -27,7 +27,7 @@ class Protocol t => TaggedProtocol t where
     skipRestOfStruct :: BondGet t ()
     skipType :: TaggedProtocol t => BondDataType -> BondGet t ()
 
-getStruct :: forall a t. (Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
+getStruct :: forall a t. (Functor (ReaderM t), Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
 getStruct level = do
     let fields = fieldsInfo (Proxy :: Proxy a)
     base <- bondStructGetBase defaultValue

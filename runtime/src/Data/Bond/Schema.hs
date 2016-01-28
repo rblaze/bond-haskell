@@ -30,7 +30,7 @@ import Data.Bond.Proto
 import Data.Bond.Types
 
 import Control.Arrow
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Foldable
 import Data.List
 import Data.Map.Strict ((!))

@@ -15,10 +15,10 @@ import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative hiding (optional)
 import Control.Monad
-import Control.Monad.Except
+import Control.Monad.Error
 import Control.Monad.Extra
 import Control.Monad.Reader
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Aeson
 import Data.Aeson.Types
 import Data.List
@@ -39,7 +39,7 @@ import qualified Data.Vector as V
 
 data JsonProto = JsonProto
 
-type ReadM = ReaderT Value (Except String)
+type ReadM = ErrorT String (Reader Value)
 type WriteM = State Value
 
 instance BondProto JsonProto where
@@ -169,7 +169,7 @@ jsonDecode s = do
     v <- eitherDecode s
     let BondGet g = bondGetStruct :: BondGet JsonProto a
 
-    runExcept (runReaderT g v)
+    runReader (runErrorT g) v
 
 jsonEncode :: forall a. BondStruct a => a -> BL.ByteString
 jsonEncode a =
