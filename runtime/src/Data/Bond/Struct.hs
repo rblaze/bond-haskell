@@ -1,8 +1,9 @@
 module Data.Bond.Struct where
 
+import {-# SOURCE #-} Data.Bond.Schema.BondDataType
 import Data.Bond.Types
 
-import qualified Data.HashMap.Strict as H
+import qualified Data.Map.Strict as M
 
 data Value
     = BOOL Bool
@@ -19,11 +20,11 @@ data Value
     | STRING Utf8
     | WSTRING Utf16
     | STRUCT Struct
-    | LIST [Value]
-    | SET [Value]
-    | MAP [(Value, Value)]
+    | LIST BondDataType [Value]
+    | SET BondDataType [Value]
+    | MAP BondDataType BondDataType [(Value, Value)]
     | BONDED (Bonded Struct)
     deriving Show
 
-data Struct = Struct { base :: Maybe Struct, fields :: H.HashMap Ordinal Value }
+data Struct = Struct { base :: Maybe Struct, fields :: M.Map Ordinal Value }
     deriving Show

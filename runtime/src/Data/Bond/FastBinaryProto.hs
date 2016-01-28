@@ -14,16 +14,12 @@ import Data.Bond.Wire
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
-import Data.Bond.Schema.SchemaDef
-import qualified Data.Bond.Schema.TypeDef as TD
-import qualified Data.Bond.Schema.StructDef as SD
 
 import Control.Applicative
 import Control.Monad
 import Data.List
 import Data.Maybe
 import Data.Proxy
-import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -31,8 +27,8 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
-import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
+import qualified Data.Map.Strict as MS
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -92,8 +88,11 @@ instance TaggedProtocol FastBinaryProto where
 instance BondProto FastBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
-    bondReadWithSchema _ = readSchema
     protoSig _ = protoHeader fAST_PROTOCOL 1
+
+instance BondTaggedProto FastBinaryProto where
+    bondReadTagged _ = readSchemaless
+    bondWriteTagged _ = writeSchemaless
 
 instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = B.Get
@@ -247,29 +246,91 @@ putVector xs = do
     putVarInt $ V.length xs
     V.mapM_ bondPut xs
 
-readSchema :: SchemaDef -> BL.ByteString -> Either String Struct
-readSchema schema s
-    = case B.runGetOrFail rdr s of
+readSchemaless :: BL.ByteString -> Either String Struct
+readSchemaless stream
+    = let BondGet g = readStruct
+       in case B.runGetOrFail g stream of
             Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
 --            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
     where
-    rdr = readStruct schema
-    readStruct :: SchemaDef -> B.Get Struct
-    readStruct scm = do
-        let td = root scm
-        when (TD.id td /= bT_STRUCT) $ fail $ show (TD.id td) ++ " found where bT_STRUCT expected"
-        let struct = structs scm ! fromIntegral (TD.struct_def td)
-        -- recurse into base struct
-        structbase <- let b = SD.base_def struct
-                 in if isNothing b
-                    then return Nothing
-                    else Just <$> readStruct (scm { root = fromJust b })
-        -- iterate over stream fields
-        {-
-        let loop = do
-                (t, o) <- getFieldHeader
-                return []
-        -}    
-        -- return value
-        return $ Struct structbase HM.empty
+    getValue :: BondDataType -> BondGet FastBinaryProto Value
+    getValue t =
+        if | t == bT_BOOL -> BOOL <$> bondGetBool
+           | t == bT_UINT8 -> UINT8 <$> bondGetUInt8
+           | t == bT_UINT16 -> UINT16 <$> bondGetUInt16
+           | t == bT_UINT32 -> UINT32 <$> bondGetUInt32
+           | t == bT_UINT64 -> UINT64 <$> bondGetUInt64
+           | t == bT_FLOAT -> FLOAT <$> bondGetFloat
+           | t == bT_DOUBLE -> DOUBLE <$> bondGetDouble
+           | t == bT_STRING -> STRING <$> bondGetString
+           | t == bT_STRUCT -> STRUCT <$> readStruct
+           | t == bT_LIST -> do
+                td <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                LIST td <$> replicateM n (getValue td)
+           | t == bT_SET -> do
+                td <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                SET td <$> replicateM n (getValue td)
+           | t == bT_MAP -> do
+                tk <- BondDataType . fromIntegral <$> getWord8
+                tv <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                MAP tk tv <$> replicateM n (do
+                    k <- getValue tk
+                    v <- getValue tv
+                    return (k, v))
+           | t == bT_INT8 -> INT8 <$> bondGetInt8
+           | t == bT_INT16 -> INT16 <$> bondGetInt16
+           | t == bT_INT32 -> INT32 <$> bondGetInt32
+           | t == bT_INT64 -> INT64 <$> bondGetInt64
+           | t == bT_WSTRING -> WSTRING <$> bondGetWString
+           | otherwise -> fail $ "invalid field type " ++ show t
+    setField s o v = return $ s { fields = MS.insert o v (fields s) }
+    fieldLoop s = do
+        (t, o) <- getFieldHeader
+        if | t == bT_STOP -> return s
+           | t == bT_STOP_BASE -> fieldLoop $ Struct (Just s) M.empty
+           | otherwise -> getValue t >>= setField s o >>= fieldLoop
+    readStruct = fieldLoop $ Struct Nothing M.empty
+
+writeSchemaless :: Struct -> BL.ByteString
+writeSchemaless struct = let BondPut g = writeStruct TopLevelStruct struct in B.runPut g
+    where
+    writeStruct level (Struct base fs) = do
+        case base of
+            Just s -> writeStruct BaseStruct s
+            Nothing -> return ()
+        forM_ (M.toList fs) $ \ (o, v) -> do
+            let (typ, writer) = saveValue v
+            putFieldHeader typ o
+            writer
+        case level of
+            TopLevelStruct -> putTag bT_STOP
+            BaseStruct -> putTag bT_STOP_BASE
+    saveValue :: Value -> (BondDataType, BondPut FastBinaryProto)
+    saveValue (BOOL v) = (bT_BOOL, bondPutBool v)
+    saveValue (INT8 v) = (bT_INT8, bondPutInt8 v)
+    saveValue (INT16 v) = (bT_INT16, bondPutInt16 v)
+    saveValue (INT32 v) = (bT_INT32, bondPutInt32 v)
+    saveValue (INT64 v) = (bT_INT64, bondPutInt64 v)
+    saveValue (UINT8 v) = (bT_UINT8, bondPutUInt8 v)
+    saveValue (UINT16 v) = (bT_UINT16, bondPutUInt16 v)
+    saveValue (UINT32 v) = (bT_UINT32, bondPutUInt32 v)
+    saveValue (UINT64 v) = (bT_UINT64, bondPutUInt64 v)
+    saveValue (FLOAT v) = (bT_FLOAT, bondPutFloat v)
+    saveValue (DOUBLE v) = (bT_DOUBLE, bondPutDouble v)
+    saveValue (STRING v) = (bT_STRING, bondPutString v)
+    saveValue (WSTRING v) = (bT_WSTRING, bondPutWString v)
+    saveValue (STRUCT v) = (bT_STRUCT, writeStruct TopLevelStruct v)
+    saveValue (LIST td xs) = (bT_LIST, do { putTag td; putVarInt $ length xs; mapM_ (snd . saveValue) xs })
+    saveValue (SET td xs) = (bT_SET, do { putTag td; putVarInt $ length xs; mapM_ (snd . saveValue) xs })
+    saveValue (MAP tk tv xs) = (bT_MAP, do
+        putTag tk
+        putTag tv
+        putVarInt $ length xs
+        forM_ xs $ \ (k, v) -> do
+            snd $ saveValue k
+            snd $ saveValue v
+      )

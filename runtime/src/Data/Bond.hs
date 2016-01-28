@@ -1,5 +1,6 @@
 module Data.Bond (
     BondProto(bondRead, bondWrite, bondReadWithSchema),
+    BondTaggedProto(bondReadTagged, bondWriteTagged),
     BondStruct,
     CompactBinaryProto(..),
     CompactBinaryV1Proto(..),
@@ -35,7 +36,7 @@ import Data.Bond.SimpleBinaryProto
 
 -- schemaless API
 -- bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
--- bondPutTagged :: BondProto t => t -> Struct -> BS.ByteString
+-- bondWriteTagged :: BondProto t => t -> Struct -> BS.ByteString
 
 -- bondUnmarshalTagged :: BS.ByteString -> Either String Struct
 -- bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString

@@ -47,8 +47,8 @@ tests = testGroup "Haskell runtime tests"
                 readAsType FastBinaryProto (Proxy :: Proxy BasicTypes) "compat.fast.dat",
               testCase "read Another value" $
                 readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithSchema FastBinaryProto "compat.fast.dat"
+              testCase "read Compat w/o schema" $
+                readCompatSchemaless FastBinaryProto "compat.fast.dat"
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
@@ -131,14 +131,17 @@ readCompat p f = do
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 
-readCompatWithSchema :: BondProto t => t -> String -> Assertion
-readCompatWithSchema p f = do
+readCompatSchemaless :: BondTaggedProto t => t -> String -> Assertion
+readCompatSchemaless p f = do
     dat <- L.readFile (defaultDataPath </> f)
-    let schema = getSchema (Proxy :: Proxy Compat)
-    let parse = bondReadWithSchema p schema dat
+    let parse = bondReadTagged p dat
     case parse of
         Left msg -> assertFailure msg
-        Right s -> print s
+        Right s -> do
+                    let d' = bondWriteTagged p s
+--                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                    assertEqual "serialized value do not match original" dat d'
+
 
 readSchema :: Assertion
 readSchema = do
