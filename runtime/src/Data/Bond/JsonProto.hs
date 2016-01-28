@@ -3,8 +3,6 @@ module Data.Bond.JsonProto (
         JsonProto(..)
     ) where
 
-import Debug.Trace
-
 import Data.Bond.Default
 import Data.Bond.Proto
 import Data.Bond.Types

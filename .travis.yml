@@ -10,6 +10,7 @@ addons:
     packages:
         - libgmp-dev
 env:
+    - STACK_ARGS="--resolver lts-5"
     - STACK_ARGS="--resolver lts-3"
     - STACK_ARGS="--resolver lts-2"
 
