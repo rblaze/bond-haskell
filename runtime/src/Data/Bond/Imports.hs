@@ -2,7 +2,8 @@ module Data.Bond.Imports (
     module X,
     Hashable,
     ap,
-    makeMap
+    makeMap,
+    pack
   ) where
 
 import Control.Monad (ap)
@@ -12,6 +13,7 @@ import Data.Bond.Types as X
 import Data.Bond.Wire as X
 import Data.Proxy as X
 import Data.Typeable as X
+import Data.Text (pack)
 import Data.Hashable (Hashable)
 import qualified Data.Map as M
 

@@ -20,7 +20,6 @@ import qualified Data.Bond.Schema.StructDef as SD
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Reader
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -97,8 +96,8 @@ instance BondProto FastBinaryProto where
     protoSig _ = protoHeader fAST_PROTOCOL 1
 
 instance Protocol FastBinaryProto where
-    type ReaderM FastBinaryProto = ReaderT GetContext B.Get
-    type WriterM FastBinaryProto = ReaderT PutContext B.PutM
+    type ReaderM FastBinaryProto = B.Get
+    type WriterM FastBinaryProto = B.PutM
 
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
@@ -128,28 +127,11 @@ instance Protocol FastBinaryProto where
         n <- getVarInt
         Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
-    bondGetList = do
-        t <- BondDataType . fromIntegral <$> getWord8
-        elemtype <- checkElementGetType t
-        n <- getVarInt
-        getAs elemtype $ replicateM n bondGet
+    bondGetList = getList
     bondGetHashSet = H.fromList <$> bondGetList
     bondGetSet = S.fromList <$> bondGetList
-    bondGetMap = do
-        tk <- BondDataType . fromIntegral <$> getWord8
-        tv <- BondDataType . fromIntegral <$> getWord8
-        keytype <- checkKeyGetType tk
-        elemtype <- checkElementGetType tv
-        n <- getVarInt
-        fmap M.fromList $ replicateM n $ do
-            k <- getAs keytype bondGet
-            v <- getAs elemtype bondGet
-            return (k, v)
-    bondGetVector = do
-        t <- BondDataType . fromIntegral <$> getWord8
-        elemtype <- checkElementGetType t
-        n <- getVarInt
-        getAs elemtype $ V.replicateM n bondGet
+    bondGetMap = getMap
+    bondGetVector = getVector
     bondGetNullable = do
         v <- bondGetList
         case v of
@@ -168,8 +150,8 @@ instance Protocol FastBinaryProto where
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
-    bondPutDefNothingField _ Nothing = return () -- FIXME check for required
-    bondPutDefNothingField n (Just v) = putField n v
+    bondPutDefNothingField _ _ Nothing = return () -- FIXME check for required
+    bondPutDefNothingField p n (Just v) = putField p n v
 
     bondPutBool True = putWord8 1
     bondPutBool False = putWord8 0
@@ -202,48 +184,68 @@ instance Protocol FastBinaryProto where
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
 
+getList :: forall a. Serializable a => BondGet FastBinaryProto [a]
+getList = do
+    let et = getWireType (Proxy :: Proxy a)
+    t <- BondDataType . fromIntegral <$> getWord8
+    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    n <- getVarInt
+    replicateM n bondGet
+
+getVector :: forall a. Serializable a => BondGet FastBinaryProto (Vector a)
+getVector = do
+    let et = getWireType (Proxy :: Proxy a)
+    t <- BondDataType . fromIntegral <$> getWord8
+    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    n <- getVarInt
+    V.replicateM n bondGet
+
+getMap :: forall k v. (Ord k, Serializable k, Serializable v) => BondGet FastBinaryProto (Map k v)
+getMap = do
+    let etk = getWireType (Proxy :: Proxy k)
+    let etv = getWireType (Proxy :: Proxy v)
+    tk <- BondDataType . fromIntegral <$> getWord8
+    tv <- BondDataType . fromIntegral <$> getWord8
+    unless (tk == etk) $ fail $ "invalid element tag " ++ show tk ++ " in list field, " ++ show etk ++ " expected"
+    unless (tv == etv) $ fail $ "invalid element tag " ++ show tv ++ " in list field, " ++ show etv ++ " expected"
+    n <- getVarInt
+    fmap M.fromList $ replicateM n $ do
+        k <- bondGet
+        v <- bondGet
+        return (k, v)
+
 putList :: forall a. Serializable a => [a] -> BondPut FastBinaryProto
 putList xs = do
-    t <- checkPutContainerType bT_LIST
-
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ length xs
-    putAs t $ mapM_ bondPut xs
+    mapM_ bondPut xs
 
 putHashSet :: forall a. Serializable a => HashSet a -> BondPut FastBinaryProto
 putHashSet xs = do
-    t <- checkPutContainerType bT_SET
-
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ H.size xs
-    putAs t $ mapM_ bondPut $ H.toList xs
+    mapM_ bondPut $ H.toList xs
 
 putSet :: forall a. Serializable a => Set a -> BondPut FastBinaryProto
 putSet xs = do
-    t <- checkPutContainerType bT_SET
-
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ S.size xs
-    putAs t $ mapM_ bondPut $ S.toList xs
+    mapM_ bondPut $ S.toList xs
 
 putMap :: forall k v. (Serializable k, Serializable v) => Map k v -> BondPut FastBinaryProto
 putMap m = do
-    (tk, tv) <- checkPutMapType
-
     putTag $ getWireType (Proxy :: Proxy k)
     putTag $ getWireType (Proxy :: Proxy v)
     putVarInt $ M.size m
     forM_ (M.toList m) $ \(k, v) -> do
-        putAs tk $ bondPut k
-        putAs tv $ bondPut v
+        bondPut k
+        bondPut v
 
 putVector :: forall a. Serializable a => Vector a -> BondPut FastBinaryProto
 putVector xs = do
-    t <- checkPutContainerType bT_LIST
-
     putTag $ getWireType (Proxy :: Proxy a)
     putVarInt $ V.length xs
-    putAs t $ V.mapM_ bondPut xs
+    V.mapM_ bondPut xs
 
 readSchema :: SchemaDef -> BL.ByteString -> Either String Struct
 readSchema schema s

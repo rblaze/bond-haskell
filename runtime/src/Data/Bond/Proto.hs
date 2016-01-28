@@ -3,20 +3,24 @@ module Data.Bond.Proto where
 
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
+import {-# SOURCE #-} Data.Bond.Schema.Modifier
 import {-# SOURCE #-} Data.Bond.Schema.SchemaDef
 import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Wire
 
 import Control.Applicative
+import Control.Monad.Error.Class
 import Control.Monad.Reader.Class
 import Control.Monad.State.Class
 import Data.Hashable
+import Data.Proxy
 import Prelude
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S
+import qualified Data.Text as T
 import qualified Data.Vector as V
 
 newtype BondGet t a = BondGet ((ReaderM t) a)
@@ -25,6 +29,7 @@ deriving instance (Applicative (ReaderM t)) => Applicative (BondGet t)
 deriving instance (Monad (ReaderM t)) => Monad (BondGet t)
 deriving instance (MonadReader r (ReaderM t)) => MonadReader r (BondGet t)
 deriving instance (MonadState s (ReaderM t)) => MonadState s (BondGet t)
+deriving instance (MonadError e (ReaderM t)) => MonadError e (BondGet t)
 
 newtype BondPutM t a = BondPut ((WriterM t) a)
 deriving instance (Functor (WriterM t)) => Functor (BondPutM t)
@@ -32,6 +37,7 @@ deriving instance (Applicative (WriterM t)) => Applicative (BondPutM t)
 deriving instance (Monad (WriterM t)) => Monad (BondPutM t)
 deriving instance (MonadReader r (WriterM t)) => MonadReader r (BondPutM t)
 deriving instance (MonadState s (WriterM t)) => MonadState s (BondPutM t)
+deriving instance (MonadError e (WriterM t)) => MonadError e (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
@@ -41,6 +47,13 @@ class (Default a, WireType a) => Serializable a where
     -- | Put field into stream.
     bondPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
 
+data FieldInfo = FieldInfo
+    { fieldName :: T.Text
+    , fieldAttrs :: M.Map T.Text T.Text
+    , fieldModifier :: Modifier
+    , fieldDefault :: Variant
+    }
+
 class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     -- | Read struct from untagged stream
     bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
@@ -48,6 +61,7 @@ class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
     -- | Put struct
     bondStructPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
+    fieldsInfo :: Proxy a -> M.Map Ordinal FieldInfo
 
 -- public API classes
 
@@ -82,8 +96,8 @@ class Protocol t where
     -- | decode base struct
     bondGetBaseStruct :: BondStruct a => BondGet t a
 
-    bondPutField :: Serializable a => Ordinal -> a -> BondPut t
-    bondPutDefNothingField :: Serializable a => Ordinal -> Maybe a -> BondPut t
+    bondPutField :: (Serializable a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
+    bondPutDefNothingField :: (Serializable a, BondStruct b) => Proxy b -> Ordinal -> Maybe a -> BondPut t
 
     bondPutBool :: Bool -> BondPut t
     bondPutUInt8 :: Word8 -> BondPut t

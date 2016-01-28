@@ -34,7 +34,7 @@ defaultFieldValue ctx f@Field{fieldType, fieldDefault}
     defValue (Just (DefaultInteger v)) = intL v
     defValue (Just (DefaultFloat v)) = floatL v
     defValue (Just (DefaultString v))
-        = App (Var $ implQual "fromString") (Lit $ String v)
+        = App (Var $ implQual "fromString") (stringL v)
     defValue (Just (DefaultEnum v))
         = let BT_UserDefined decl [] = fieldType
               ns = getDeclNamespace ctx decl
@@ -91,8 +91,8 @@ getField decl = InsDecl $ FunBind $ map fieldFunc (structFields decl) ++ [defaul
     getFunc f | fieldDefault f == Just DefaultNothing = implQual "bondGetDefNothing"
               | otherwise = implQual "bondGet"
 
-structPut :: Declaration -> InstDecl
-structPut decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [selfPVar] Nothing (UnGuardedRhs code) noBinds]
+structPut :: Name -> Declaration -> InstDecl
+structPut tname decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [selfPVar] Nothing (UnGuardedRhs code) noBinds]
     where
     self = Ident "self'"
     selfPVar | isNothing (structBase decl) && null (structFields decl) = PWildCard
@@ -104,9 +104,14 @@ structPut decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [selfPVa
                     App (Var $ implQual "bondPutBaseStruct") $ Paren $ App (Var $ UnQual baseStructField) (Var $ UnQual self)
                 ]
     fieldsCode = map putField (structFields decl)
-    putField f = App
-        (App (Var $ putFunc f) $ Paren $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f))
-        (Paren $ App (Var $ UnQual $ mkVar $ makeFieldName f) (Var $ UnQual self))
+    putField f =
+        App
+            (App
+                (App
+                    (Var $ putFunc f)
+                    (ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") (makeType True tname (declParams decl))))) 
+                (Paren $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f)))
+            (Paren $ App (Var $ UnQual $ mkVar $ makeFieldName f) (Var $ UnQual self))
     putFunc f | fieldDefault f == Just DefaultNothing = implQual "bondPutDefNothingField"
               | otherwise = implQual "bondPutField"
 
@@ -121,7 +126,8 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
         (Just [EThingAll $ UnQual typeName])
         imports
         [dataDecl, defaultDecl, wiretypeDecl, bondSerializableDecl,
-         bondStructDecl, typeDefGenDecl (setType opts) ctx decl
+         bondStructDecl, typeDefGenDecl (setType opts) ctx decl,
+         fieldsInfoSig, fieldsInfo
         ]
 
     imports | schemaBootstrapMode opts = importInternalModule : importPrelude : importSchema{importSrc = True} : map (\ m -> importTemplate{importModule = m}) fieldModules
@@ -174,10 +180,35 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
             map (typeParamConstraint $ sQual "TypeDefGen") declParams)
         (implQual "BondStruct")
         [makeType True typeName declParams]
-        [structPut decl,
+        [structPut typeName decl,
          getUntagged typeName decl,
          getBase decl,
-         getField decl
+         getField decl,
+         InsDecl $ wildcardFunc "fieldsInfo" $ Var (unqual "fields'info")
+        ]
+    fieldsInfoSig = TypeSig noLoc [Ident "fields'info"] $ TyApp (TyApp (TyCon $ implQual "Map") (TyCon $ implQual "Ordinal")) (TyCon $ implQual "FieldInfo")
+    fieldsInfo = patBind noLoc (PVar $ Ident "fields'info") $ App (Var $ implQual "makeMap") $ List $ map makeFieldInfo structFields
+    textL = App (Var $ implQual "pack") . stringL
+    makeFieldInfo f = Tuple Boxed
+        [App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f),
+         RecConstr (implQual "FieldInfo")
+            [FieldUpdate (implQual "fieldName") $ textL (fieldName f),
+             FieldUpdate (implQual "fieldAttrs") $ App (Var $ implQual "makeMap") $
+                List $ map makeAttr (fieldAttributes f),
+             FieldUpdate (implQual "fieldModifier") $ Con $ sQual $
+                case fieldModifier f of
+                    Optional -> "optional"
+                    Required -> "required"
+                    RequiredOptional -> "requiredOptional",
+             FieldUpdate (implQual "fieldDefault") $
+                case fieldDefault f of
+                    Nothing -> Var $ implQual "defaultValue"
+                    Just defval -> convertDefault ctx f defval
+            ]
+        ]
+    makeAttr a = Tuple Boxed
+        [textL (getQualifiedName ctx $ attrName a),
+         textL $ attrValue a
         ]
 
 structDecl _ _ _ _ = error "structDecl called for invalid type"

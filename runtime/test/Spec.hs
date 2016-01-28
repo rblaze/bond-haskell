@@ -29,7 +29,7 @@ tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
-          testCase "check generated SchemaDef matching our" matchGeneratedSchemaDef
+          testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef
         ],
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
@@ -173,7 +173,7 @@ testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ 
                     let d' = bondWrite JsonProto s
                     return d'
 
-readAsType :: forall t a. (BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
+readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
     dat <- L.readFile (defaultDataPath </> f)
     let parse = bondRead p dat
@@ -181,6 +181,7 @@ readAsType p _ f = do
         Left msg -> assertFailure msg
         Right s -> let _ = s :: a -- type binding
                     in return ()
+
 matchCompatSchemaDef :: Assertion
 matchCompatSchemaDef = do
     dat <- L.readFile (defaultDataPath </> "compat.schema.dat")

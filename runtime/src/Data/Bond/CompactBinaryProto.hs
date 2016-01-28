@@ -18,7 +18,6 @@ import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative hiding (optional)
 import Control.Monad
-import Control.Monad.Reader
 import Data.Binary.Put (runPut)
 import Data.Bits
 import Data.List
@@ -39,8 +38,8 @@ data CompactBinaryProto = CompactBinaryProto
 data CompactBinaryV1Proto = CompactBinaryV1Proto
 
 class TaggedProtocol t => CompactProtocol t where
-    getListHeader :: ReaderM t ~ ReaderT c B.Get => BondGet t (BondDataType, Int)
-    putListHeader :: (Integral a, FiniteBits a, WriterM t ~ ReaderT c B.PutM) => BondDataType -> a -> BondPut t
+    getListHeader :: ReaderM t ~ B.Get => BondGet t (BondDataType, Int)
+    putListHeader :: (Integral a, FiniteBits a, WriterM t ~ B.PutM) => BondDataType -> a -> BondPut t
 
 instance CompactProtocol CompactBinaryProto where
     getListHeader = do
@@ -77,8 +76,8 @@ instance BondProto CompactBinaryProto where
     protoSig _ = protoHeader cOMPACT_PROTOCOL 2
 
 instance Protocol CompactBinaryProto where
-    type ReaderM CompactBinaryProto = ReaderT GetContext B.Get
-    type WriterM CompactBinaryProto = ReaderT PutContext B.PutM
+    type ReaderM CompactBinaryProto = B.Get
+    type WriterM CompactBinaryProto = B.PutM
 
     bondGetStruct = do
         size <- getVarInt
@@ -120,15 +119,14 @@ instance Protocol CompactBinaryProto where
     bondGetBonded = getBonded cOMPACT_PROTOCOL 2
 
     bondPutStruct v = do
-        env <- ask
         let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
-        let bs = runPut (runReaderT g env)
+        let bs = runPut g
         putVarInt $ BL.length bs
         putLazyByteString bs
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
-    bondPutDefNothingField _ Nothing = return () -- FIXME check for required
-    bondPutDefNothingField n (Just v) = putField n v
+    bondPutDefNothingField _ _ Nothing = return () -- FIXME check for required
+    bondPutDefNothingField p n (Just v) = putField p n v
 
     bondPutBool True = putWord8 1
     bondPutBool False = putWord8 0
@@ -188,8 +186,8 @@ instance BondProto CompactBinaryV1Proto where
     protoSig _ = protoHeader cOMPACT_PROTOCOL 1
 
 instance Protocol CompactBinaryV1Proto where
-    type ReaderM CompactBinaryV1Proto = ReaderT GetContext B.Get
-    type WriterM CompactBinaryV1Proto = ReaderT PutContext B.PutM
+    type ReaderM CompactBinaryV1Proto = B.Get
+    type WriterM CompactBinaryV1Proto = B.PutM
 
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
@@ -231,8 +229,8 @@ instance Protocol CompactBinaryV1Proto where
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
-    bondPutDefNothingField _ Nothing = return () -- FIXME check for required
-    bondPutDefNothingField n (Just v) = putField n v
+    bondPutDefNothingField _ _ Nothing = return () -- FIXME check for required
+    bondPutDefNothingField p n (Just v) = putField p n v
 
     bondPutBool True = putWord8 1
     bondPutBool False = putWord8 0
@@ -264,7 +262,7 @@ instance Protocol CompactBinaryV1Proto where
     bondPutBonded (BondedObject a) = bondPut a
     bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
 
-getCompactFieldHeader :: (BondProto t, ReaderM t ~ ReaderT c B.Get) => BondGet t (BondDataType, Ordinal)
+getCompactFieldHeader :: (BondProto t, ReaderM t ~ B.Get) => BondGet t (BondDataType, Ordinal)
 getCompactFieldHeader = do
     tag <- getWord8
     case tag `shiftR` 5 of
@@ -276,7 +274,7 @@ getCompactFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putCompactFieldHeader :: (BondProto t, WriterM t ~ ReaderT c B.PutM) => BondDataType -> Ordinal -> BondPut t
+putCompactFieldHeader :: (BondProto t, WriterM t ~ B.PutM) => BondDataType -> Ordinal -> BondPut t
 putCompactFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
@@ -288,37 +286,41 @@ putCompactFieldHeader t (Ordinal n) =
                     putWord8 $ tbits .|. 0xE0
                     putWord16le n
 
-getBlob :: (CompactProtocol t, ReaderM t ~ ReaderT c B.Get) => BondGet t Blob
+getBlob :: (CompactProtocol t, ReaderM t ~ B.Get) => BondGet t Blob
 getBlob = do
     (t, n) <- getListHeader
     unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
     Blob <$> getByteString n
 
-getList :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Serializable a) => BondGet t [a]
+getList :: forall a t. (CompactProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t [a]
 getList = do
+    let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    elemtype <- checkElementGetType t
-    getAs elemtype $ replicateM n bondGet
+    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    replicateM n bondGet
 
-getVector :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Serializable a) => BondGet t (Vector a)
+getVector :: forall a t. (CompactProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t (Vector a)
 getVector = do
+    let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    elemtype <- checkElementGetType t
-    getAs elemtype $ V.replicateM n bondGet
+    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    V.replicateM n bondGet
 
-getMap :: (TaggedProtocol t, ReaderM t ~ ReaderT GetContext B.Get, Ord k, Serializable k, Serializable v) => BondGet t (Map k v)
+getMap :: forall k v t. (TaggedProtocol t, ReaderM t ~ B.Get, Ord k, Serializable k, Serializable v) => BondGet t (Map k v)
 getMap = do
+    let etk = getWireType (Proxy :: Proxy k)
+    let etv = getWireType (Proxy :: Proxy v)
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
-    keytype <- checkKeyGetType tk
-    elemtype <- checkElementGetType tv
+    unless (tk == etk) $ fail $ "invalid key tag " ++ show tk ++ " in map field, " ++ show etk ++ " expected"
+    unless (tv == etv) $ fail $ "invalid value tag " ++ show tv ++ " in map field, " ++ show etv ++ " expected"
     n <- getVarInt
     fmap M.fromList $ replicateM n $ do
-        k <- getAs keytype bondGet
-        v <- getAs elemtype bondGet
+        k <- bondGet
+        v <- bondGet
         return (k, v)
 
-getBonded :: (TaggedProtocol t, ReaderM t ~ ReaderT c B.Get) => ProtocolType -> Word16 -> BondGet t (Bonded a)
+getBonded :: (TaggedProtocol t, ReaderM t ~ B.Get) => ProtocolType -> Word16 -> BondGet t (Bonded a)
 getBonded sig ver = do
     size <- lookAhead $ do
         start <- bytesRead
@@ -328,10 +330,10 @@ getBonded sig ver = do
     bs <- getLazyByteString (fromIntegral size)
     return $ BondedStream $ BL.append (protoHeader sig ver) bs
 
-skipVarInt :: forall t c. (Protocol t, ReaderM t ~ ReaderT c B.Get) => BondGet t ()
+skipVarInt :: forall t. (Protocol t, ReaderM t ~ B.Get) => BondGet t ()
 skipVarInt = void (getVarInt :: BondGet t Word64)
 
-compactSkipType :: (CompactProtocol t, ReaderM t ~ ReaderT GetContext B.Get) => BondDataType -> BondGet t ()
+compactSkipType :: (CompactProtocol t, ReaderM t ~ B.Get) => BondDataType -> BondGet t ()
 compactSkipType t =
      if | t == bT_BOOL -> skip 1
         | t == bT_UINT8 -> skip 1
@@ -360,41 +362,31 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-putList :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => [a] -> BondPut t
+putList :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, Serializable a) => [a] -> BondPut t
 putList xs = do
-    t <- checkPutContainerType bT_LIST
-
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
-    putAs t $ mapM_ bondPut xs
+    mapM_ bondPut xs
 
-putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, Serializable a) => HashSet a -> BondPut t
 putHashSet xs = do
-    t <- checkPutContainerType bT_SET
-
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
-    putAs t $ mapM_ bondPut $ H.toList xs
+    mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => Set a -> BondPut t
+putSet :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, Serializable a) => Set a -> BondPut t
 putSet xs = do
-    t <- checkPutContainerType bT_SET
-
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
-    putAs t $ mapM_ bondPut $ S.toList xs
+    mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (Protocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
+putMap :: forall k v t. (Protocol t, WriterM t ~ B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
 putMap m = do
-    (tk, tv) <- checkPutMapType
-
     putTag $ getWireType (Proxy :: Proxy k)
     putTag $ getWireType (Proxy :: Proxy v)
     putVarInt $ M.size m
     forM_ (M.toList m) $ \(k, v) -> do
-        putAs tk $ bondPut k
-        putAs tv $ bondPut v
+        bondPut k
+        bondPut v
 
-putVector :: forall a t. (CompactProtocol t, WriterM t ~ ReaderT PutContext B.PutM, Serializable a) => Vector a -> BondPut t
+putVector :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, Serializable a) => Vector a -> BondPut t
 putVector xs = do
-    t <- checkPutContainerType bT_LIST
-
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
-    putAs t $ V.mapM_ bondPut xs
+    V.mapM_ bondPut xs

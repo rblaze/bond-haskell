@@ -50,9 +50,15 @@ newtype Blob = Blob BS.ByteString
 
 class EncodedString a where
     fromString :: String -> a
+    fromText :: T.Text -> a
 
-instance EncodedString Utf8 where fromString = Utf8 . T.encodeUtf8 . T.pack
-instance EncodedString Utf16 where fromString = Utf16 . T.encodeUtf16LE . T.pack
+instance EncodedString Utf8 where
+    fromString = fromText . T.pack
+    fromText = Utf8 . T.encodeUtf8
+
+instance EncodedString Utf16 where
+    fromString = fromText . T.pack
+    fromText = Utf16 . T.encodeUtf16LE
 
 instance Show Utf8 where show (Utf8 s) = show $ T.unpack $ T.decodeUtf8 s
 instance Show Utf16 where show (Utf16 s) = show $ T.unpack $ T.decodeUtf16LE s

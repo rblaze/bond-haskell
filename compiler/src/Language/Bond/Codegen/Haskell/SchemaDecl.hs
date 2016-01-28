@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Language.Bond.Codegen.Haskell.SchemaDecl (
+    convertDefault,
     importSchema,
     sQual,
     typeDefGenDecl
@@ -62,25 +63,10 @@ convertDefault ctx field defval = case defval of
     where
     updateRec fname fval = defUpdate [FieldUpdate fname fval]
 
-makeFieldDef :: MappingContext -> Field -> Exp
-makeFieldDef ctx field = App (App (App (Var $ sQual "makeFieldDef")
-    (Paren $ App (App (App
-        (case fieldDefault field of
-            Nothing -> Var $ sQual "makeFieldMeta"
-            Just defval -> App (Var $ sQual "makeFieldMetaWithDef") (convertDefault ctx field defval)
-        )
-        (stringL $ fieldName field))
-        (List $ map (makeAttr ctx) $ fieldAttributes field))
-        (Con $ sQual $ case fieldModifier field of
-                Optional -> "optional"
-                Required -> "required"
-                RequiredOptional -> "requiredOptional")))
-    (intL $ fieldOrdinal field))
-    (Var $ UnQual $ fieldTypeVar (fieldName field))
-
 typeDefGenDecl :: String -> MappingContext -> Declaration -> Decl
 typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
-    (map (typeParamConstraint $ sQual "TypeDefGen") (declParams decl))
+    (map (typeParamConstraint $ implQual "Serializable") (declParams decl) ++
+        map (typeParamConstraint $ sQual "TypeDefGen") (declParams decl))
     (sQual "TypeDefGen")
     [makeType True typeName (declParams decl)]
     [InsDecl $ simpleFun noLoc (Ident "getTypeDef") proxyVar $
@@ -102,7 +88,7 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
                 case structBase decl of
                     Nothing -> Con $ pQual "Nothing"
                     Just _ -> App (Con $ pQual "Just") (Var $ UnQual baseTypeVar),
-                List $ map (makeFieldDef ctx) (structFields decl)
+                List $ map makeFieldDef (structFields decl)
             ]
         ]),
      InsDecl $ wildcardFunc "getTypeName" $
@@ -127,6 +113,14 @@ typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
             App (Var $ sQual "findTypeDef") $ Paren $
                 ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") typ)
     paramProxies = map (Paren . ExpTypeSig noLoc (Con $ implQual "Proxy") . TyApp (TyCon $ implQual "Proxy") . TyVar . mkVar . paramName) (declParams decl)
+    makeFieldDef f =
+        App
+            (App
+                (App
+                    (Var $ sQual "makeFieldDef")
+                    (Var $ UnQual proxyVar))
+                (intL $ fieldOrdinal f))
+            (Var $ UnQual $ fieldTypeVar (fieldName f))
 
 typeDefGenDecl _ ctx decl@Enum{} = InstDecl noLoc Nothing [] []
     (sQual "TypeDefGen")

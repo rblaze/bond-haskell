@@ -1,14 +1,12 @@
 {-# Language ScopedTypeVariables #-}
 module Data.Bond.Schema (
-    Metadata(..),
     FieldDef(..),
+    Metadata(..),
     SchemaState,
     TypeDefGen(..),
     Variant(..),
     findTypeDef,
     makeFieldDef,
-    makeFieldMeta,
-    makeFieldMetaWithDef,
     makeGenericTypeName,
     makeStructMeta,
     optional,
@@ -22,6 +20,7 @@ import {-# SOURCE #-} Data.Bond.Schema.StructDef
 import {-# SOURCE #-} Data.Bond.Schema.TypeDef
 import {-# SOURCE #-} Data.Bond.Schema.Variant
 
+import {-# SOURCE #-} Data.Bond.Proto
 import Data.Bond.Types
 import Data.Proxy
 import Data.Typeable
@@ -38,9 +37,7 @@ class Typeable a => TypeDefGen a where
     getQualifiedTypeName :: Proxy a -> String
 
 makeStructMeta :: String -> String -> [(String, String)] -> Metadata
-makeFieldMeta :: String -> [(String, String)] -> Modifier -> Metadata
-makeFieldMetaWithDef :: Variant -> String -> [(String, String)] -> Modifier -> Metadata
-makeFieldDef :: Metadata -> Word16 -> TypeDef -> FieldDef
+makeFieldDef :: BondStruct a => Proxy a -> Word16 -> TypeDef -> FieldDef
 withStruct :: Typeable a => Proxy a -> SchemaMonad (Metadata, Maybe TypeDef, [FieldDef]) -> SchemaState
 findTypeDef :: TypeDefGen a => Proxy a -> SchemaState
 makeGenericTypeName :: String -> [String] -> String

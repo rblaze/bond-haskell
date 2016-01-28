@@ -1,7 +1,9 @@
 module Data.Bond.Utils where
 
+import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
 
+import Control.Monad
 import Data.Bits
 import Data.Word
 import qualified Data.ByteString.Lazy as BL
@@ -21,4 +23,9 @@ protoHeader (ProtocolType protoSig) protoVer = BL.pack [s0, s1, v0, v1]
     s1 = fromIntegral (protoSig `shiftR` 8)
     v0 = fromIntegral protoVer
     v1 = fromIntegral (protoVer `shiftR` 8)
+
+checkType :: Monad f => String -> BondDataType -> BondDataType -> f ()
+checkType name schemaType streamType =
+    unless (schemaType == streamType) $
+        fail $ name ++ " type mismatch: " ++ show schemaType ++ " expected, " ++ show streamType ++ " found"
 

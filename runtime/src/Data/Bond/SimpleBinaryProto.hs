@@ -14,7 +14,6 @@ import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
 import Control.Monad
-import Control.Monad.Reader
 import Data.List
 import Data.Maybe
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
@@ -37,8 +36,8 @@ instance BondProto SimpleBinaryProto where
     protoSig _ = protoHeader sIMPLE_PROTOCOL 2
 
 instance Protocol SimpleBinaryProto where
-    type ReaderM SimpleBinaryProto = ReaderT () B.Get
-    type WriterM SimpleBinaryProto = ReaderT () B.PutM
+    type ReaderM SimpleBinaryProto = B.Get
+    type WriterM SimpleBinaryProto = B.PutM
 
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
@@ -91,9 +90,9 @@ instance Protocol SimpleBinaryProto where
 
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
-    bondPutField _ = bondPut
-    bondPutDefNothingField _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
-    bondPutDefNothingField _ (Just v) = bondPut v
+    bondPutField _ _ = bondPut
+    bondPutDefNothingField _ _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
+    bondPutDefNothingField _ _ (Just v) = bondPut v
 
     bondPutBool True = putWord8 1
     bondPutBool False = putWord8 0
@@ -141,8 +140,8 @@ instance BondProto SimpleBinaryV1Proto where
     protoSig _ = protoHeader sIMPLE_PROTOCOL 1
 
 instance Protocol SimpleBinaryV1Proto where
-    type ReaderM SimpleBinaryV1Proto = ReaderT () B.Get
-    type WriterM SimpleBinaryV1Proto = ReaderT () B.PutM
+    type ReaderM SimpleBinaryV1Proto = B.Get
+    type WriterM SimpleBinaryV1Proto = B.PutM
 
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
@@ -195,9 +194,9 @@ instance Protocol SimpleBinaryV1Proto where
 
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
-    bondPutField _ = bondPut
-    bondPutDefNothingField _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
-    bondPutDefNothingField _ (Just v) = bondPut v
+    bondPutField _ _ = bondPut
+    bondPutDefNothingField _ _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
+    bondPutDefNothingField _ _ (Just v) = bondPut v
 
     bondPutBool True = putWord8 1
     bondPutBool False = putWord8 0
@@ -239,15 +238,15 @@ instance Protocol SimpleBinaryV1Proto where
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
 
-decode :: forall a t. (BondStruct a, Protocol t, ReaderM t ~ ReaderT () B.Get) => t -> BL.ByteString -> Either String a
+decode :: forall a t. (BondStruct a, Protocol t, ReaderM t ~ B.Get) => t -> BL.ByteString -> Either String a
 decode _ s =
     let BondGet g = bondGetStruct :: BondGet t a
-     in case B.runGetOrFail (runReaderT g ()) s of
+     in case B.runGetOrFail g s of
             Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ReaderT () B.PutM) => t -> a -> BL.ByteString
+encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ B.PutM) => t -> a -> BL.ByteString
 encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in B.runPut (runReaderT g ())
+     in B.runPut g

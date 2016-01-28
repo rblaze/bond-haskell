@@ -8,8 +8,6 @@ module Data.Bond.Schema (
     findTypeDef,
     getSchema,
     makeFieldDef,
-    makeFieldMeta,
-    makeFieldMetaWithDef,
     makeGenericTypeName,
     makeStructMeta,
     optional,
@@ -35,6 +33,7 @@ import Control.Arrow
 import Control.Monad.State
 import Data.Foldable
 import Data.List
+import Data.Map.Strict ((!))
 import Data.Proxy
 import Data.Sequence ((|>))
 import Data.Typeable
@@ -63,23 +62,16 @@ makeStructMeta mname mqname mattrs = defaultValue {
     attributes = ML.fromList $ map (fromString *** fromString) mattrs
   }
 
-makeFieldMeta :: String -> [(String, String)] -> Modifier -> Metadata
-makeFieldMeta mname mattrs mmod = defaultValue {
-    name = fromString mname,
-    attributes = ML.fromList $ map (fromString *** fromString) mattrs,
-    modifier = mmod
-  }
-
-makeFieldMetaWithDef :: Variant -> String -> [(String, String)] -> Modifier -> Metadata
-makeFieldMetaWithDef defvalue mname mattrs mmod = defaultValue {
-    name = fromString mname,
-    attributes = ML.fromList $ map (fromString *** fromString) mattrs,
-    modifier = mmod,
-    default_value = defvalue
-  }
-
-makeFieldDef :: Metadata -> Word16 -> TypeDef -> FieldDef
-makeFieldDef = FieldDef
+makeFieldDef :: BondStruct a => Proxy a -> Word16 -> TypeDef -> FieldDef
+makeFieldDef p n = FieldDef meta n
+    where
+    info = fieldsInfo p ! Ordinal n
+    meta = defaultValue
+        { name = fromText $ fieldName info
+        , attributes = M.fromList $ map (fromText *** fromText) $ M.toList $ fieldAttrs info
+        , modifier = fieldModifier info
+        , default_value = fieldDefault info
+        }
 
 -- | one day I would drop support for base < 4.7 (ghc 7.6) and get rid of this function
 typeRep' :: Typeable a => Proxy a -> TypeRep
