@@ -33,13 +33,12 @@ import Control.Arrow
 import Control.Monad.State.Strict
 import Data.Foldable
 import Data.List
-import Data.Map.Strict ((!))
+import Data.Map ((!))
 import Data.Proxy
 import Data.Sequence ((|>))
 import Data.Typeable
 import qualified Data.Sequence as S
-import qualified Data.Map as ML
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 import qualified Data.Vector as V
 
 type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq StructDef)
@@ -59,7 +58,7 @@ makeStructMeta :: String -> String -> [(String, String)] -> Metadata
 makeStructMeta mname mqname mattrs = defaultValue {
     name = fromString mname,
     qualified_name = fromString mqname,
-    attributes = ML.fromList $ map (fromString *** fromString) mattrs
+    attributes = M.fromList $ map (fromString *** fromString) mattrs
   }
 
 makeFieldDef :: BondStruct a => Proxy a -> Word16 -> TypeDef -> FieldDef

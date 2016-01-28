@@ -26,7 +26,7 @@ import Data.Proxy
 import Data.Typeable
 import Control.Monad.State.Strict
 import qualified Data.Sequence as S
-import qualified Data.Map.Strict as M
+import qualified Data.Map as M
 
 type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq StructDef)
 type SchemaState = SchemaMonad TypeDef
