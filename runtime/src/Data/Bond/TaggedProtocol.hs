@@ -11,9 +11,11 @@ import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Wire
 
+import Control.Applicative ((<$>))
 import Control.Monad
 import Data.Bits
 import Data.Proxy
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
 import qualified Data.ByteString.Lazy as BL
