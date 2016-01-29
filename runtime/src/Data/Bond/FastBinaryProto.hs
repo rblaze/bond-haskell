@@ -6,7 +6,6 @@ module Data.Bond.FastBinaryProto (
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
-import Data.Bond.Struct
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
@@ -28,7 +27,6 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
-import qualified Data.Map.Strict as MS
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -39,9 +37,18 @@ instance TaggedProtocol FastBinaryProto where
         t <- BondDataType . fromIntegral <$> getWord8
         n <- if t == bT_STOP || t == bT_STOP_BASE then return 0 else getWord16le
         return (t, Ordinal n)
+    getListHeader = do
+        t <- BondDataType . fromIntegral <$> getWord8
+        n <- getVarInt
+        return (t, n)
+    getTaggedStruct = getTaggedData
     putFieldHeader t (Ordinal n) = do
         putTag t
         putWord16le n
+    putListHeader t n = do
+        putTag t
+        putVarInt n
+    putTaggedStruct s = putTaggedData s >> putTag bT_STOP
     skipStruct =
         let loop = do
                 (td, _) <- getFieldHeader
@@ -91,8 +98,8 @@ instance BondProto FastBinaryProto where
     protoSig _ = protoHeader fAST_PROTOCOL 1
 
 instance BondTaggedProto FastBinaryProto where
-    bondReadTagged _ = readSchemaless
-    bondWriteTagged _ = writeSchemaless
+    bondReadTagged = readTagged
+    bondWriteTagged = writeTagged
 
 instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = B.Get
@@ -121,9 +128,8 @@ instance Protocol FastBinaryProto where
         n <- getVarInt
         Utf16 <$> getByteString (n * 2)
     bondGetBlob = do
-        t <- BondDataType . fromIntegral <$> getWord8
+        (t, n) <- getListHeader
         unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
-        n <- getVarInt
         Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
     bondGetList = getList
@@ -186,17 +192,15 @@ instance Protocol FastBinaryProto where
 getList :: forall a. Serializable a => BondGet FastBinaryProto [a]
 getList = do
     let et = getWireType (Proxy :: Proxy a)
-    t <- BondDataType . fromIntegral <$> getWord8
+    (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
-    n <- getVarInt
     replicateM n bondGet
 
 getVector :: forall a. Serializable a => BondGet FastBinaryProto (Vector a)
 getVector = do
     let et = getWireType (Proxy :: Proxy a)
-    t <- BondDataType . fromIntegral <$> getWord8
+    (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
-    n <- getVarInt
     V.replicateM n bondGet
 
 getMap :: forall k v. (Ord k, Serializable k, Serializable v) => BondGet FastBinaryProto (Map k v)
@@ -215,20 +219,17 @@ getMap = do
 
 putList :: forall a. Serializable a => [a] -> BondPut FastBinaryProto
 putList xs = do
-    putTag $ getWireType (Proxy :: Proxy a)
-    putVarInt $ length xs
+    putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     mapM_ bondPut xs
 
 putHashSet :: forall a. Serializable a => HashSet a -> BondPut FastBinaryProto
 putHashSet xs = do
-    putTag $ getWireType (Proxy :: Proxy a)
-    putVarInt $ H.size xs
+    putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     mapM_ bondPut $ H.toList xs
 
 putSet :: forall a. Serializable a => Set a -> BondPut FastBinaryProto
 putSet xs = do
-    putTag $ getWireType (Proxy :: Proxy a)
-    putVarInt $ S.size xs
+    putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     mapM_ bondPut $ S.toList xs
 
 putMap :: forall k v. (Serializable k, Serializable v) => Map k v -> BondPut FastBinaryProto
@@ -242,95 +243,5 @@ putMap m = do
 
 putVector :: forall a. Serializable a => Vector a -> BondPut FastBinaryProto
 putVector xs = do
-    putTag $ getWireType (Proxy :: Proxy a)
-    putVarInt $ V.length xs
+    putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs
-
-readSchemaless :: BL.ByteString -> Either String Struct
-readSchemaless stream
-    = let BondGet g = readStruct
-       in case B.runGetOrFail g stream of
-            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
-            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
-            Right (_, _, a) -> Right a
-    where
-    getValue :: BondDataType -> BondGet FastBinaryProto Value
-    getValue t =
-        if | t == bT_BOOL -> BOOL <$> bondGetBool
-           | t == bT_UINT8 -> UINT8 <$> bondGetUInt8
-           | t == bT_UINT16 -> UINT16 <$> bondGetUInt16
-           | t == bT_UINT32 -> UINT32 <$> bondGetUInt32
-           | t == bT_UINT64 -> UINT64 <$> bondGetUInt64
-           | t == bT_FLOAT -> FLOAT <$> bondGetFloat
-           | t == bT_DOUBLE -> DOUBLE <$> bondGetDouble
-           | t == bT_STRING -> STRING <$> bondGetString
-           | t == bT_STRUCT -> STRUCT <$> readStruct
-           | t == bT_LIST -> do
-                td <- BondDataType . fromIntegral <$> getWord8
-                n <- getVarInt
-                LIST td <$> replicateM n (getValue td)
-           | t == bT_SET -> do
-                td <- BondDataType . fromIntegral <$> getWord8
-                n <- getVarInt
-                SET td <$> replicateM n (getValue td)
-           | t == bT_MAP -> do
-                tk <- BondDataType . fromIntegral <$> getWord8
-                tv <- BondDataType . fromIntegral <$> getWord8
-                n <- getVarInt
-                MAP tk tv <$> replicateM n (do
-                    k <- getValue tk
-                    v <- getValue tv
-                    return (k, v))
-           | t == bT_INT8 -> INT8 <$> bondGetInt8
-           | t == bT_INT16 -> INT16 <$> bondGetInt16
-           | t == bT_INT32 -> INT32 <$> bondGetInt32
-           | t == bT_INT64 -> INT64 <$> bondGetInt64
-           | t == bT_WSTRING -> WSTRING <$> bondGetWString
-           | otherwise -> fail $ "invalid field type " ++ show t
-    setField s o v = return $ s { fields = MS.insert o v (fields s) }
-    fieldLoop s = do
-        (t, o) <- getFieldHeader
-        if | t == bT_STOP -> return s
-           | t == bT_STOP_BASE -> fieldLoop $ Struct (Just s) M.empty
-           | otherwise -> getValue t >>= setField s o >>= fieldLoop
-    readStruct = fieldLoop $ Struct Nothing M.empty
-
-writeSchemaless :: Struct -> BL.ByteString
-writeSchemaless struct = let BondPut g = writeStruct TopLevelStruct struct in B.runPut g
-    where
-    writeStruct level s = do
-        case base s of
-            Just b -> writeStruct BaseStruct b
-            Nothing -> return ()
-        forM_ (M.toList $ fields s) $ \ (o, v) -> do
-            let (typ, writer) = saveValue v
-            putFieldHeader typ o
-            writer
-        case level of
-            TopLevelStruct -> putTag bT_STOP
-            BaseStruct -> putTag bT_STOP_BASE
-    saveValue :: Value -> (BondDataType, BondPut FastBinaryProto)
-    saveValue (BOOL v) = (bT_BOOL, bondPutBool v)
-    saveValue (INT8 v) = (bT_INT8, bondPutInt8 v)
-    saveValue (INT16 v) = (bT_INT16, bondPutInt16 v)
-    saveValue (INT32 v) = (bT_INT32, bondPutInt32 v)
-    saveValue (INT64 v) = (bT_INT64, bondPutInt64 v)
-    saveValue (UINT8 v) = (bT_UINT8, bondPutUInt8 v)
-    saveValue (UINT16 v) = (bT_UINT16, bondPutUInt16 v)
-    saveValue (UINT32 v) = (bT_UINT32, bondPutUInt32 v)
-    saveValue (UINT64 v) = (bT_UINT64, bondPutUInt64 v)
-    saveValue (FLOAT v) = (bT_FLOAT, bondPutFloat v)
-    saveValue (DOUBLE v) = (bT_DOUBLE, bondPutDouble v)
-    saveValue (STRING v) = (bT_STRING, bondPutString v)
-    saveValue (WSTRING v) = (bT_WSTRING, bondPutWString v)
-    saveValue (STRUCT v) = (bT_STRUCT, writeStruct TopLevelStruct v)
-    saveValue (LIST td xs) = (bT_LIST, do { putTag td; putVarInt $ length xs; mapM_ (snd . saveValue) xs })
-    saveValue (SET td xs) = (bT_SET, do { putTag td; putVarInt $ length xs; mapM_ (snd . saveValue) xs })
-    saveValue (MAP tk tv xs) = (bT_MAP, do
-        putTag tk
-        putTag tv
-        putVarInt $ length xs
-        forM_ xs $ \ (k, v) -> do
-            snd $ saveValue k
-            snd $ saveValue v
-      )
