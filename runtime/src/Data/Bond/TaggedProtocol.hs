@@ -11,7 +11,7 @@ import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Wire
 
-import Control.Applicative ((<$>))
+import Control.Applicative hiding (optional)
 import Control.Monad
 import Data.Bits
 import Data.Proxy

@@ -77,6 +77,8 @@ class BondProto t where
 class BondProto t => BondTaggedProto t where
     bondReadTagged :: t -> BL.ByteString -> Either String Struct
     bondWriteTagged :: t -> Struct -> BL.ByteString
+    bondMarshalTagged :: t -> Struct -> BL.ByteString
+    bondMarshalTagged t = BL.append (protoSig t) . bondWriteTagged t
 
 -- private API
 

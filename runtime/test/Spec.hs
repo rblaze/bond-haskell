@@ -79,7 +79,8 @@ tests = testGroup "Haskell runtime tests"
                 readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
             ],
           testGroup "Marshalling"
-            [ testCase "read/write SchemaDef value" readSchema
+            [ testCase "read/write SchemaDef value" readSchema,
+              testCase "read/write SchemaDef value w/o schema" readSchemaTagged
             ],
           testGroup "Cross-tests" crossTests
         ],
@@ -156,6 +157,17 @@ readSchema = do
         Left msg -> assertFailure msg
         Right s -> do
                     let d' = bondMarshal CompactBinaryV1Proto s
+--                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                    assertEqual "serialized value do not match original" dat d'
+
+readSchemaTagged :: Assertion
+readSchemaTagged = do
+    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    let parse = bondUnmarshalTagged dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> do
+                    let d' = bondMarshalTagged CompactBinaryV1Proto s
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 

@@ -37,11 +37,11 @@ import Data.Bond.Struct
 -- bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
 
 -- schemaless API
--- bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
--- bondWriteTagged :: BondProto t => t -> Struct -> BS.ByteString
+-- + bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
+-- + bondWriteTagged :: BondProto t => t -> Struct -> BS.ByteString
 
--- bondUnmarshalTagged :: BS.ByteString -> Either String Struct
--- bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString
+-- + bondUnmarshalTagged :: BS.ByteString -> Either String Struct
+-- + bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString
 
 -- Bonded API
 -- + getValue
