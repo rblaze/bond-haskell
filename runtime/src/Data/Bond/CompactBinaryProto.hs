@@ -7,6 +7,7 @@ module Data.Bond.CompactBinaryProto (
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
+import Data.Bond.Struct
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
@@ -31,6 +32,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map as M
+import qualified Data.Map.Strict as MS
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -40,6 +42,8 @@ data CompactBinaryV1Proto = CompactBinaryV1Proto
 class TaggedProtocol t => CompactProtocol t where
     getListHeader :: ReaderM t ~ B.Get => BondGet t (BondDataType, Int)
     putListHeader :: (Integral a, FiniteBits a, WriterM t ~ B.PutM) => BondDataType -> a -> BondPut t
+    readStruct :: ReaderM t ~ B.Get => BondGet t Struct
+    writeTopLevelStruct :: WriterM t ~ B.PutM => Struct -> BondPut t
 
 instance CompactProtocol CompactBinaryProto where
     getListHeader = do
@@ -56,6 +60,14 @@ instance CompactProtocol CompactBinaryProto where
             else do
                 putWord8 tag
                 putVarInt n
+    readStruct = do
+        size <- getVarInt
+        isolate size readStructData
+    writeTopLevelStruct v = do
+        let BondPut g = writeStructData v >> putTag bT_STOP :: BondPut CompactBinaryProto
+        let bs = runPut g
+        putVarInt $ BL.length bs
+        putLazyByteString bs
 
 instance TaggedProtocol CompactBinaryProto where
     getFieldHeader = getCompactFieldHeader
@@ -74,6 +86,10 @@ instance BondProto CompactBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
     protoSig _ = protoHeader cOMPACT_PROTOCOL 2
+
+instance BondTaggedProto CompactBinaryProto where
+    bondReadTagged _ = readSchemaless CompactBinaryProto
+    bondWriteTagged _ = writeSchemaless CompactBinaryProto
 
 instance Protocol CompactBinaryProto where
     type ReaderM CompactBinaryProto = B.Get
@@ -166,6 +182,8 @@ instance CompactProtocol CompactBinaryV1Proto where
     putListHeader t n = do
         putTag t
         putVarInt n
+    readStruct = readStructData
+    writeTopLevelStruct s = writeStructData s >> putTag bT_STOP
 
 instance TaggedProtocol CompactBinaryV1Proto where
     getFieldHeader = getCompactFieldHeader
@@ -184,6 +202,10 @@ instance BondProto CompactBinaryV1Proto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
     protoSig _ = protoHeader cOMPACT_PROTOCOL 1
+
+instance BondTaggedProto CompactBinaryV1Proto where
+    bondReadTagged _ = readSchemaless CompactBinaryV1Proto
+    bondWriteTagged _ = writeSchemaless CompactBinaryV1Proto
 
 instance Protocol CompactBinaryV1Proto where
     type ReaderM CompactBinaryV1Proto = B.Get
@@ -390,3 +412,92 @@ putVector :: forall a t. (CompactProtocol t, WriterM t ~ B.PutM, Serializable a)
 putVector xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs
+
+readStructData :: forall t. (ReaderM t ~ B.Get, CompactProtocol t) => BondGet t Struct
+readStructData = fieldLoop $ Struct Nothing M.empty
+    where
+    getValue :: BondDataType -> BondGet t Value
+    getValue t =
+        if | t == bT_BOOL -> BOOL <$> bondGetBool
+           | t == bT_UINT8 -> UINT8 <$> bondGetUInt8
+           | t == bT_UINT16 -> UINT16 <$> bondGetUInt16
+           | t == bT_UINT32 -> UINT32 <$> bondGetUInt32
+           | t == bT_UINT64 -> UINT64 <$> bondGetUInt64
+           | t == bT_FLOAT -> FLOAT <$> bondGetFloat
+           | t == bT_DOUBLE -> DOUBLE <$> bondGetDouble
+           | t == bT_STRING -> STRING <$> bondGetString
+           | t == bT_STRUCT -> STRUCT <$> readStruct
+           | t == bT_LIST -> do
+                (td, n) <- getListHeader
+                LIST td <$> replicateM n (getValue td)
+           | t == bT_SET -> do
+                (td, n) <- getListHeader
+                SET td <$> replicateM n (getValue td)
+           | t == bT_MAP -> do
+                tk <- BondDataType . fromIntegral <$> getWord8
+                tv <- BondDataType . fromIntegral <$> getWord8
+                n <- getVarInt
+                MAP tk tv <$> replicateM n (do
+                    k <- getValue tk
+                    v <- getValue tv
+                    return (k, v))
+           | t == bT_INT8 -> INT8 <$> bondGetInt8
+           | t == bT_INT16 -> INT16 <$> bondGetInt16
+           | t == bT_INT32 -> INT32 <$> bondGetInt32
+           | t == bT_INT64 -> INT64 <$> bondGetInt64
+           | t == bT_WSTRING -> WSTRING <$> bondGetWString
+           | otherwise -> fail $ "invalid field type " ++ show t
+    setField s o v = return $ s { fields = MS.insert o v (fields s) }
+    fieldLoop s = do
+        (t, o) <- getFieldHeader
+        if | t == bT_STOP -> return s
+           | t == bT_STOP_BASE -> fieldLoop $ Struct (Just s) M.empty
+           | otherwise -> getValue t >>= setField s o >>= fieldLoop
+
+readSchemaless :: forall t. (ReaderM t ~ B.Get, CompactProtocol t) => t -> BL.ByteString -> Either String Struct
+readSchemaless _ stream
+    = let BondGet g = readStruct :: BondGet t Struct
+       in case B.runGetOrFail g stream of
+            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+            Right (_, _, a) -> Right a
+
+writeStructData :: forall t. (WriterM t ~ B.PutM, CompactProtocol t) => Struct -> BondPut t
+writeStructData s = do
+    case base s of
+        Just b -> writeStructData b >> putTag bT_STOP_BASE
+        Nothing -> return ()
+    forM_ (M.toList $ fields s) $ \ (o, v) -> do
+        let (typ, writer) = saveValue v
+        putFieldHeader typ o
+        writer
+    where
+    saveValue :: Value -> (BondDataType, BondPut t)
+    saveValue (BOOL v) = (bT_BOOL, bondPutBool v)
+    saveValue (INT8 v) = (bT_INT8, bondPutInt8 v)
+    saveValue (INT16 v) = (bT_INT16, bondPutInt16 v)
+    saveValue (INT32 v) = (bT_INT32, bondPutInt32 v)
+    saveValue (INT64 v) = (bT_INT64, bondPutInt64 v)
+    saveValue (UINT8 v) = (bT_UINT8, bondPutUInt8 v)
+    saveValue (UINT16 v) = (bT_UINT16, bondPutUInt16 v)
+    saveValue (UINT32 v) = (bT_UINT32, bondPutUInt32 v)
+    saveValue (UINT64 v) = (bT_UINT64, bondPutUInt64 v)
+    saveValue (FLOAT v) = (bT_FLOAT, bondPutFloat v)
+    saveValue (DOUBLE v) = (bT_DOUBLE, bondPutDouble v)
+    saveValue (STRING v) = (bT_STRING, bondPutString v)
+    saveValue (WSTRING v) = (bT_WSTRING, bondPutWString v)
+    saveValue (STRUCT v) = (bT_STRUCT, writeTopLevelStruct v)
+    saveValue (LIST td xs) = (bT_LIST, putListHeader td (length xs) >> mapM_ (snd . saveValue) xs)
+    saveValue (SET td xs) = (bT_SET, putListHeader td (length xs) >> mapM_ (snd . saveValue) xs)
+    saveValue (MAP tk tv xs) = (bT_MAP, do
+        putTag tk
+        putTag tv
+        putVarInt $ length xs
+        forM_ xs $ \ (k, v) -> do
+            snd $ saveValue k
+            snd $ saveValue v
+      )
+
+writeSchemaless :: forall t. (WriterM t ~ B.PutM, CompactProtocol t) => t -> Struct -> BL.ByteString
+writeSchemaless _ s = let BondPut g = writeTopLevelStruct s :: BondPut t
+                       in runPut g

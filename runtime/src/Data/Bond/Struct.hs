@@ -3,6 +3,7 @@ module Data.Bond.Struct where
 import {-# SOURCE #-} Data.Bond.Schema.BondDataType
 import Data.Bond.Types
 
+import qualified Data.ByteString as BS
 import qualified Data.Map.Strict as M
 
 data Value
@@ -23,8 +24,8 @@ data Value
     | LIST BondDataType [Value]
     | SET BondDataType [Value]
     | MAP BondDataType BondDataType [(Value, Value)]
-    | BONDED (Bonded Struct)
-    deriving Show
+    | BONDED BS.ByteString -- (Bonded Struct)
+    deriving (Show, Eq)
 
 data Struct = Struct { base :: Maybe Struct, fields :: M.Map Ordinal Value }
-    deriving Show
+    deriving (Show, Eq)

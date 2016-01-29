@@ -56,7 +56,9 @@ tests = testGroup "Haskell runtime tests"
               testCase "read BasicTypes value" $
                 readAsType CompactBinaryProto (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
               testCase "read Another value" $
-                readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat"
+                readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat",
+              testCase "read Compat w/o schema" $
+                readCompatSchemaless CompactBinaryProto "compat.compact2.dat"
             ],
           testGroup "CompactBinary v1"
             [ testCase "read/write Compat value" $
@@ -64,7 +66,9 @@ tests = testGroup "Haskell runtime tests"
               testCase "read BasicTypes value" $
                 readAsType CompactBinaryV1Proto (Proxy :: Proxy BasicTypes) "compat.compact.dat",
               testCase "read Another value" $
-                readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat"
+                readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat",
+              testCase "read Compat w/o schema" $
+                readCompatSchemaless CompactBinaryV1Proto "compat.compact.dat"
             ],
           testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
@@ -89,44 +93,45 @@ tests = testGroup "Haskell runtime tests"
 
 crossTests :: [TestTree]
 crossTests =
-    [crossTest left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
-    [crossTest left right | left <- protos, right <- protos, getName left < getName right]
+    [crossTest "" left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
+    [crossTest "" left right | left <- protos, right <- protos, getName left < getName right] ++
+    [crossTest "w/o schema: " left right | left <- taggedProtos, right <- taggedProtos, getName left < getName right]
     where
     -- Simple protocol has different m_defaults from all others. Also some enum values differ.
     -- Json differs in uint64 values.
     -- See comments in https://github.com/Microsoft/bond/blob/master/cpp/test/compat/serialization.cpp
     simpleProtos = [
-        ("Simple", bondRead SimpleBinaryProto, "compat.simple2.dat"),
+        ("Simple", bondRead SimpleBinaryProto :: L.ByteString -> Either String Compat, "compat.simple2.dat"),
         ("Simple v1", bondRead SimpleBinaryV1Proto, "compat.simple.dat")
      ]
     protos = [
-        ("Compact", bondRead CompactBinaryProto, "compat.compact2.dat"),
+        ("Compact", bondRead CompactBinaryProto :: L.ByteString -> Either String Compat, "compat.compact2.dat"),
         ("Compact v1", bondRead CompactBinaryV1Proto, "compat.compact.dat"),
         ("Fast", bondRead FastBinaryProto, "compat.fast.dat")
      ]
+    taggedProtos = [
+        ("Compact", bondReadTagged CompactBinaryProto :: L.ByteString -> Either String Struct, "compat.compact2.dat"),
+        ("Compact v1", bondReadTagged CompactBinaryV1Proto, "compat.compact.dat"),
+        ("Fast", bondReadTagged FastBinaryProto, "compat.fast.dat")
+     ]
     getName (n, _, _) = n
-    crossTest (lname, lreader, lfile) (rname, rreader, rfile)
-        = testCase (lname ++ " - " ++ rname) $ do
+    crossTest prefix (lname, lreader, lfile) (rname, rreader, rfile)
+        = testCase (prefix ++ lname ++ " - " ++ rname) $ do
             ldat <- L.readFile (defaultDataPath </> lfile)
             let lparse = lreader ldat
-            case lparse of
-                Left msg -> assertFailure msg
-                Right s -> let _ = s :: Compat in return ()
+            whenLeft lparse assertFailure
             rdat <- L.readFile (defaultDataPath </> rfile)
             let rparse = rreader rdat
-            case rparse of
-                Left msg -> assertFailure msg
-                Right s -> let _ = s :: Compat in return ()
+            whenLeft rparse assertFailure
             assertEqual "values do not match" lparse rparse
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = do
     dat <- L.readFile (defaultDataPath </> f)
-    let parse = bondRead p dat
+    let parse = bondRead p dat :: Either String Compat
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
-                    let _ = s :: Compat -- type binding
                     let d' = bondWrite p s
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
@@ -139,18 +144,17 @@ readCompatSchemaless p f = do
         Left msg -> assertFailure msg
         Right s -> do
                     let d' = bondWriteTagged p s
---                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 
 
 readSchema :: Assertion
 readSchema = do
     dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
-    let parse = bondUnmarshal dat
+    let parse = bondUnmarshal dat :: Either String SchemaDef
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
-                    let _ = s :: SchemaDef -- type binding
                     let d' = bondMarshal CompactBinaryV1Proto s
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
@@ -166,24 +170,20 @@ readSchema = do
 testJson :: String -> FilePath -> TestTree
 testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ do
     dat <- L.readFile (defaultDataPath </> f)
-    let parse = bondRead JsonProto dat
+    let parse = bondRead JsonProto dat :: Either String Compat
     case parse of
         Left msg -> do
             assertFailure msg
             return L.empty
         Right s -> do
-                    let _ = s :: Compat -- type binding
                     let d' = bondWrite JsonProto s
                     return d'
 
 readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
     dat <- L.readFile (defaultDataPath </> f)
-    let parse = bondRead p dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> let _ = s :: a -- type binding
-                    in return ()
+    let parse = bondRead p dat :: Either String a
+    whenLeft parse assertFailure
 
 matchCompatSchemaDef :: Assertion
 matchCompatSchemaDef = do
@@ -218,3 +218,7 @@ zigzagInt64 x = x == (fromZigZag $ toZigZag x)
 
 zigzagWord64 :: Word64 -> Bool
 zigzagWord64 x = x == (toZigZag $ (fromZigZag x :: Int64))
+
+whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
+whenLeft (Right _) _ = return ()
+whenLeft (Left a) f = f a

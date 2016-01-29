@@ -8,6 +8,7 @@ module Data.Bond (
     JsonProto(..),
     SimpleBinaryProto(..),
     SimpleBinaryV1Proto(..),
+    Struct(..),
     getSchema,
     getValue
   ) where
@@ -19,6 +20,7 @@ import Data.Bond.JsonProto
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
+import Data.Bond.Struct
 
 -- compile-time schemas API
 -- + bondRead :: BondProto t, BondStruct a => t -> BS.ByteString -> Either String a

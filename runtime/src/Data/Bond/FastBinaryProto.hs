@@ -251,7 +251,7 @@ readSchemaless stream
     = let BondGet g = readStruct
        in case B.runGetOrFail g stream of
             Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
---            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
     where
     getValue :: BondDataType -> BondGet FastBinaryProto Value

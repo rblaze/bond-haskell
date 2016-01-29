@@ -65,11 +65,13 @@ enumHsBootDecl opts _ moduleName decl@Enum{} = if schemaBootstrapMode opts then 
     hsboot = Module noLoc moduleName [] Nothing Nothing [importInternalModule{importSrc = True}, importPrelude] [
                 DataDecl noLoc NewType [] typeName [] [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])] [],
                 showInstance,
+                eqInstance,
                 typeSig
               ]
     typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
     typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
     showInstance = InstDecl noLoc Nothing [] [] (pQual "Show") [typeCon] []
+    eqInstance = InstDecl noLoc Nothing [] [] (pQual "Eq") [typeCon] []
 
 enumHsBootDecl _ _ _ _ = error "enumDecl called for invalid type"
