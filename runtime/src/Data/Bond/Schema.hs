@@ -34,7 +34,7 @@ import Data.Bond.Types
 import Control.Arrow
 import Control.Monad.State.Strict
 import Data.Either
-import Data.Foldable
+import Data.Foldable hiding (forM_, mapM_)
 import Data.List
 import Data.Map ((!))
 import Data.Proxy
