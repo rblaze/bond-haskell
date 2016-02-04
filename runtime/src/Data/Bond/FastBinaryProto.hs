@@ -3,6 +3,7 @@ module Data.Bond.FastBinaryProto (
         FastBinaryProto(..)
     ) where
 
+import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto

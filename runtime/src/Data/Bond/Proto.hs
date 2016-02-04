@@ -1,6 +1,7 @@
 {-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies, FlexibleInstances, MultiParamTypeClasses #-}
 module Data.Bond.Proto where
 
+import Data.Bond.BinaryClass
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Schema
 import {-# SOURCE #-} Data.Bond.Schema.Modifier
@@ -38,6 +39,7 @@ deriving instance (Monad (WriterM t)) => Monad (BondPutM t)
 deriving instance (MonadReader r (WriterM t)) => MonadReader r (BondPutM t)
 deriving instance (MonadState s (WriterM t)) => MonadState s (BondPutM t)
 deriving instance (MonadError e (WriterM t)) => MonadError e (BondPutM t)
+deriving instance (BinaryPut (WriterM t)) => BinaryPut (BondPutM t)
 
 type BondPut t = BondPutM t ()
 

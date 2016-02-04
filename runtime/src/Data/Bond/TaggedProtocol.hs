@@ -4,6 +4,7 @@ module Data.Bond.TaggedProtocol where
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Modifier
 
+import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Default
 import Data.Bond.Proto
