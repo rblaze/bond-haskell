@@ -1,0 +1,20 @@
+namespace unittest.simple
+
+struct base {
+    10: int16 m_int16;
+    20: string m_string;
+}
+
+struct inner : base {
+    10: uint64 m_uint64;
+    20: list<uint32> m_uint32;
+}
+
+struct outer {
+    10: inner m_inner;
+    20: base m_base;
+    30: bonded<inner> m_bonded_inner;
+    40: vector<inner> m_vector_inner;
+    50: set<int16> m_set_int16;
+    60: map<uint32, inner> m_map_uint32_inner;
+}

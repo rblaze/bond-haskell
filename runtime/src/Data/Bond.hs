@@ -6,11 +6,14 @@ module Data.Bond (
     CompactBinaryV1Proto(..),
     FastBinaryProto(..),
     JsonProto(..),
+    Ordinal(..),
     SimpleBinaryProto(..),
     SimpleBinaryV1Proto(..),
     Struct(..),
+    Value(..),
     getSchema,
-    getValue
+    getValue,
+    validate
   ) where
 
 import Data.Bond.Bonded
@@ -21,6 +24,7 @@ import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
 import Data.Bond.Struct
+import Data.Bond.Types
 
 -- compile-time schemas API
 -- + bondRead :: BondProto t, BondStruct a => t -> BS.ByteString -> Either String a

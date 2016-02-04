@@ -13,35 +13,40 @@ module Data.Bond.Schema (
     optional,
     required,
     requiredOptional,
+    validate,
     withStruct
   ) where
 
 import Data.Bond.Schema.BondDataType
-import Data.Bond.Schema.FieldDef
+import Data.Bond.Schema.FieldDef as FD
 import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.Modifier
 import Data.Bond.Schema.SchemaDef
-import Data.Bond.Schema.Variant
-import Data.Bond.Schema.StructDef as SD
 import Data.Bond.Schema.TypeDef as TD
+import Data.Bond.Schema.Variant
+import qualified Data.Bond.Schema.StructDef as SD
 
 import Data.Bond.Default
 import Data.Bond.Proto
+import Data.Bond.Struct
 import Data.Bond.Types
 
 import Control.Arrow
 import Control.Monad.State.Strict
+import Data.Either
 import Data.Foldable
 import Data.List
 import Data.Map ((!))
 import Data.Proxy
 import Data.Sequence ((|>))
 import Data.Typeable
-import qualified Data.Sequence as S
+import Data.Vector ((!?))
+import qualified Data.IntSet as IS
 import qualified Data.Map as M
+import qualified Data.Sequence as S
 import qualified Data.Vector as V
 
-type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq StructDef)
+type SchemaMonad = State (M.Map TypeRep TypeDef, S.Seq SD.StructDef)
 type SchemaState = SchemaMonad TypeDef
 
 class Typeable a => TypeDefGen a where
@@ -106,6 +111,93 @@ simpleType t = return $ defaultValue { TD.id = t }
 
 makeGenericTypeName :: String -> [String] -> String
 makeGenericTypeName s params = s ++ '<' : intercalate "," params ++ ">"
+
+validate :: SchemaDef -> Struct -> Maybe String
+validate schema struct = e2m $ checkStruct schema struct
+    where
+    e2m (Right _) = Nothing
+    e2m (Left msg) = Just msg
+
+checkStruct :: SchemaDef -> Struct -> Either String ()
+checkStruct rootSchema rootStruct = do
+    schemaStack <- schemaCheckStep IS.empty (root rootSchema)
+    let errs = lefts $ zipWith checkStackLevel (reverse schemaStack) (reverse structStack)
+    unless (null errs) $ Left $ intercalate "\n" errs
+    where
+    checkStackLevel schema struct = V.mapM_ (checkField struct) (SD.fields schema)
+    checkField struct field = case M.lookup (Ordinal $ FD.id field) (fields struct) of
+        Nothing -> Right () -- field not present in struct, nothing to check
+        Just v -> do
+            checkValueType (FD.typedef field) v
+    checkValueType TypeDef{TD.id = t} (BOOL _) | t == bT_BOOL = Right ()
+    checkValueType TypeDef{TD.id = t} (INT8 _) | t == bT_INT8 = Right ()
+    checkValueType TypeDef{TD.id = t} (INT16 _) | t == bT_INT16 = Right ()
+    checkValueType TypeDef{TD.id = t} (INT32 _) | t == bT_INT32 = Right ()
+    checkValueType TypeDef{TD.id = t} (INT64 _) | t == bT_INT64 = Right ()
+    checkValueType TypeDef{TD.id = t} (UINT8 _) | t == bT_UINT8 = Right ()
+    checkValueType TypeDef{TD.id = t} (UINT16 _) | t == bT_UINT16 = Right ()
+    checkValueType TypeDef{TD.id = t} (UINT32 _) | t == bT_UINT32 = Right ()
+    checkValueType TypeDef{TD.id = t} (UINT64 _) | t == bT_UINT64 = Right ()
+    checkValueType TypeDef{TD.id = t} (FLOAT _) | t == bT_FLOAT = Right ()
+    checkValueType TypeDef{TD.id = t} (DOUBLE _) | t == bT_DOUBLE = Right ()
+    checkValueType TypeDef{TD.id = t} (STRING _) | t == bT_STRING = Right ()
+    checkValueType TypeDef{TD.id = t} (WSTRING _) | t == bT_WSTRING = Right ()
+    checkValueType td (STRUCT s) = checkStruct rootSchema{root = td} s
+    checkValueType TypeDef{TD.id = t, TD.element = elemt} (LIST bt xs)
+        | t == bT_LIST, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
+        | t == bT_LIST, Just et <- elemt = Left $ "list element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)
+        | t == bT_LIST = Left "element type is missing in list schema"
+    checkValueType TypeDef{TD.id = t, TD.element = elemt} (SET bt xs)
+        | t == bT_SET, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
+        | t == bT_SET, Just et <- elemt = Left $ "set element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)
+        | t == bT_SET = Left "element type is missing in set schema"
+    checkValueType TypeDef{TD.id = t, TD.element = elemt, TD.key = keyt} (MAP btk bte xs)
+        | t == bT_MAP, Nothing <- elemt = Left "value type is missing in map schema"
+        | t == bT_MAP, Nothing <- keyt = Left "key type is missing in map schema"
+        | t == bT_MAP, Just et <- elemt, bte /= TD.id et = Left $ "map element type " ++ bondTypeName bte ++ " does not match schema type " ++ bondTypeName (TD.id et)
+        | t == bT_MAP, Just kt <- keyt, btk /= TD.id kt = Left $ "map key type " ++ bondTypeName btk ++ " does not match schema type " ++ bondTypeName (TD.id kt)
+        | t == bT_MAP, Just et <- elemt, Just kt <- keyt = forM_ xs $ \(k, v) -> checkValueType kt k >> checkValueType et v
+    checkValueType TypeDef{TD.id = t, TD.bonded_type = bonded} (BONDED _)
+        | t == bT_STRUCT && bonded = Right ()
+    checkValueType TypeDef{TD.id = t} v = Left $ "field type " ++ valueName v ++ " does not match schema type " ++ bondTypeName t
+
+    structStack = let step s = case base s of
+                                Nothing -> [s]
+                                Just b -> s : step b
+                   in step rootStruct
+    schemaCheckStep seen td = do
+        unless (TD.id td == bT_STRUCT) $ Left "not a struct in inheritance chain"
+        let idx = fromIntegral $ TD.struct_def td
+        when (IS.member idx seen) $ Left "loop in inheritance chain"
+        let structdef = structs rootSchema !? idx
+        case structdef of
+            Nothing -> Left "struct index out of range"
+            Just sd -> case SD.base_def sd of
+                Nothing -> return [sd]
+                Just b -> do
+                    rest <- schemaCheckStep (IS.insert idx seen) b
+                    return $ sd : rest
+
+bondTypeName :: BondDataType -> String
+bondTypeName t
+    | t == bT_BOOL = "bool"
+    | t == bT_UINT8 = "uint8"
+    | t == bT_UINT16 = "uint16"
+    | t == bT_UINT32 = "uint32"
+    | t == bT_UINT64 = "uint64"
+    | t == bT_FLOAT = "float"
+    | t == bT_DOUBLE = "double"
+    | t == bT_STRING = "string"
+    | t == bT_STRUCT = "struct"
+    | t == bT_LIST = "list"
+    | t == bT_SET = "set"
+    | t == bT_MAP = "map"
+    | t == bT_INT8 = "int8"
+    | t == bT_INT16 = "int16"
+    | t == bT_INT32 = "int32"
+    | t == bT_INT64 = "int64"
+    | t == bT_WSTRING = "wstring"
+    | otherwise = let BondDataType v = t in "tag " ++ show v
 
 instance TypeDefGen Bool where
     getTypeDef _ = simpleType bT_BOOL

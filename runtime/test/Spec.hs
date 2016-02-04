@@ -2,6 +2,7 @@
 import Data.Bond
 import Data.Bond.Marshal
 import Data.Bond.ZigZag
+import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.SchemaDef
 import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
@@ -16,20 +17,67 @@ import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as L
+import qualified Data.Map as M
 
 import DataPath
 
 main :: IO ()
 main = defaultMain tests
 
-defaultDataPath :: String
-defaultDataPath = "compat" </> "data"
+compatDataPath :: String
+compatDataPath = "test" </> "compat" </> "data"
+
+brokenSchemasPath :: String
+brokenSchemasPath = "test" </> "broken_schemas"
+
+simpleSchemasPath :: String
+simpleSchemasPath = "test" </> "simple_schemas"
 
 tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
           testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef
+        ],
+      testGroup "Runtime schema validation tests"
+        [ testCaseInfo "loop in inheritance chain" $ checkSchemaError "inheritance_loop.json",
+          testCaseInfo "non-struct in inheritance chain" $ checkSchemaError "inherit_from_int.json",
+          testCaseInfo "index out of range" $ checkSchemaError "index_out_of_range.json",
+          testCaseInfo "field type mismatch" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)],
+          testCaseInfo "field type mismatch in field struct" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList
+              [
+                (Ordinal 20, STRUCT $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)])
+              ],
+          testCaseInfo "type mismatch in list" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_BOOL [])],
+          testCaseInfo "type mismatch in list element struct" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_STRUCT
+              [
+                STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)]
+              ])],
+          testCaseInfo "type mismatch in set" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 50, SET bT_BOOL [])],
+          testCaseInfo "type mismatch in map key" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_BOOL bT_STRUCT [])],
+          testCaseInfo "type mismatch in map value" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_BOOL [])],
+          testCaseInfo "type mismatch in map element key" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+              [
+                (BOOL True, STRUCT $ Struct (Just $ Struct Nothing M.empty) M.empty)
+              ])],
+          testCaseInfo "type mismatch in map element value" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+              [
+                (UINT32 42, BOOL True)
+              ])],
+          testCaseInfo "type mismatch in map element field" $
+            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+              [
+                (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
+              ])]
         ],
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
@@ -48,7 +96,7 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
               testCase "read Compat w/o schema" $
-                readCompatSchemaless FastBinaryProto "compat.fast.dat"
+                readCompatTagged FastBinaryProto "compat.fast.dat"
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
@@ -58,7 +106,7 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat",
               testCase "read Compat w/o schema" $
-                readCompatSchemaless CompactBinaryProto "compat.compact2.dat"
+                readCompatTagged CompactBinaryProto "compat.compact2.dat"
             ],
           testGroup "CompactBinary v1"
             [ testCase "read/write Compat value" $
@@ -68,7 +116,7 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat",
               testCase "read Compat w/o schema" $
-                readCompatSchemaless CompactBinaryV1Proto "compat.compact.dat"
+                readCompatTagged CompactBinaryV1Proto "compat.compact.dat"
             ],
           testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
@@ -118,17 +166,17 @@ crossTests =
     getName (n, _, _) = n
     crossTest prefix (lname, lreader, lfile) (rname, rreader, rfile)
         = testCase (prefix ++ lname ++ " - " ++ rname) $ do
-            ldat <- L.readFile (defaultDataPath </> lfile)
+            ldat <- L.readFile (compatDataPath </> lfile)
             let lparse = lreader ldat
             whenLeft lparse assertFailure
-            rdat <- L.readFile (defaultDataPath </> rfile)
+            rdat <- L.readFile (compatDataPath </> rfile)
             let rparse = rreader rdat
             whenLeft rparse assertFailure
             assertEqual "values do not match" lparse rparse
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = do
-    dat <- L.readFile (defaultDataPath </> f)
+    dat <- L.readFile (compatDataPath </> f)
     let parse = bondRead p dat :: Either String Compat
     case parse of
         Left msg -> assertFailure msg
@@ -137,21 +185,25 @@ readCompat p f = do
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 
-readCompatSchemaless :: BondTaggedProto t => t -> String -> Assertion
-readCompatSchemaless p f = do
-    dat <- L.readFile (defaultDataPath </> f)
+readCompatTagged :: BondTaggedProto t => t -> String -> Assertion
+readCompatTagged p f = do
+    dat <- L.readFile (compatDataPath </> f)
     let parse = bondReadTagged p dat
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
+                    let schema = getSchema (Proxy :: Proxy Compat)
+                    case validate schema s of
+                        Nothing -> return ()
+                        Just errs -> assertFailure errs
                     let d' = bondWriteTagged p s
-                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
+--                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
 
 
 readSchema :: Assertion
 readSchema = do
-    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
     let parse = bondUnmarshal dat :: Either String SchemaDef
     case parse of
         Left msg -> assertFailure msg
@@ -162,11 +214,15 @@ readSchema = do
 
 readSchemaTagged :: Assertion
 readSchemaTagged = do
-    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
     let parse = bondUnmarshalTagged dat
     case parse of
         Left msg -> assertFailure msg
         Right s -> do
+                    let schema = getSchema (Proxy :: Proxy SchemaDef)
+                    case validate schema s of
+                        Nothing -> return ()
+                        Just errs -> assertFailure errs
                     let d' = bondMarshalTagged CompactBinaryV1Proto s
 --                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
                     assertEqual "serialized value do not match original" dat d'
@@ -180,8 +236,8 @@ readSchemaTagged = do
 -- Golden file is manually checked to match compat data as best as it could
 
 testJson :: String -> FilePath -> TestTree
-testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ do
-    dat <- L.readFile (defaultDataPath </> f)
+testJson name f = goldenVsString name (compatDataPath </> "golden.json.dat") $ do
+    dat <- L.readFile (compatDataPath </> f)
     let parse = bondRead JsonProto dat :: Either String Compat
     case parse of
         Left msg -> do
@@ -193,13 +249,13 @@ testJson name f = goldenVsString name (defaultDataPath </> "golden.json.dat") $ 
 
 readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = do
-    dat <- L.readFile (defaultDataPath </> f)
+    dat <- L.readFile (compatDataPath </> f)
     let parse = bondRead p dat :: Either String a
     whenLeft parse assertFailure
 
 matchCompatSchemaDef :: Assertion
 matchCompatSchemaDef = do
-    dat <- L.readFile (defaultDataPath </> "compat.schema.dat")
+    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
     let parse = bondUnmarshal dat
     case parse of
         Left msg -> assertFailure msg
@@ -207,8 +263,8 @@ matchCompatSchemaDef = do
                     let s' = getSchema (Proxy :: Proxy Compat)
                     assertEqual "schemas do not match" s s'
 
--- gbc's json schemas slightly differ from bond.bond definition,
--- so I can't compare json representations.
+-- gbc's json schemas differ slightly from bond.bond definition,
+-- so tests can't compare json representations.
 matchGeneratedSchemaDef :: Assertion
 matchGeneratedSchemaDef = do
     dat <- L.readFile (autogenPath </> "bond.SchemaDef.json")
@@ -218,6 +274,28 @@ matchGeneratedSchemaDef = do
         Right s -> do
                     let s' = getSchema (Proxy :: Proxy SchemaDef)
                     assertEqual "schemas do not match" s s'
+
+checkSchemaError :: FilePath -> IO String
+checkSchemaError f = do
+    dat <- L.readFile (brokenSchemasPath </> f)
+    let parse = bondRead JsonProto dat
+    case parse of
+        Left msg -> assertFailure msg >> return ""
+        Right schema -> do
+            case validate schema (Struct Nothing M.empty) of
+                Nothing -> assertFailure "error not caught" >> return ""
+                Just errs -> return $ "error caught: " ++ errs
+
+checkSchemaMismatch :: FilePath -> Struct -> IO String
+checkSchemaMismatch f s = do
+    dat <- L.readFile (simpleSchemasPath </> f)
+    let parse = bondRead JsonProto dat
+    case parse of
+        Left msg -> assertFailure msg >> return ""
+        Right schema -> do
+            case validate schema s of
+                Nothing -> assertFailure "error not caught" >> return ""
+                Just errs -> return $ "error caught: " ++ errs
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == (fromZigZag $ toZigZag x)

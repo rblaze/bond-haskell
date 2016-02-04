@@ -17,7 +17,7 @@ main = defaultMainWithHooks $ simpleUserHooks {
 }
 
 runHbc :: Args -> ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
-runHbc _ conf _ lbi = do
+runHbc args conf pd lbi = do
     let verbosity = fromFlagOrDefault normal $ configVerbosity conf
     (hbc, _) <- requireProgram verbosity (simpleProgram "hbc") (configPrograms conf)
     (gbc, _) <- requireProgram verbosity (simpleProgram "gbc") (configPrograms conf)
@@ -35,7 +35,8 @@ runHbc _ conf _ lbi = do
                             return (flagTS < bondTS || flagTS < bondConstTS)
                         else return True
     when needSchemaRegen $ do
-        runProgram verbosity hbc ["-h", "-o", outPath, "--schema-bootstrap", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
+        runProgram verbosity hbc ["-h", "-o", buildDir lbi, "--schema-bootstrap", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
+        createDirectoryIfMissing False outPath
         writeFile schemaFlag ""
 
     -- generate json schemas for unittests
@@ -46,7 +47,7 @@ runHbc _ conf _ lbi = do
         \autogenPath = " ++ show outPath
 
     -- generate code for unittests
-    let testSchemasPath = "compat" </> "schemas"
+    let testSchemasPath = "test" </> "compat" </> "schemas"
     let compatFlag = outPath </> "compatgen.flg"
     testSchemaFiles <- map (testSchemasPath </>) . filter (".bond" `isSuffixOf`) <$>
                 getDirectoryContents testSchemasPath
@@ -60,3 +61,6 @@ runHbc _ conf _ lbi = do
     when (needCompatRegen && (fromFlagOrDefault False $ configTests conf)) $ do
         runProgram verbosity hbc $ ["-o", outPath] ++ testSchemaFiles
         writeFile compatFlag ""
+
+    -- run default hook
+    postConf simpleUserHooks args conf pd lbi

@@ -87,6 +87,7 @@ test-suite bond-haskell-test
                      , aeson
                      , bond-haskell
                      , bytestring >= 0.10
+                     , containers >= 0.4
                      , filepath >= 1.0
                      , tasty
                      , tasty-golden
