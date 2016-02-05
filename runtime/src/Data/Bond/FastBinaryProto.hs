@@ -92,11 +92,13 @@ instance TaggedProtocol FastBinaryProto where
            | t == bT_WSTRING -> do
                 n <- getVarInt
                 skip $ n * 2
-           | otherwise -> fail $ "Invalid type to skip " ++ show t
+           | otherwise -> fail $ "Invalid type to skip " ++ bondTypeName t
 
 instance BondProto FastBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
+    bondReadWithSchema = readTaggedWithSchema
+    bondWriteWithSchema = writeTaggedWithSchema
     protoSig _ = protoHeader fAST_PROTOCOL 1
 
 instance BondTaggedProto FastBinaryProto where
@@ -131,7 +133,7 @@ instance Protocol FastBinaryProto where
         Utf16 <$> getByteString (n * 2)
     bondGetBlob = do
         (t, n) <- getListHeader
-        unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
+        unless (t == bT_INT8) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in blob field"
         Blob <$> getByteString n
     bondGetDefNothing = Just <$> bondGet
     bondGetList = getList
@@ -195,14 +197,14 @@ getList :: forall a. Serializable a => BondGet FastBinaryProto [a]
 getList = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     replicateM n bondGet
 
 getVector :: forall a. Serializable a => BondGet FastBinaryProto (Vector a)
 getVector = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     V.replicateM n bondGet
 
 getMap :: forall k v. (Ord k, Serializable k, Serializable v) => BondGet FastBinaryProto (Map k v)
@@ -211,8 +213,8 @@ getMap = do
     let etv = getWireType (Proxy :: Proxy v)
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
-    unless (tk == etk) $ fail $ "invalid element tag " ++ show tk ++ " in list field, " ++ show etk ++ " expected"
-    unless (tv == etv) $ fail $ "invalid element tag " ++ show tv ++ " in list field, " ++ show etv ++ " expected"
+    unless (tk == etk) $ fail $ "invalid element tag " ++ bondTypeName tk ++ " in list field, " ++ bondTypeName etk ++ " expected"
+    unless (tv == etv) $ fail $ "invalid element tag " ++ bondTypeName tv ++ " in list field, " ++ bondTypeName etv ++ " expected"
     n <- getVarInt
     fmap M.fromList $ replicateM n $ do
         k <- bondGet

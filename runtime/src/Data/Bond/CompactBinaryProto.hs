@@ -78,6 +78,8 @@ instance TaggedProtocol CompactBinaryProto where
 instance BondProto CompactBinaryProto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
+    bondReadWithSchema = readTaggedWithSchema
+    bondWriteWithSchema = writeTaggedWithSchema
     protoSig _ = protoHeader cOMPACT_PROTOCOL 2
 
 instance BondTaggedProto CompactBinaryProto where
@@ -194,6 +196,8 @@ instance TaggedProtocol CompactBinaryV1Proto where
 instance BondProto CompactBinaryV1Proto where
     bondRead = binaryDecode
     bondWrite = binaryEncode
+    bondReadWithSchema = readTaggedWithSchema
+    bondWriteWithSchema = writeTaggedWithSchema
     protoSig _ = protoHeader cOMPACT_PROTOCOL 1
 
 instance BondTaggedProto CompactBinaryV1Proto where
@@ -304,21 +308,21 @@ putCompactFieldHeader t (Ordinal n) =
 getBlob :: (TaggedProtocol t, ReaderM t ~ B.Get) => BondGet t Blob
 getBlob = do
     (t, n) <- getListHeader
-    unless (t == bT_INT8) $ fail $ "invalid element tag " ++ show t ++ " in blob field"
+    unless (t == bT_INT8) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in blob field"
     Blob <$> getByteString n
 
 getList :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t [a]
 getList = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     replicateM n bondGet
 
 getVector :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t (Vector a)
 getVector = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
-    unless (t == et) $ fail $ "invalid element tag " ++ show t ++ " in list field, " ++ show et ++ " expected"
+    unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     V.replicateM n bondGet
 
 getMap :: forall k v t. (TaggedProtocol t, ReaderM t ~ B.Get, Ord k, Serializable k, Serializable v) => BondGet t (Map k v)
@@ -327,8 +331,8 @@ getMap = do
     let etv = getWireType (Proxy :: Proxy v)
     tk <- BondDataType . fromIntegral <$> getWord8
     tv <- BondDataType . fromIntegral <$> getWord8
-    unless (tk == etk) $ fail $ "invalid key tag " ++ show tk ++ " in map field, " ++ show etk ++ " expected"
-    unless (tv == etv) $ fail $ "invalid value tag " ++ show tv ++ " in map field, " ++ show etv ++ " expected"
+    unless (tk == etk) $ fail $ "invalid key tag " ++ bondTypeName tk ++ " in map field, " ++ bondTypeName etk ++ " expected"
+    unless (tv == etv) $ fail $ "invalid value tag " ++ bondTypeName tv ++ " in map field, " ++ bondTypeName etv ++ " expected"
     n <- getVarInt
     fmap M.fromList $ replicateM n $ do
         k <- bondGet
@@ -375,7 +379,7 @@ compactSkipType t =
         | t == bT_WSTRING -> do
             n <- getVarInt
             skip $ n * 2
-        | otherwise -> fail $ "Invalid type to skip " ++ show t
+        | otherwise -> fail $ "Invalid type to skip " ++ bondTypeName t
 
 putList :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => [a] -> BondPut t
 putList xs = do

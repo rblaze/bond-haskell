@@ -6,6 +6,7 @@ module Data.Bond.Schema (
     TypeDefGen(..),
     Variant(..),
     findTypeDef,
+    checkStruct,
     getSchema,
     makeFieldDef,
     makeGenericTypeName,

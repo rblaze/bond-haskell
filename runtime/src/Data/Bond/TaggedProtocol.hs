@@ -3,11 +3,13 @@ module Data.Bond.TaggedProtocol where
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Modifier
+import Data.Bond.Schema.SchemaDef
 
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Default
 import Data.Bond.Proto
+import Data.Bond.Schema
 import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Utils
@@ -145,6 +147,16 @@ readTagged _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
+readTaggedWithSchema :: forall t. (ReaderM t ~ B.Get, TaggedProtocol t) => t -> SchemaDef -> BL.ByteString -> Either String Struct
+readTaggedWithSchema _ schema s =
+    let BondGet g = getTaggedStruct :: BondGet t Struct
+     in case B.runGetOrFail g s of
+            Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+            Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+            Right (_, _, a) -> case checkStruct schema a of
+                                Left err -> Left err
+                                Right () -> Right a
+
 putTaggedData :: forall t. (MonadError String (BondPutM t), BinaryPut (BondPutM t), TaggedProtocol t) => Struct -> BondPut t
 putTaggedData s = do
     case base s of
@@ -189,3 +201,8 @@ putTaggedData s = do
 writeTagged :: forall t. (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
 writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
                    in tryPut g
+
+writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> SchemaDef -> Struct -> Either String BL.ByteString
+writeTaggedWithSchema t schema a = do
+    checkStruct schema a
+    writeTagged t a

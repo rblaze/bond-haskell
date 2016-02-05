@@ -1,5 +1,5 @@
 module Data.Bond (
-    BondProto(bondRead, bondWrite, bondReadWithSchema),
+    BondProto(bondRead, bondWrite, bondReadWithSchema, bondWriteWithSchema),
     BondTaggedProto(bondReadTagged, bondWriteTagged),
     BondStruct,
     CompactBinaryProto(..),

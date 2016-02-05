@@ -9,6 +9,7 @@ import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
 
 import Data.Int
+import Data.Foldable
 import Data.Proxy
 import Data.Word
 import System.FilePath
@@ -79,7 +80,7 @@ tests = testGroup "Haskell runtime tests"
                 (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
               ])],
           testCaseInfo "schema too deep for struct" $
-            checkSchemaMismatch "test.inner.json" $ Struct Nothing $ M.empty,
+            checkSchemaMismatch "test.inner.json" $ Struct Nothing M.empty,
           testCase "shallow schema" checkShallowSchema
         ],
       testGroup "Protocol tests"
@@ -100,6 +101,10 @@ tests = testGroup "Haskell runtime tests"
                 readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
               testCase "read Compat w/o schema" $
                 readCompatTagged FastBinaryProto "compat.fast.dat",
+              testCase "read Compat with compile-time schema" $
+                readCompatWithSchema FastBinaryProto "compat.fast.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithRuntimeSchema FastBinaryProto "compat.fast.dat",
               invalidTaggedWriteTests FastBinaryProto
             ],
           testGroup "CompactBinary"
@@ -111,6 +116,10 @@ tests = testGroup "Haskell runtime tests"
                 readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat",
               testCase "read Compat w/o schema" $
                 readCompatTagged CompactBinaryProto "compat.compact2.dat",
+              testCase "read Compat with compile-time schema" $
+                readCompatWithSchema CompactBinaryProto "compat.compact2.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithRuntimeSchema CompactBinaryProto "compat.compact2.dat",
               invalidTaggedWriteTests CompactBinaryProto
             ],
           testGroup "CompactBinary v1"
@@ -122,6 +131,10 @@ tests = testGroup "Haskell runtime tests"
                 readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat",
               testCase "read Compat w/o schema" $
                 readCompatTagged CompactBinaryV1Proto "compat.compact.dat",
+              testCase "read Compat with compile-time schema" $
+                readCompatWithSchema CompactBinaryV1Proto "compat.compact.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithRuntimeSchema CompactBinaryV1Proto "compat.compact.dat",
               invalidTaggedWriteTests CompactBinaryV1Proto
             ],
           testGroup "JSON"
@@ -216,14 +229,35 @@ readCompatTagged p f = do
     let parse = bondReadTagged p dat
     case parse of
         Left msg -> assertFailure msg
-        Right s -> do
-                    let schema = getSchema (Proxy :: Proxy Compat)
-                    case validate schema s of
-                        Nothing -> return ()
-                        Just errs -> assertFailure errs
-                    case bondWriteTagged p s of
-                        Left msg -> assertFailure msg
-                        Right outdat -> assertEqual "serialized value do not match original" dat outdat
+        Right s -> case bondWriteTagged p s of
+                    Left msg -> assertFailure msg
+                    Right outdat -> assertEqual "serialized value do not match original" dat outdat
+
+readCompatWithSchema :: BondProto t => t -> String -> Assertion
+readCompatWithSchema p f = do
+    dat <- L.readFile (compatDataPath </> f)
+    let schema = getSchema (Proxy :: Proxy Compat)
+    let parse = bondReadWithSchema p schema dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right s -> case bondWriteWithSchema p schema s of
+                    Left msg -> assertFailure msg
+                    Right outdat -> assertEqual "serialized value do not match original" dat outdat
+
+readCompatWithRuntimeSchema :: BondProto t => t -> String -> Assertion
+readCompatWithRuntimeSchema p f = do
+    schemadat <- L.readFile (compatDataPath </> "compat.schema.dat")
+    let schemaParse = bondUnmarshal schemadat :: Either String SchemaDef
+    case schemaParse of
+        Left msg -> assertFailure msg
+        Right schema -> do
+            dat <- L.readFile (compatDataPath </> f)
+            let parse = bondReadWithSchema p schema dat
+            case parse of
+                Left msg -> assertFailure msg
+                Right s -> case bondWriteWithSchema p schema s of
+                            Left msg -> assertFailure msg
+                            Right outdat -> assertEqual "serialized value do not match original" dat outdat
 
 readSchema :: Assertion
 readSchema = do
@@ -244,9 +278,7 @@ readSchemaTagged = do
         Left msg -> assertFailure msg
         Right s -> do
                     let schema = getSchema (Proxy :: Proxy SchemaDef)
-                    case validate schema s of
-                        Nothing -> return ()
-                        Just errs -> assertFailure errs
+                    forM_ (validate schema s) assertFailure
                     case bondMarshalTagged CompactBinaryV1Proto s of
                         Left msg -> assertFailure msg
                         Right outdat -> assertEqual "serialized value do not match original" dat outdat
@@ -305,7 +337,7 @@ checkSchemaError f = do
     let parse = bondRead JsonProto dat
     case parse of
         Left msg -> assertFailure msg >> return ""
-        Right schema -> do
+        Right schema ->
             case validate schema (Struct Nothing M.empty) of
                 Nothing -> assertFailure "error not caught" >> return ""
                 Just errs -> return $ "error caught: " ++ errs
@@ -316,7 +348,7 @@ checkSchemaMismatch f s = do
     let parse = bondRead JsonProto dat
     case parse of
         Left msg -> assertFailure msg >> return ""
-        Right schema -> do
+        Right schema ->
             case validate schema s of
                 Nothing -> assertFailure "error not caught" >> return ""
                 Just errs -> return $ "error caught: " ++ errs
@@ -327,10 +359,8 @@ checkShallowSchema = do
     let parse = bondRead JsonProto dat
     case parse of
         Left msg -> assertFailure msg
-        Right schema -> do
-            case validate schema $ Struct (Just $ Struct Nothing M.empty) M.empty of
-                Nothing -> return ()
-                Just errs -> assertFailure errs
+        Right schema ->
+            forM_ (validate schema $ Struct (Just $ Struct Nothing M.empty) M.empty) assertFailure
 
 testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
 testInvalidTaggedWrite p s
@@ -339,16 +369,16 @@ testInvalidTaggedWrite p s
         Right _ -> assertFailure "error not caught" >> return ""
 
 zigzagInt16 :: Int16 -> Bool
-zigzagInt16 x = x == (fromZigZag $ toZigZag x)
+zigzagInt16 x = x == fromZigZag (toZigZag x)
 
 zigzagInt32 :: Int32 -> Bool
-zigzagInt32 x = x == (fromZigZag $ toZigZag x)
+zigzagInt32 x = x == fromZigZag (toZigZag x)
 
 zigzagInt64 :: Int64 -> Bool
-zigzagInt64 x = x == (fromZigZag $ toZigZag x)
+zigzagInt64 x = x == fromZigZag (toZigZag x)
 
 zigzagWord64 :: Word64 -> Bool
-zigzagWord64 x = x == (toZigZag $ (fromZigZag x :: Int64))
+zigzagWord64 x = x == toZigZag (fromZigZag x :: Int64)
 
 whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
 whenLeft (Right _) _ = return ()
