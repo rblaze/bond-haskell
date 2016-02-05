@@ -77,7 +77,10 @@ tests = testGroup "Haskell runtime tests"
             checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
               [
                 (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
-              ])]
+              ])],
+          testCaseInfo "schema too deep for struct" $
+            checkSchemaMismatch "test.inner.json" $ Struct Nothing $ M.empty,
+          testCase "shallow schema" checkShallowSchema
         ],
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
@@ -317,6 +320,17 @@ checkSchemaMismatch f s = do
             case validate schema s of
                 Nothing -> assertFailure "error not caught" >> return ""
                 Just errs -> return $ "error caught: " ++ errs
+
+checkShallowSchema :: Assertion
+checkShallowSchema = do
+    dat <- L.readFile (simpleSchemasPath </> "test.outer.json")
+    let parse = bondRead JsonProto dat
+    case parse of
+        Left msg -> assertFailure msg
+        Right schema -> do
+            case validate schema $ Struct (Just $ Struct Nothing M.empty) M.empty of
+                Nothing -> return ()
+                Just errs -> assertFailure errs
 
 testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
 testInvalidTaggedWrite p s

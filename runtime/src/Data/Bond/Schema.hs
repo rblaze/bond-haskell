@@ -122,6 +122,7 @@ validate schema struct = e2m $ checkStruct schema struct
 checkStruct :: SchemaDef -> Struct -> Either String ()
 checkStruct rootSchema rootStruct = do
     schemaStack <- schemaCheckStep IS.empty (root rootSchema)
+    when (length schemaStack > length structStack) $ Left "schema depth is larger than struct depth"
     let errs = lefts $ zipWith checkStackLevel (reverse schemaStack) (reverse structStack)
     unless (null errs) $ Left $ intercalate "\n" errs
     where
