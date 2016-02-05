@@ -17,6 +17,7 @@ import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Error
 import Data.List
 import Data.Maybe
 import Data.Proxy
@@ -104,7 +105,7 @@ instance BondTaggedProto FastBinaryProto where
 
 instance Protocol FastBinaryProto where
     type ReaderM FastBinaryProto = B.Get
-    type WriterM FastBinaryProto = B.PutM
+    type WriterM FastBinaryProto = ErrorT String B.PutM
 
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct

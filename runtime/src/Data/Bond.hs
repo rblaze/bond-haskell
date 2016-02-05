@@ -4,6 +4,7 @@ module Data.Bond (
     BondStruct,
     CompactBinaryProto(..),
     CompactBinaryV1Proto(..),
+    EncodedString(..),
     FastBinaryProto(..),
     JsonProto(..),
     Ordinal(..),
@@ -42,10 +43,10 @@ import Data.Bond.Types
 
 -- schemaless API
 -- + bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
--- + bondWriteTagged :: BondProto t => t -> Struct -> BS.ByteString
+-- + bondWriteTagged :: BondProto t => t -> Struct -> Either String BS.ByteString
 
 -- + bondUnmarshalTagged :: BS.ByteString -> Either String Struct
--- + bondMarshalTagged :: BondProto t => t -> Struct -> BS.ByteString
+-- + bondMarshalTagged :: BondProto t => t -> Struct -> Either String BS.ByteString
 
 -- Bonded API
 -- + getValue

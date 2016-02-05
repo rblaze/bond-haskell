@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, ConstraintKinds #-}
+{-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, FlexibleContexts #-}
 module Data.Bond.CompactBinaryProto (
         CompactBinaryProto(..),
         CompactBinaryV1Proto(..)
@@ -19,7 +19,7 @@ import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative hiding (optional)
 import Control.Monad
-import Data.Binary.Put (runPut)
+import Control.Monad.Error
 import Data.Bits
 import Data.List
 import Data.Maybe
@@ -60,9 +60,11 @@ instance TaggedProtocol CompactBinaryProto where
                 putVarInt n
     putTaggedStruct v = do
         let BondPut g = putTaggedData v >> putTag bT_STOP :: BondPut CompactBinaryProto
-        let bs = runPut g
-        putVarInt $ BL.length bs
-        putLazyByteString bs
+        case tryPut g of
+            Left msg -> throwError msg
+            Right bs -> do
+                putVarInt $ BL.length bs
+                putLazyByteString bs
     skipStruct = getVarInt >>= skip
     skipRestOfStruct =
         let loop = do
@@ -84,7 +86,7 @@ instance BondTaggedProto CompactBinaryProto where
 
 instance Protocol CompactBinaryProto where
     type ReaderM CompactBinaryProto = B.Get
-    type WriterM CompactBinaryProto = B.PutM
+    type WriterM CompactBinaryProto = ErrorT String B.PutM
 
     bondGetStruct = do
         size <- getVarInt
@@ -127,9 +129,11 @@ instance Protocol CompactBinaryProto where
 
     bondPutStruct v = do
         let BondPut g = putStruct TopLevelStruct v :: BondPut CompactBinaryProto
-        let bs = runPut g
-        putVarInt $ BL.length bs
-        putLazyByteString bs
+        case tryPut g of
+            Left msg -> throwError msg
+            Right bs -> do
+                putVarInt $ BL.length bs
+                putLazyByteString bs
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
     bondPutDefNothingField _ _ Nothing = return () -- FIXME check for required
@@ -198,7 +202,7 @@ instance BondTaggedProto CompactBinaryV1Proto where
 
 instance Protocol CompactBinaryV1Proto where
     type ReaderM CompactBinaryV1Proto = B.Get
-    type WriterM CompactBinaryV1Proto = B.PutM
+    type WriterM CompactBinaryV1Proto = ErrorT String B.PutM
 
     bondGetStruct = getStruct TopLevelStruct
     bondGetBaseStruct = getStruct BaseStruct
@@ -285,7 +289,7 @@ getCompactFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putCompactFieldHeader :: (BondProto t, WriterM t ~ B.PutM) => BondDataType -> Ordinal -> BondPut t
+putCompactFieldHeader :: (BondProto t, BinaryPut (BondPutM t)) => BondDataType -> Ordinal -> BondPut t
 putCompactFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
@@ -373,22 +377,22 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ show t
 
-putList :: forall a t. (TaggedProtocol t, WriterM t ~ B.PutM, Serializable a) => [a] -> BondPut t
+putList :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => [a] -> BondPut t
 putList xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     mapM_ bondPut xs
 
-putHashSet :: forall a t. (TaggedProtocol t, WriterM t ~ B.PutM, Serializable a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => HashSet a -> BondPut t
 putHashSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (TaggedProtocol t, WriterM t ~ B.PutM, Serializable a) => Set a -> BondPut t
+putSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => Set a -> BondPut t
 putSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (Protocol t, WriterM t ~ B.PutM, Serializable k, Serializable v) => Map k v -> BondPut t
+putMap :: forall k v t. (Protocol t, BinaryPut (BondPutM t), Serializable k, Serializable v) => Map k v -> BondPut t
 putMap m = do
     putTag $ getWireType (Proxy :: Proxy k)
     putTag $ getWireType (Proxy :: Proxy v)
@@ -397,7 +401,7 @@ putMap m = do
         bondPut k
         bondPut v
 
-putVector :: forall a t. (TaggedProtocol t, WriterM t ~ B.PutM, Serializable a) => Vector a -> BondPut t
+putVector :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => Vector a -> BondPut t
 putVector xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs

@@ -96,7 +96,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
               testCase "read Compat w/o schema" $
-                readCompatTagged FastBinaryProto "compat.fast.dat"
+                readCompatTagged FastBinaryProto "compat.fast.dat",
+              invalidTaggedWriteTests FastBinaryProto
             ],
           testGroup "CompactBinary"
             [ testCase "read/write Compat value" $
@@ -106,7 +107,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat",
               testCase "read Compat w/o schema" $
-                readCompatTagged CompactBinaryProto "compat.compact2.dat"
+                readCompatTagged CompactBinaryProto "compat.compact2.dat",
+              invalidTaggedWriteTests CompactBinaryProto
             ],
           testGroup "CompactBinary v1"
             [ testCase "read/write Compat value" $
@@ -116,7 +118,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Another value" $
                 readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat",
               testCase "read Compat w/o schema" $
-                readCompatTagged CompactBinaryV1Proto "compat.compact.dat"
+                readCompatTagged CompactBinaryV1Proto "compat.compact.dat",
+              invalidTaggedWriteTests CompactBinaryV1Proto
             ],
           testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
@@ -139,6 +142,25 @@ tests = testGroup "Haskell runtime tests"
           testProperty "Word64" zigzagWord64
         ]
     ]
+
+invalidTaggedWriteTests :: BondTaggedProto t => t -> TestTree
+invalidTaggedWriteTests t = testGroup "invalid tagged write tests"
+  [
+    testCaseInfo "type mismatch in list" $
+        testInvalidTaggedWrite t $ Struct Nothing $ M.fromList [(Ordinal 1, LIST bT_BOOL [INT16 42, BOOL True])],
+    testCaseInfo "type mismatch inside list element" $
+        testInvalidTaggedWrite t $ Struct Nothing
+            $ M.fromList [(Ordinal 1, LIST bT_SET [SET bT_INT32 [INT32 5, UINT32 6]])],
+    testCaseInfo "type mismatch in set" $
+        testInvalidTaggedWrite t $ Struct Nothing
+            $ M.fromList [(Ordinal 1, SET bT_STRUCT [STRUCT $ Struct Nothing M.empty, BOOL True])],
+    testCaseInfo "type mismatch in map key" $
+        testInvalidTaggedWrite t $ Struct Nothing
+            $ M.fromList [(Ordinal 1, MAP bT_UINT32 bT_STRING [(UINT64 1, STRING $ fromString "bar")])],
+    testCaseInfo "type mismatch in map value" $
+        testInvalidTaggedWrite t $ Struct Nothing
+            $ M.fromList [(Ordinal 1, MAP bT_UINT64 bT_WSTRING [(UINT64 1, STRING $ fromString "foo")])]
+  ]
 
 crossTests :: [TestTree]
 crossTests =
@@ -196,10 +218,9 @@ readCompatTagged p f = do
                     case validate schema s of
                         Nothing -> return ()
                         Just errs -> assertFailure errs
-                    let d' = bondWriteTagged p s
---                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                    assertEqual "serialized value do not match original" dat d'
-
+                    case bondWriteTagged p s of
+                        Left msg -> assertFailure msg
+                        Right outdat -> assertEqual "serialized value do not match original" dat outdat
 
 readSchema :: Assertion
 readSchema = do
@@ -223,9 +244,9 @@ readSchemaTagged = do
                     case validate schema s of
                         Nothing -> return ()
                         Just errs -> assertFailure errs
-                    let d' = bondMarshalTagged CompactBinaryV1Proto s
---                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                    assertEqual "serialized value do not match original" dat d'
+                    case bondMarshalTagged CompactBinaryV1Proto s of
+                        Left msg -> assertFailure msg
+                        Right outdat -> assertEqual "serialized value do not match original" dat outdat
 
 -- compat.json.dat file has several properties making it incompatible with usual test:
 -- all float values saved with extra precision
@@ -296,6 +317,12 @@ checkSchemaMismatch f s = do
             case validate schema s of
                 Nothing -> assertFailure "error not caught" >> return ""
                 Just errs -> return $ "error caught: " ++ errs
+
+testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
+testInvalidTaggedWrite p s
+    = case bondWriteTagged p s of
+        Left msg -> return $ "error caught: " ++ msg
+        Right _ -> assertFailure "error not caught" >> return ""
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == (fromZigZag $ toZigZag x)

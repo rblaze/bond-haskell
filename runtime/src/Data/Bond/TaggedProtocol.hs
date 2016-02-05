@@ -10,15 +10,16 @@ import Data.Bond.Default
 import Data.Bond.Proto
 import Data.Bond.Struct
 import Data.Bond.Types
+import Data.Bond.Utils
 import Data.Bond.Wire
 
 import Control.Applicative hiding (optional)
 import Control.Monad
+import Control.Monad.Error
 import Data.Bits
 import Data.Proxy
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.Binary.Get as B
-import qualified Data.Binary.Put as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 import qualified Data.Map.Strict as MS
@@ -32,7 +33,7 @@ class Protocol t => TaggedProtocol t where
     getTaggedStruct :: BondGet t Struct
     putFieldHeader :: BondDataType -> Ordinal -> BondPut t
     putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut t
-    putTaggedStruct :: Struct -> BondPut t
+    putTaggedStruct :: MonadError String (BondPutM t) => Struct -> BondPut t
     skipStruct :: BondGet t ()
     skipRestOfStruct :: BondGet t ()
     skipType :: TaggedProtocol t => BondDataType -> BondGet t ()
@@ -58,17 +59,17 @@ getStruct level = do
 
     loop b
 
-putStruct :: (WriterM t ~ B.PutM, TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
+putStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
 putStruct level a = do
     bondStructPut a
     case level of
         TopLevelStruct -> putTag bT_STOP
         BaseStruct -> putTag bT_STOP_BASE
 
-putBaseStruct :: (WriterM t ~ B.PutM, TaggedProtocol t, BondStruct a) => a -> BondPut t
+putBaseStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => a -> BondPut t
 putBaseStruct = putStruct BaseStruct
 
-putField :: forall a b t. (Monad (WriterM t), TaggedProtocol t, Serializable a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
+putField :: forall a b t. (Monad (BondPutM t), TaggedProtocol t, Serializable a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
 putField p n a = do
     let tag = getWireType (Proxy :: Proxy a)
     let info = M.findWithDefault (error "unknown field ordinal") n (fieldsInfo p)
@@ -77,7 +78,7 @@ putField p n a = do
         putFieldHeader tag n
         bondPut a
 
-putTag :: WriterM t ~ B.PutM => BondDataType -> BondPut t
+putTag :: BinaryPut (BondPutM t) => BondDataType -> BondPut t
 putTag = putWord8 . fromIntegral . fromEnum
 
 binaryDecode :: forall a t. (ReaderM t ~ B.Get, BondStruct a, Protocol t) => t -> BL.ByteString -> Either String a
@@ -88,10 +89,12 @@ binaryDecode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-binaryEncode :: forall a t. (WriterM t ~ B.PutM, BondStruct a, Protocol t) => t -> a -> BL.ByteString
+binaryEncode :: forall a t. (BinaryPut (WriterM t), BondStruct a, Protocol t) => t -> a -> BL.ByteString
 binaryEncode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in B.runPut g
+     in case tryPut g of
+            Left msg -> error $ "putter returned unexpected error " ++ msg
+            Right s -> s
 
 getTaggedData :: forall t. (ReaderM t ~ B.Get, TaggedProtocol t) => BondGet t Struct
 getTaggedData = fieldLoop $ Struct Nothing M.empty
@@ -126,7 +129,7 @@ getTaggedData = fieldLoop $ Struct Nothing M.empty
            | t == bT_INT32 -> INT32 <$> bondGetInt32
            | t == bT_INT64 -> INT64 <$> bondGetInt64
            | t == bT_WSTRING -> WSTRING <$> bondGetWString
-           | otherwise -> fail $ "invalid field type " ++ show t
+           | otherwise -> fail $ "invalid field type " ++ bondTypeName t
     setField s o v = return $ s { fields = MS.insert o v (fields s) }
     fieldLoop s = do
         (t, o) <- getFieldHeader
@@ -142,7 +145,7 @@ readTagged _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-putTaggedData :: forall t. (WriterM t ~ B.PutM, TaggedProtocol t) => Struct -> BondPut t
+putTaggedData :: forall t. (MonadError String (BondPutM t), BinaryPut (BondPutM t), TaggedProtocol t) => Struct -> BondPut t
 putTaggedData s = do
     case base s of
         Just b -> putTaggedData b >> putTag bT_STOP_BASE
@@ -167,17 +170,22 @@ putTaggedData s = do
     saveValue (STRING v) = (bT_STRING, bondPutString v)
     saveValue (WSTRING v) = (bT_WSTRING, bondPutWString v)
     saveValue (STRUCT v) = (bT_STRUCT, putTaggedStruct v)
-    saveValue (LIST td xs) = (bT_LIST, putListHeader td (length xs) >> mapM_ (snd . saveValue) xs)
-    saveValue (SET td xs) = (bT_SET, putListHeader td (length xs) >> mapM_ (snd . saveValue) xs)
+    saveValue (LIST td xs) = (bT_LIST, putListHeader td (length xs) >> mapM_ (saveTypedValue td) xs)
+    saveValue (SET td xs) = (bT_SET, putListHeader td (length xs) >> mapM_ (saveTypedValue td) xs)
     saveValue (MAP tk tv xs) = (bT_MAP, do
         putTag tk
         putTag tv
         putVarInt $ length xs
         forM_ xs $ \ (k, v) -> do
-            snd $ saveValue k
-            snd $ saveValue v
+            saveTypedValue tk k
+            saveTypedValue tv v
       )
+    saveTypedValue td v
+        = let (realtd, writer) = saveValue v
+           in if td == realtd
+                then writer
+                else throwError $ "element type do not match container type: " ++ bondTypeName td ++ " expected, " ++ bondTypeName realtd ++ " found"
 
-writeTagged :: forall t. (WriterM t ~ B.PutM, TaggedProtocol t) => t -> Struct -> BL.ByteString
+writeTagged :: forall t. (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
 writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
-                   in B.runPut g
+                   in tryPut g

@@ -30,6 +30,7 @@ import Data.Bond.Default
 import Data.Bond.Proto
 import Data.Bond.Struct
 import Data.Bond.Types
+import Data.Bond.Utils
 
 import Control.Arrow
 import Control.Monad.State.Strict
@@ -177,27 +178,6 @@ checkStruct rootSchema rootStruct = do
                 Just b -> do
                     rest <- schemaCheckStep (IS.insert idx seen) b
                     return $ sd : rest
-
-bondTypeName :: BondDataType -> String
-bondTypeName t
-    | t == bT_BOOL = "bool"
-    | t == bT_UINT8 = "uint8"
-    | t == bT_UINT16 = "uint16"
-    | t == bT_UINT32 = "uint32"
-    | t == bT_UINT64 = "uint64"
-    | t == bT_FLOAT = "float"
-    | t == bT_DOUBLE = "double"
-    | t == bT_STRING = "string"
-    | t == bT_STRUCT = "struct"
-    | t == bT_LIST = "list"
-    | t == bT_SET = "set"
-    | t == bT_MAP = "map"
-    | t == bT_INT8 = "int8"
-    | t == bT_INT16 = "int16"
-    | t == bT_INT32 = "int32"
-    | t == bT_INT64 = "int64"
-    | t == bT_WSTRING = "wstring"
-    | otherwise = let BondDataType v = t in "tag " ++ show v
 
 instance TypeDefGen Bool where
     getTypeDef _ = simpleType bT_BOOL

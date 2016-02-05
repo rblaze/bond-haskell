@@ -47,7 +47,7 @@ class (Default a, WireType a) => Serializable a where
     -- | Read field value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Put field into stream.
-    bondPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
+    bondPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
 
 data FieldInfo = FieldInfo
     { fieldName :: T.Text
@@ -62,7 +62,7 @@ class (Default a, Serializable a, TypeDefGen a) => BondStruct a where
     bondStructGetBase :: (Monad (ReaderM t), Protocol t) => a -> BondGet t a
     bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
     -- | Put struct
-    bondStructPut :: (Monad (WriterM t), Protocol t) => a -> BondPut t
+    bondStructPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
     fieldsInfo :: Proxy a -> M.Map Ordinal FieldInfo
 
 -- public API classes
@@ -78,9 +78,9 @@ class BondProto t where
 
 class BondProto t => BondTaggedProto t where
     bondReadTagged :: t -> BL.ByteString -> Either String Struct
-    bondWriteTagged :: t -> Struct -> BL.ByteString
-    bondMarshalTagged :: t -> Struct -> BL.ByteString
-    bondMarshalTagged t = BL.append (protoSig t) . bondWriteTagged t
+    bondWriteTagged :: t -> Struct -> Either String BL.ByteString
+    bondMarshalTagged :: t -> Struct -> Either String BL.ByteString
+    bondMarshalTagged t = fmap (BL.append $ protoSig t) <$> bondWriteTagged t
 
 -- private API
 
