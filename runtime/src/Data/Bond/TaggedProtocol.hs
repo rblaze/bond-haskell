@@ -201,6 +201,4 @@ writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
                    in tryPut g
 
 writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> SchemaDef -> Struct -> Either String BL.ByteString
-writeTaggedWithSchema t schema a = do
-    checkStructSchema schema a
-    writeTagged t a
+writeTaggedWithSchema t schema struct = checkStructSchema schema struct >>= writeTagged t
