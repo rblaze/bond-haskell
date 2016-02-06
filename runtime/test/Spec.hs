@@ -149,6 +149,7 @@ tests = testGroup "Haskell runtime tests"
             ],
           testGroup "Marshalling"
             [ testCase "read/write SchemaDef value" readSchema,
+              testCase "read/write SchemaDef value with schema" readSchemaWithSchema,
               testCase "read/write SchemaDef value w/o schema" readSchemaTagged
             ],
           testGroup "Cross-tests" crossTests
@@ -251,6 +252,14 @@ readSchema = assertEither $ do
     s <- hoistEither (bondUnmarshal dat :: Either String SchemaDef)
     let d' = bondMarshal CompactBinaryV1Proto s
     checkEqual "serialized value do not match original" dat d'
+
+readSchemaWithSchema :: Assertion
+readSchemaWithSchema = assertEither $ do
+    let schema = getSchema (Proxy :: Proxy SchemaDef)
+    dat <- readData (compatDataPath </> "compat.schema.dat")
+    struct <- hoistEither $ bondUnmarshalWithSchema schema dat
+    out <- hoistEither $ bondMarshalWithSchema CompactBinaryV1Proto schema struct
+    checkEqual "serialized value do not match original" dat out
 
 readSchemaTagged :: Assertion
 readSchemaTagged = assertEither $ do

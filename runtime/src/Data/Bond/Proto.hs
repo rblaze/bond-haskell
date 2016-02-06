@@ -74,6 +74,8 @@ class BondProto t where
     bondWriteWithSchema :: t -> SchemaDef -> Struct -> Either String BL.ByteString
     bondMarshal :: BondStruct a => t -> a -> BL.ByteString
     bondMarshal t = BL.append (protoSig t) . bondWrite t
+    bondMarshalWithSchema :: t -> SchemaDef -> Struct -> Either String BL.ByteString
+    bondMarshalWithSchema t s = fmap (BL.append $ protoSig t) <$> bondWriteWithSchema t s
     protoSig :: t -> BL.ByteString
 
 class BondProto t => BondTaggedProto t where

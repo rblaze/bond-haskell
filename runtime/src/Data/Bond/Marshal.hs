@@ -1,10 +1,13 @@
 {-# LANGUAGE MultiWayIf #-}
 module Data.Bond.Marshal (
-    BondProto(bondMarshal),
+    BondProto(bondMarshal, bondMarshalWithSchema),
     BondTaggedProto(bondMarshalTagged),
     bondUnmarshal,
+    bondUnmarshalWithSchema,
     bondUnmarshalTagged
   ) where
+
+import Data.Bond.Schema.SchemaDef
 
 import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
@@ -24,6 +27,17 @@ bondUnmarshal s
              | sig == protoSig SimpleBinaryProto -> bondRead SimpleBinaryProto rest
              | sig == protoSig SimpleBinaryV1Proto -> bondRead SimpleBinaryV1Proto rest
              | sig == protoSig JsonProto -> bondRead JsonProto rest
+             | otherwise -> Left "unknown signature in marshalled stream"
+
+bondUnmarshalWithSchema :: SchemaDef -> BL.ByteString -> Either String Struct
+bondUnmarshalWithSchema schema s
+    = let (sig, rest) = BL.splitAt 4 s
+       in if | sig == protoSig FastBinaryProto -> bondReadWithSchema FastBinaryProto schema rest
+             | sig == protoSig CompactBinaryProto -> bondReadWithSchema CompactBinaryProto schema rest
+             | sig == protoSig CompactBinaryV1Proto -> bondReadWithSchema CompactBinaryV1Proto schema rest
+             | sig == protoSig SimpleBinaryProto -> bondReadWithSchema SimpleBinaryProto schema rest
+             | sig == protoSig SimpleBinaryV1Proto -> bondReadWithSchema SimpleBinaryV1Proto schema rest
+             | sig == protoSig JsonProto -> bondReadWithSchema JsonProto schema rest
              | otherwise -> Left "unknown signature in marshalled stream"
 
 bondUnmarshalTagged :: BL.ByteString -> Either String Struct

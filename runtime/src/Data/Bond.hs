@@ -38,8 +38,8 @@ import Data.Bond.Types
 -- bondReadWithSchema :: BondProto t => t -> SchemaDef -> BS.ByteString -> Either String Struct
 -- bondWriteWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
 
--- bondUnmarshalWithSchema :: SchemaDef -> BS.ByteString -> Either String Struct
--- bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
+-- + bondUnmarshalWithSchema :: SchemaDef -> BS.ByteString -> Either String Struct
+-- + bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
 
 -- schemaless API
 -- + bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
