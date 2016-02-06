@@ -89,7 +89,9 @@ test-suite bond-haskell-test
                      , bond-haskell
                      , bytestring >= 0.10
                      , containers >= 0.4
+                     , either
                      , filepath >= 1.0
+                     , mtl >= 2.1
                      , tasty
                      , tasty-golden
                      , tasty-hunit

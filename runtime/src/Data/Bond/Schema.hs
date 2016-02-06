@@ -6,7 +6,7 @@ module Data.Bond.Schema (
     TypeDefGen(..),
     Variant(..),
     findTypeDef,
-    checkStruct,
+    checkStructSchema,
     getSchema,
     makeFieldDef,
     makeGenericTypeName,
@@ -14,7 +14,6 @@ module Data.Bond.Schema (
     optional,
     required,
     requiredOptional,
-    validate,
     withStruct
   ) where
 
@@ -114,18 +113,14 @@ simpleType t = return $ defaultValue { TD.id = t }
 makeGenericTypeName :: String -> [String] -> String
 makeGenericTypeName s params = s ++ '<' : intercalate "," params ++ ">"
 
-validate :: SchemaDef -> Struct -> Maybe String
-validate schema struct = e2m $ checkStruct schema struct
-    where
-    e2m (Right _) = Nothing
-    e2m (Left msg) = Just msg
-
-checkStruct :: SchemaDef -> Struct -> Either String ()
-checkStruct rootSchema rootStruct = do
+checkStructSchema :: SchemaDef -> Struct -> Either String Struct
+checkStructSchema rootSchema rootStruct = do
     schemaStack <- schemaCheckStep IS.empty (root rootSchema)
     when (length schemaStack > length structStack) $ Left "schema depth is larger than struct depth"
-    let errs = lefts $ zipWith checkStackLevel (reverse schemaStack) (reverse structStack)
+    let shortStructStack = take (length schemaStack) structStack
+    let errs = lefts $ zipWith checkStackLevel schemaStack shortStructStack
     unless (null errs) $ Left $ intercalate "\n" errs
+    return $ head shortStructStack
     where
     checkStackLevel schema struct = V.mapM_ (checkField struct) (SD.fields schema)
     checkField struct field = case M.lookup (Ordinal $ FD.id field) (fields struct) of
@@ -145,7 +140,7 @@ checkStruct rootSchema rootStruct = do
     checkValueType TypeDef{TD.id = t} (DOUBLE _) | t == bT_DOUBLE = Right ()
     checkValueType TypeDef{TD.id = t} (STRING _) | t == bT_STRING = Right ()
     checkValueType TypeDef{TD.id = t} (WSTRING _) | t == bT_WSTRING = Right ()
-    checkValueType td (STRUCT s) = checkStruct rootSchema{root = td} s
+    checkValueType td (STRUCT s) = fmap (const ()) $ checkStructSchema rootSchema{root = td} s
     checkValueType TypeDef{TD.id = t, TD.element = elemt} (LIST bt xs)
         | t == bT_LIST, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
         | t == bT_LIST, Just et <- elemt = Left $ "list element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)

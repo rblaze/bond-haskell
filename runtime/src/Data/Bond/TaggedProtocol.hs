@@ -153,9 +153,7 @@ readTaggedWithSchema _ schema s =
      in case B.runGetOrFail g s of
             Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
-            Right (_, _, a) -> case checkStruct schema a of
-                                Left err -> Left err
-                                Right () -> Right a
+            Right (_, _, a) -> checkStructSchema schema a
 
 putTaggedData :: forall t. (MonadError String (BondPutM t), BinaryPut (BondPutM t), TaggedProtocol t) => Struct -> BondPut t
 putTaggedData s = do
@@ -204,5 +202,5 @@ writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
 
 writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> SchemaDef -> Struct -> Either String BL.ByteString
 writeTaggedWithSchema t schema a = do
-    checkStruct schema a
+    checkStructSchema schema a
     writeTagged t a

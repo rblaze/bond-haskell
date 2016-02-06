@@ -12,9 +12,9 @@ module Data.Bond (
     SimpleBinaryV1Proto(..),
     Struct(..),
     Value(..),
+    checkStructSchema,
     getSchema,
-    getValue,
-    validate
+    getValue
   ) where
 
 import Data.Bond.Bonded

@@ -8,8 +8,10 @@ import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
 
+import Control.Monad
+import Control.Monad.Trans
+import Control.Monad.Trans.Either hiding (left, right)
 import Data.Int
-import Data.Foldable
 import Data.Proxy
 import Data.Word
 import System.FilePath
@@ -213,75 +215,51 @@ crossTests =
             assertEqual "values do not match" lparse rparse
 
 readCompat :: BondProto t => t -> String -> Assertion
-readCompat p f = do
-    dat <- L.readFile (compatDataPath </> f)
-    let parse = bondRead p dat :: Either String Compat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> do
-                    let d' = bondWrite p s
---                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                    assertEqual "serialized value do not match original" dat d'
+readCompat p f = assertEither $ do
+    dat <- readData (compatDataPath </> f)
+    s <- hoistEither (bondRead p dat :: Either String Compat)
+    let d' = bondWrite p s
+    checkEqual "serialized value do not match original" dat d'
 
 readCompatTagged :: BondTaggedProto t => t -> String -> Assertion
-readCompatTagged p f = do
-    dat <- L.readFile (compatDataPath </> f)
-    let parse = bondReadTagged p dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> case bondWriteTagged p s of
-                    Left msg -> assertFailure msg
-                    Right outdat -> assertEqual "serialized value do not match original" dat outdat
+readCompatTagged p f = assertEither $ do
+    dat <- readData (compatDataPath </> f)
+    s <- hoistEither $ bondReadTagged p dat
+    outdat <- hoistEither $ bondWriteTagged p s
+    checkEqual "serialized value do not match original" dat outdat
 
 readCompatWithSchema :: BondProto t => t -> String -> Assertion
-readCompatWithSchema p f = do
-    dat <- L.readFile (compatDataPath </> f)
+readCompatWithSchema p f = assertEither $ do
+    dat <- readData (compatDataPath </> f)
     let schema = getSchema (Proxy :: Proxy Compat)
-    let parse = bondReadWithSchema p schema dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> case bondWriteWithSchema p schema s of
-                    Left msg -> assertFailure msg
-                    Right outdat -> assertEqual "serialized value do not match original" dat outdat
+    s <- hoistEither $ bondReadWithSchema p schema dat
+    outdat <- hoistEither $ bondWriteWithSchema p schema s
+    checkEqual "serialized value do not match original" dat outdat
 
 readCompatWithRuntimeSchema :: BondProto t => t -> String -> Assertion
-readCompatWithRuntimeSchema p f = do
-    schemadat <- L.readFile (compatDataPath </> "compat.schema.dat")
-    let schemaParse = bondUnmarshal schemadat :: Either String SchemaDef
-    case schemaParse of
-        Left msg -> assertFailure msg
-        Right schema -> do
-            dat <- L.readFile (compatDataPath </> f)
-            let parse = bondReadWithSchema p schema dat
-            case parse of
-                Left msg -> assertFailure msg
-                Right s -> case bondWriteWithSchema p schema s of
-                            Left msg -> assertFailure msg
-                            Right outdat -> assertEqual "serialized value do not match original" dat outdat
+readCompatWithRuntimeSchema p f = assertEither $ do
+    schemadat <- readData (compatDataPath </> "compat.schema.dat")
+    schema <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+    dat <- readData (compatDataPath </> f)
+    s <- hoistEither $ bondReadWithSchema p schema dat
+    outdat <- hoistEither $ bondWriteWithSchema p schema s
+    checkEqual "serialized value do not match original" dat outdat
 
 readSchema :: Assertion
-readSchema = do
-    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
-    let parse = bondUnmarshal dat :: Either String SchemaDef
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> do
-                    let d' = bondMarshal CompactBinaryV1Proto s
---                    L.writeFile ("/tmp" </> (f ++ ".out")) d'
-                    assertEqual "serialized value do not match original" dat d'
+readSchema = assertEither $ do
+    dat <- readData (compatDataPath </> "compat.schema.dat")
+    s <- hoistEither (bondUnmarshal dat :: Either String SchemaDef)
+    let d' = bondMarshal CompactBinaryV1Proto s
+    checkEqual "serialized value do not match original" dat d'
 
 readSchemaTagged :: Assertion
-readSchemaTagged = do
-    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
-    let parse = bondUnmarshalTagged dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> do
-                    let schema = getSchema (Proxy :: Proxy SchemaDef)
-                    forM_ (validate schema s) assertFailure
-                    case bondMarshalTagged CompactBinaryV1Proto s of
-                        Left msg -> assertFailure msg
-                        Right outdat -> assertEqual "serialized value do not match original" dat outdat
+readSchemaTagged = assertEither $ do
+    dat <- readData (compatDataPath </> "compat.schema.dat")
+    struct <- hoistEither $ bondUnmarshalTagged dat
+    let schema = getSchema (Proxy :: Proxy SchemaDef)
+    checked <- hoistEither $ checkStructSchema schema struct
+    out <- hoistEither $ bondMarshalTagged CompactBinaryV1Proto checked
+    checkEqual "serialized value do not match original" dat out
 
 -- compat.json.dat file has several properties making it incompatible with usual test:
 -- all float values saved with extra precision
@@ -304,63 +282,43 @@ testJson name f = goldenVsString name (compatDataPath </> "golden.json.dat") $ d
                     return d'
 
 readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
-readAsType p _ f = do
-    dat <- L.readFile (compatDataPath </> f)
-    let parse = bondRead p dat :: Either String a
-    whenLeft parse assertFailure
+readAsType p _ f = assertEither $ do
+    dat <- readData (compatDataPath </> f)
+    void $ hoistEither (bondRead p dat :: Either String a)
 
 matchCompatSchemaDef :: Assertion
-matchCompatSchemaDef = do
-    dat <- L.readFile (compatDataPath </> "compat.schema.dat")
-    let parse = bondUnmarshal dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> do
-                    let s' = getSchema (Proxy :: Proxy Compat)
-                    assertEqual "schemas do not match" s s'
+matchCompatSchemaDef = assertEither $ do
+    dat <- readData (compatDataPath </> "compat.schema.dat")
+    s <- hoistEither $ bondUnmarshal dat
+    let s' = getSchema (Proxy :: Proxy Compat)
+    checkEqual "schemas do not match" s s'
 
 -- gbc's json schemas differ slightly from bond.bond definition,
 -- so tests can't compare json representations.
 matchGeneratedSchemaDef :: Assertion
-matchGeneratedSchemaDef = do
-    dat <- L.readFile (autogenPath </> "bond.SchemaDef.json")
-    let parse = bondRead JsonProto dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right s -> do
-                    let s' = getSchema (Proxy :: Proxy SchemaDef)
-                    assertEqual "schemas do not match" s s'
+matchGeneratedSchemaDef = assertEither $ do
+    dat <- readData (autogenPath </> "bond.SchemaDef.json")
+    s <- hoistEither $ bondRead JsonProto dat
+    let s' = getSchema (Proxy :: Proxy SchemaDef)
+    checkEqual "schemas do not match" s s'
 
 checkSchemaError :: FilePath -> IO String
-checkSchemaError f = do
-    dat <- L.readFile (brokenSchemasPath </> f)
-    let parse = bondRead JsonProto dat
-    case parse of
-        Left msg -> assertFailure msg >> return ""
-        Right schema ->
-            case validate schema (Struct Nothing M.empty) of
-                Nothing -> assertFailure "error not caught" >> return ""
-                Just errs -> return $ "error caught: " ++ errs
+checkSchemaError f = assertWithMsg $ do
+    dat <- readData (brokenSchemasPath </> f)
+    schema <- hoistEither $ bondRead JsonProto dat
+    checkHasError $ checkStructSchema schema (Struct Nothing M.empty)
 
 checkSchemaMismatch :: FilePath -> Struct -> IO String
-checkSchemaMismatch f s = do
-    dat <- L.readFile (simpleSchemasPath </> f)
-    let parse = bondRead JsonProto dat
-    case parse of
-        Left msg -> assertFailure msg >> return ""
-        Right schema ->
-            case validate schema s of
-                Nothing -> assertFailure "error not caught" >> return ""
-                Just errs -> return $ "error caught: " ++ errs
+checkSchemaMismatch f s = assertWithMsg $ do
+    dat <- readData (simpleSchemasPath </> f)
+    schema <- hoistEither $ bondRead JsonProto dat
+    checkHasError $ checkStructSchema schema s
 
 checkShallowSchema :: Assertion
-checkShallowSchema = do
-    dat <- L.readFile (simpleSchemasPath </> "test.outer.json")
-    let parse = bondRead JsonProto dat
-    case parse of
-        Left msg -> assertFailure msg
-        Right schema ->
-            forM_ (validate schema $ Struct (Just $ Struct Nothing M.empty) M.empty) assertFailure
+checkShallowSchema = assertEither $ do
+    dat <- readData (simpleSchemasPath </> "test.outer.json")
+    schema <- hoistEither $ bondRead JsonProto dat
+    void $ hoistEither $ checkStructSchema schema $ Struct (Just $ Struct Nothing M.empty) M.empty
 
 testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
 testInvalidTaggedWrite p s
@@ -383,3 +341,18 @@ zigzagWord64 x = x == toZigZag (fromZigZag x :: Int64)
 whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
 whenLeft (Right _) _ = return ()
 whenLeft (Left a) f = f a
+
+assertEither :: EitherT String IO () -> Assertion
+assertEither = eitherT assertFailure (const $ return ())
+
+assertWithMsg :: EitherT String IO String -> IO String
+assertWithMsg = eitherT (\ msg -> assertFailure msg >> return "") (\ msg -> return $ "error caught: " ++ msg)
+
+readData :: FilePath -> EitherT String IO L.ByteString
+readData = lift . L.readFile
+
+checkEqual :: (Eq a, Show a, MonadTrans t) => String -> a -> a -> t IO ()
+checkEqual m a b = lift $ assertEqual m a b
+
+checkHasError :: Either String a -> EitherT String IO String
+checkHasError = bimapEitherT (const "error not found") id . swapEitherT . hoistEither
