@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables #-}
+{-# Language ScopedTypeVariables, FlexibleContexts #-}
 module Data.Bond.Schema (
     FieldDef(..),
     Metadata(..),
@@ -6,6 +6,7 @@ module Data.Bond.Schema (
     TypeDefGen(..),
     Variant(..),
     findTypeDef,
+    checkSchema,
     checkStructSchema,
     getSchema,
     makeFieldDef,
@@ -33,6 +34,7 @@ import Data.Bond.Types
 import Data.Bond.Utils
 
 import Control.Arrow
+import Control.Monad.Error
 import Control.Monad.State.Strict
 import Data.Either
 import Data.Foldable hiding (forM_, mapM_)
@@ -41,7 +43,6 @@ import Data.Map ((!))
 import Data.Proxy
 import Data.Sequence ((|>))
 import Data.Typeable
-import Data.Vector ((!?))
 import qualified Data.IntSet as IS
 import qualified Data.Map as M
 import qualified Data.Sequence as S
@@ -113,9 +114,70 @@ simpleType t = return $ defaultValue { TD.id = t }
 makeGenericTypeName :: String -> [String] -> String
 makeGenericTypeName s params = s ++ '<' : intercalate "," params ++ ">"
 
+checkSchema :: MonadError String m => SchemaDef -> m ()
+checkSchema schema = do
+    checkChain IS.empty 0
+    let rootTD = root schema
+    when (TD.id rootTD /= bT_STRUCT) $ throwError "root type is not struct"
+    checkType $ rootTD
+    V.mapM_ checkStruct (structs schema)
+    where
+    checkChain _ n | n == V.length (structs schema) = return ()
+    checkChain seen n | IS.member n seen = checkChain seen (n + 1)
+    checkChain seen n = do
+        let step stack i = do
+                when (i >= V.length (structs schema)) $ throwError $ "struct index " ++ show i ++ " out of range"
+                when (IS.member i stack) $ throwError "loop in inheritance chain"
+                let baseStruct = SD.base_def $ structs schema V.! i
+                let newStack = IS.insert i stack
+                case baseStruct of
+                    Nothing -> return newStack
+                    Just b -> do
+                        when (TD.id b /= bT_STRUCT) $ throwError "not a struct in inheritance chain"
+                        step newStack (fromIntegral $ TD.struct_def b)
+        stack <- step IS.empty n
+        checkChain (IS.union seen stack) (n + 1)
+    checkStruct struct = do
+        maybe (return ()) checkType (SD.base_def struct)
+        -- TODO check for duplicate ordinals
+        V.forM_ (SD.fields struct) $ checkType . FD.typedef
+    checkType t@TypeDef{TD.id = typ}
+        | typ == bT_BOOL = return ()
+        | typ == bT_INT8 = return ()
+        | typ == bT_INT16 = return ()
+        | typ == bT_INT32 = return ()
+        | typ == bT_INT64 = return ()
+        | typ == bT_UINT8 = return ()
+        | typ == bT_UINT16 = return ()
+        | typ == bT_UINT32 = return ()
+        | typ == bT_UINT64 = return ()
+        | typ == bT_FLOAT = return ()
+        | typ == bT_DOUBLE = return ()
+        | typ == bT_STRING = return ()
+        | typ == bT_WSTRING = return ()
+        | typ == bT_LIST =
+            case TD.element t of
+                Nothing -> throwError "element type missing in list schema"
+                Just subtype -> checkType subtype
+        | typ == bT_SET =
+            case TD.element t of
+                Nothing -> throwError "element type missing in set schema"
+                Just subtype -> checkType subtype
+        | typ == bT_MAP = do
+            case TD.element t of
+                Nothing -> throwError "value type missing in map schema"
+                Just subtype -> checkType subtype
+            case TD.key t of
+                Nothing -> throwError "key type missing in map schema"
+                Just subtype -> checkType subtype
+        | typ == bT_STRUCT = do
+            let idx = fromIntegral $ TD.struct_def t
+            when (idx >= V.length (structs schema)) $ throwError $ "struct index " ++ show idx ++ " out of range"
+        | otherwise = throwError $ "unexpected data type " ++ bondTypeName typ
+
 checkStructSchema :: SchemaDef -> Struct -> Either String Struct
 checkStructSchema rootSchema rootStruct = do
-    schemaStack <- schemaCheckStep IS.empty (root rootSchema)
+    checkSchema rootSchema
     when (length schemaStack > length structStack) $ Left "schema depth is larger than struct depth"
     let shortStructStack = take (length schemaStack) structStack
     let errs = lefts $ zipWith checkStackLevel schemaStack shortStructStack
@@ -144,14 +206,10 @@ checkStructSchema rootSchema rootStruct = do
     checkValueType TypeDef{TD.id = t, TD.element = elemt} (LIST bt xs)
         | t == bT_LIST, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
         | t == bT_LIST, Just et <- elemt = Left $ "list element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)
-        | t == bT_LIST = Left "element type is missing in list schema"
     checkValueType TypeDef{TD.id = t, TD.element = elemt} (SET bt xs)
         | t == bT_SET, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
         | t == bT_SET, Just et <- elemt = Left $ "set element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)
-        | t == bT_SET = Left "element type is missing in set schema"
     checkValueType TypeDef{TD.id = t, TD.element = elemt, TD.key = keyt} (MAP btk bte xs)
-        | t == bT_MAP, Nothing <- elemt = Left "value type is missing in map schema"
-        | t == bT_MAP, Nothing <- keyt = Left "key type is missing in map schema"
         | t == bT_MAP, Just et <- elemt, bte /= TD.id et = Left $ "map element type " ++ bondTypeName bte ++ " does not match schema type " ++ bondTypeName (TD.id et)
         | t == bT_MAP, Just kt <- keyt, btk /= TD.id kt = Left $ "map key type " ++ bondTypeName btk ++ " does not match schema type " ++ bondTypeName (TD.id kt)
         | t == bT_MAP, Just et <- elemt, Just kt <- keyt = forM_ xs $ \(k, v) -> checkValueType kt k >> checkValueType et v
@@ -163,18 +221,12 @@ checkStructSchema rootSchema rootStruct = do
                                 Nothing -> [s]
                                 Just b -> s : step b
                    in step rootStruct
-    schemaCheckStep seen td = do
-        unless (TD.id td == bT_STRUCT) $ Left "not a struct in inheritance chain"
-        let idx = fromIntegral $ TD.struct_def td
-        when (IS.member idx seen) $ Left "loop in inheritance chain"
-        let structdef = structs rootSchema !? idx
-        case structdef of
-            Nothing -> Left "struct index out of range"
-            Just sd -> case SD.base_def sd of
-                Nothing -> return [sd]
-                Just b -> do
-                    rest <- schemaCheckStep (IS.insert idx seen) b
-                    return $ sd : rest
+    schemaStack = let step td = let idx = fromIntegral $ TD.struct_def td
+                                    struct = structs rootSchema V.! idx
+                                 in case SD.base_def struct of
+                                        Nothing -> [struct]
+                                        Just b -> struct : step b
+                   in step (root rootSchema)
 
 instance TypeDefGen Bool where
     getTypeDef _ = simpleType bT_BOOL
