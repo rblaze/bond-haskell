@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables, TypeFamilies #-}
+{-# Language ScopedTypeVariables, TypeFamilies, FlexibleContexts, MultiWayIf #-}
 module Data.Bond.SimpleBinaryProto (
         SimpleBinaryProto(..),
         SimpleBinaryV1Proto(..)
@@ -8,15 +8,26 @@ import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.Proto
+import Data.Bond.Schema
+import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Utils
 
+import Data.Bond.Schema.BondDataType
+import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.ProtocolType
+import Data.Bond.Schema.SchemaDef
+import Data.Bond.Schema.Variant
+import qualified Data.Bond.Schema.FieldDef as FD
+import qualified Data.Bond.Schema.StructDef as SD
+import qualified Data.Bond.Schema.TypeDef as TD
 
 import Control.Applicative
 import Control.Monad
+import Control.Monad.Error
 import Data.List
 import Data.Maybe
+import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -31,14 +42,20 @@ import qualified Data.Vector as V
 data SimpleBinaryProto = SimpleBinaryProto
 data SimpleBinaryV1Proto = SimpleBinaryV1Proto
 
+class Protocol t => SimpleProtocol t where
+    getListHeader :: BondGet t Int
+    putListHeader :: Int -> BondPut t
+
 instance BondProto SimpleBinaryProto where
     bondRead = decode
     bondWrite = encode
+    bondReadWithSchema = decodeWithSchema
+    bondWriteWithSchema = encodeWithSchema
     protoSig _ = protoHeader sIMPLE_PROTOCOL 2
 
 instance Protocol SimpleBinaryProto where
     type ReaderM SimpleBinaryProto = B.Get
-    type WriterM SimpleBinaryProto = B.PutM
+    type WriterM SimpleBinaryProto = ErrorT String B.PutM
 
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
@@ -85,7 +102,6 @@ instance Protocol SimpleBinaryProto where
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
     bondGetBonded = do
         size <- getWord32le
---        sig <- BondGet getWord32be
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
@@ -135,14 +151,20 @@ instance Protocol SimpleBinaryProto where
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
 
+instance SimpleProtocol SimpleBinaryProto where
+    getListHeader = getVarInt
+    putListHeader = putVarInt
+
 instance BondProto SimpleBinaryV1Proto where
     bondRead = decode
     bondWrite = encode
+    bondReadWithSchema = decodeWithSchema
+    bondWriteWithSchema = encodeWithSchema
     protoSig _ = protoHeader sIMPLE_PROTOCOL 1
 
 instance Protocol SimpleBinaryV1Proto where
     type ReaderM SimpleBinaryV1Proto = B.Get
-    type WriterM SimpleBinaryV1Proto = B.PutM
+    type WriterM SimpleBinaryV1Proto = ErrorT String B.PutM
 
     bondGetStruct = bondStructGetUntagged
     bondGetBaseStruct = bondStructGetUntagged
@@ -189,7 +211,6 @@ instance Protocol SimpleBinaryV1Proto where
             _ -> fail $ "list of length " ++ show (length v) ++ " where nullable expected"
     bondGetBonded = do
         size <- getWord32le
---        sig <- BondGet getWord32be
         bs <- getLazyByteString (fromIntegral size)
         return $ BondedStream bs
 
@@ -239,6 +260,10 @@ instance Protocol SimpleBinaryV1Proto where
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s
 
+instance SimpleProtocol SimpleBinaryV1Proto where
+    getListHeader = fromIntegral <$> getWord32le
+    putListHeader = putWord32le . fromIntegral
+
 decode :: forall a t. (BondStruct a, Protocol t, ReaderM t ~ B.Get) => t -> BL.ByteString -> Either String a
 decode _ s =
     let BondGet g = bondGetStruct :: BondGet t a
@@ -247,7 +272,121 @@ decode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ B.PutM) => t -> a -> BL.ByteString
+encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ErrorT String B.PutM) => t -> a -> BL.ByteString
 encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in B.runPut g
+     in case tryPut g of
+            Left msg -> error $ "putter returned unexpected error " ++ msg
+            Right s -> s
+
+decodeWithSchema :: forall t. (SimpleProtocol t, ReaderM t ~ B.Get) => t -> SchemaDef -> BL.ByteString -> Either String Struct
+decodeWithSchema _ schema bs = do
+    checkSchema schema
+    case B.runGetOrFail reader bs of
+        Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
+        Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
+        Right (_, _, a) -> Right a
+    where
+    BondGet reader = readStruct (root schema)
+    readStruct :: TD.TypeDef -> BondGet t Struct
+    readStruct td = do
+        let idx = fromIntegral $ TD.struct_def td
+        let sd = structs schema ! idx
+        parent <- case SD.base_def sd of 
+            Nothing -> return Nothing
+            Just tdescr -> Just <$> readStruct tdescr
+        fs <- M.fromList . V.toList <$> V.mapM readField (SD.fields sd)
+        return $ Struct parent fs
+    readField f = do
+        value <- readValue (FD.typedef f)
+        return (Ordinal $ FD.id f, value)
+    readValue td
+        | TD.id td == bT_BOOL = BOOL <$> bondGetBool
+        | TD.id td == bT_UINT8 = UINT8 <$> bondGetUInt8
+        | TD.id td == bT_UINT16 = UINT16 <$> bondGetUInt16
+        | TD.id td == bT_UINT32 = UINT32 <$> bondGetUInt32
+        | TD.id td == bT_UINT64 = UINT64 <$> bondGetUInt64
+        | TD.id td == bT_INT8 = INT8 <$> bondGetInt8
+        | TD.id td == bT_INT16 = INT16 <$> bondGetInt16
+        | TD.id td == bT_INT32 = INT32 <$> bondGetInt32
+        | TD.id td == bT_INT64 = INT64 <$> bondGetInt64
+        | TD.id td == bT_FLOAT = FLOAT <$> bondGetFloat
+        | TD.id td == bT_DOUBLE = DOUBLE <$> bondGetDouble
+        | TD.id td == bT_STRING = STRING <$> bondGetString
+        | TD.id td == bT_WSTRING = WSTRING <$> bondGetWString
+        | TD.id td == bT_STRUCT && TD.bonded_type td = do
+            n <- getWord32le
+            BONDED <$> getByteString (fromIntegral n)
+        | TD.id td == bT_STRUCT = STRUCT <$> readStruct td
+        | TD.id td == bT_LIST = do
+            let Just et = TD.element td
+            n <- getListHeader
+            LIST (TD.id et) <$> replicateM n (readValue et)
+        | TD.id td == bT_SET = do
+            let Just et = TD.element td
+            n <- getListHeader
+            SET (TD.id et) <$> replicateM n (readValue et)
+        | TD.id td == bT_MAP = do
+            let Just kt = TD.key td
+            let Just vt = TD.element td
+            n <- getListHeader
+            fmap (MAP (TD.id kt) (TD.id vt)) $ replicateM n $ do
+                k <- readValue kt
+                v <- readValue vt
+                return (k, v)
+        | otherwise = error $ "schema validation bug: unknown field type " ++ bondTypeName (TD.id td)
+
+encodeWithSchema :: forall t. (SimpleProtocol t, BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> SchemaDef -> Struct -> Either String BL.ByteString
+encodeWithSchema _ schema s = do
+    struct <- checkStructSchema schema s
+    let BondPut writer = putStruct (root schema) struct
+    tryPut writer
+    where
+    putStruct :: TD.TypeDef -> Struct -> BondPut t
+    putStruct td struct = do
+        let idx = fromIntegral $ TD.struct_def td
+        let sd = structs schema ! idx
+        case (SD.base_def sd, base struct) of 
+            (Nothing, Nothing) -> return ()
+            (Just tdescr, Just baseStruct) -> putStruct tdescr baseStruct
+            _ -> error "struct validation bug: inheritance chain in schema do not match one in struct"
+        V.mapM_ (putField $ fields struct) (SD.fields sd)
+    putField fieldmap f = do
+        value <- maybe (mkDefault f) return $ M.lookup (Ordinal $ FD.id f) fieldmap
+        putValue (FD.typedef f) value
+    mkDefault f = do
+        let def = default_value (FD.metadata f)
+        let typ = TD.id (FD.typedef f)
+        if | typ == bT_BOOL -> return $ BOOL $ uint_value def /= 0
+           | otherwise -> throwError $ "can't make default value for " ++ bondTypeName typ ++ ", struct must have it"
+    putValue _ (BOOL b) = bondPutBool b
+    putValue _ (INT8 v) = bondPutInt8 v
+    putValue _ (INT16 v) = bondPutInt16 v
+    putValue _ (INT32 v) = bondPutInt32 v
+    putValue _ (INT64 v) = bondPutInt64 v
+    putValue _ (UINT8 v) = bondPutUInt8 v
+    putValue _ (UINT16 v) = bondPutUInt16 v
+    putValue _ (UINT32 v) = bondPutUInt32 v
+    putValue _ (UINT64 v) = bondPutUInt64 v
+    putValue _ (FLOAT v) = bondPutFloat v
+    putValue _ (DOUBLE v) = bondPutDouble v
+    putValue _ (STRING v) = bondPutString v
+    putValue _ (WSTRING v) = bondPutWString v
+    putValue td (STRUCT v) | TD.bonded_type td = throwError "bonded not implemented"
+    putValue td (STRUCT v) = putStruct td v
+    putValue td (LIST _ xs) = do
+        let Just etd = TD.element td
+        putListHeader $ length xs
+        mapM_ (putValue etd) xs
+    putValue td (SET _ xs) = do
+        let Just etd = TD.element td
+        putListHeader $ length xs
+        mapM_ (putValue etd) xs
+    putValue td (MAP _ _ xs) = do
+        let Just vtd = TD.element td
+        let Just ktd = TD.key td
+        putListHeader $ length xs
+        forM_ xs $ \ (k, v) -> putValue ktd k >> putValue vtd v
+    putValue _ (BONDED s) = do
+        putWord32le $ fromIntegral $ BS.length s
+        putByteString s

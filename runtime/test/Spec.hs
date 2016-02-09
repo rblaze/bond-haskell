@@ -88,11 +88,19 @@ tests = testGroup "Haskell runtime tests"
       testGroup "Protocol tests"
         [ testGroup "SimpleBinary"
             [ testCase "read/write Compat value" $
-                readCompat SimpleBinaryProto "compat.simple2.dat"
+                readCompat SimpleBinaryProto "compat.simple2.dat",
+              testCase "read Compat with compile-time schema" $
+                readCompatWithSchema SimpleBinaryProto "compat.simple2.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithRuntimeSchema SimpleBinaryProto "compat.simple2.dat"
             ],
           testGroup "SimpleBinary v1"
             [ testCase "read/write Compat value" $
-                readCompat SimpleBinaryV1Proto "compat.simple.dat"
+                readCompat SimpleBinaryV1Proto "compat.simple.dat",
+              testCase "read Compat with compile-time schema" $
+                readCompatWithSchema SimpleBinaryV1Proto "compat.simple.dat",
+              testCase "read Compat with runtime schema" $
+                readCompatWithRuntimeSchema SimpleBinaryV1Proto "compat.simple.dat"
             ],
           testGroup "FastBinary"
             [ testCase "read/write Compat value" $
