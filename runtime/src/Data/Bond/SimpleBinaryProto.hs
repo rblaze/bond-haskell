@@ -14,10 +14,8 @@ import Data.Bond.Types
 import Data.Bond.Utils
 
 import Data.Bond.Schema.BondDataType
-import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.ProtocolType
 import Data.Bond.Schema.SchemaDef
-import Data.Bond.Schema.Variant
 import qualified Data.Bond.Schema.FieldDef as FD
 import qualified Data.Bond.Schema.StructDef as SD
 import qualified Data.Bond.Schema.TypeDef as TD
@@ -356,9 +354,26 @@ encodeWithSchema _ schema s = do
         putValue (FD.typedef f) value
     mkDefault f = do
         let def = default_value (FD.metadata f)
-        let typ = TD.id (FD.typedef f)
+        when (nothing def) $ throwError "can't serialize default nothing with SimpleBinary protocol"
+        let td = FD.typedef f
+        let typ = TD.id td
         if | typ == bT_BOOL -> return $ BOOL $ uint_value def /= 0
-           | otherwise -> throwError $ "can't make default value for " ++ bondTypeName typ ++ ", struct must have it"
+           | typ == bT_INT8 -> return $ INT8 $ fromIntegral $ int_value def
+           | typ == bT_INT16 -> return $ INT16 $ fromIntegral $ int_value def
+           | typ == bT_INT32 -> return $ INT32 $ fromIntegral $ int_value def
+           | typ == bT_INT64 -> return $ INT64 $ fromIntegral $ int_value def
+           | typ == bT_UINT8 -> return $ UINT8 $ fromIntegral $ int_value def
+           | typ == bT_UINT16 -> return $ UINT16 $ fromIntegral $ int_value def
+           | typ == bT_UINT32 -> return $ UINT32 $ fromIntegral $ int_value def
+           | typ == bT_UINT64 -> return $ UINT64 $ fromIntegral $ int_value def
+           | typ == bT_DOUBLE -> return $ DOUBLE $ double_value def
+           | typ == bT_FLOAT -> return $ FLOAT $ realToFrac $ double_value def
+           | typ == bT_STRING -> return $ STRING $ string_value def
+           | typ == bT_WSTRING -> return $ WSTRING $ wstring_value def
+           | typ == bT_LIST -> return $ LIST (TD.id $ fromJust $ TD.element td) []
+           | typ == bT_SET -> return $ SET (TD.id $ fromJust $ TD.element td) []
+           | typ == bT_MAP -> return $ MAP (TD.id $ fromJust $ TD.key td) (TD.id $ fromJust $ TD.element td) []
+           | otherwise -> throwError $ "can't make default value for type " ++ bondTypeName typ ++ ", struct must have it"
     putValue _ (BOOL b) = bondPutBool b
     putValue _ (INT8 v) = bondPutInt8 v
     putValue _ (INT16 v) = bondPutInt16 v
@@ -387,6 +402,6 @@ encodeWithSchema _ schema s = do
         let Just ktd = TD.key td
         putListHeader $ length xs
         forM_ xs $ \ (k, v) -> putValue ktd k >> putValue vtd v
-    putValue _ (BONDED s) = do
-        putWord32le $ fromIntegral $ BS.length s
-        putByteString s
+    putValue _ (BONDED stream) = do
+        putWord32le $ fromIntegral $ BS.length stream
+        putByteString stream
