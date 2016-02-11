@@ -34,6 +34,7 @@ import Data.Bond.Types
 import Data.Bond.Utils
 
 import Control.Arrow
+import Control.Monad
 import Control.Monad.Error
 import Control.Monad.State.Strict
 import Data.Either
@@ -119,7 +120,7 @@ checkSchema schema = do
     checkChain IS.empty 0
     let rootTD = root schema
     when (TD.id rootTD /= bT_STRUCT) $ throwError "root type is not struct"
-    checkType $ rootTD
+    checkType rootTD
     V.mapM_ checkStruct (structs schema)
     where
     checkChain _ n | n == V.length (structs schema) = return ()
@@ -187,8 +188,7 @@ checkStructSchema rootSchema rootStruct = do
     checkStackLevel schema struct = V.mapM_ (checkField struct) (SD.fields schema)
     checkField struct field = case M.lookup (Ordinal $ FD.id field) (fields struct) of
         Nothing -> Right () -- field not present in struct, nothing to check
-        Just v -> do
-            checkValueType (FD.typedef field) v
+        Just v -> checkValueType (FD.typedef field) v
     checkValueType TypeDef{TD.id = t} (BOOL _) | t == bT_BOOL = Right ()
     checkValueType TypeDef{TD.id = t} (INT8 _) | t == bT_INT8 = Right ()
     checkValueType TypeDef{TD.id = t} (INT16 _) | t == bT_INT16 = Right ()
@@ -202,7 +202,7 @@ checkStructSchema rootSchema rootStruct = do
     checkValueType TypeDef{TD.id = t} (DOUBLE _) | t == bT_DOUBLE = Right ()
     checkValueType TypeDef{TD.id = t} (STRING _) | t == bT_STRING = Right ()
     checkValueType TypeDef{TD.id = t} (WSTRING _) | t == bT_WSTRING = Right ()
-    checkValueType td (STRUCT s) = fmap (const ()) $ checkStructSchema rootSchema{root = td} s
+    checkValueType td (STRUCT s) = void $ checkStructSchema rootSchema{root = td} s
     checkValueType TypeDef{TD.id = t, TD.element = elemt} (LIST bt xs)
         | t == bT_LIST, Just et <- elemt, bt == TD.id et = mapM_ (checkValueType et) xs
         | t == bT_LIST, Just et <- elemt = Left $ "list element type " ++ bondTypeName bt ++ " does not match schema type " ++ bondTypeName (TD.id et)
