@@ -7,6 +7,7 @@ module Data.Bond.SimpleBinaryProto (
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
+import Data.Bond.CompactBinaryProto
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.Struct
@@ -314,7 +315,7 @@ decodeWithSchema _ schema bs = do
         | TD.id td == bT_WSTRING = WSTRING <$> bondGetWString
         | TD.id td == bT_STRUCT && TD.bonded_type td = do
             n <- getWord32le
-            BONDED <$> getByteString (fromIntegral n)
+            BONDED . BondedStream <$> getLazyByteString (fromIntegral n)
         | TD.id td == bT_STRUCT = STRUCT <$> readStruct td
         | TD.id td == bT_LIST = do
             let Just et = TD.element td
@@ -387,7 +388,7 @@ encodeWithSchema _ schema s = do
     putValue _ (DOUBLE v) = bondPutDouble v
     putValue _ (STRING v) = bondPutString v
     putValue _ (WSTRING v) = bondPutWString v
-    putValue td (STRUCT v) | TD.bonded_type td = throwError "bonded not implemented"
+    putValue td (STRUCT v) | TD.bonded_type td = putValue td (BONDED $ BondedObject v)
     putValue td (STRUCT v) = putStruct td v
     putValue td (LIST _ xs) = do
         let Just etd = TD.element td
@@ -402,6 +403,10 @@ encodeWithSchema _ schema s = do
         let Just ktd = TD.key td
         putListHeader $ length xs
         forM_ xs $ \ (k, v) -> putValue ktd k >> putValue vtd v
-    putValue _ (BONDED stream) = do
-        putWord32le $ fromIntegral $ BS.length stream
-        putByteString stream
+    putValue _ (BONDED (BondedStream stream)) = do
+        putWord32le $ fromIntegral $ BL.length stream
+        putLazyByteString stream
+    putValue td (BONDED (BondedObject struct)) = do
+        stream <- either throwError return $ bondMarshalWithSchema CompactBinaryProto schema{root = td} struct
+        putWord32le $ fromIntegral $ BL.length stream
+        putLazyByteString stream

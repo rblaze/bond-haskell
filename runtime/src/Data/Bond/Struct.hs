@@ -3,7 +3,6 @@ module Data.Bond.Struct where
 import {-# SOURCE #-} Data.Bond.Schema.BondDataType
 import Data.Bond.Types
 
-import qualified Data.ByteString as BS
 import qualified Data.Map.Strict as M
 
 data Value
@@ -24,8 +23,30 @@ data Value
     | LIST BondDataType [Value]
     | SET BondDataType [Value]
     | MAP BondDataType BondDataType [(Value, Value)]
-    | BONDED BS.ByteString -- (Bonded Struct)
-    deriving (Show, Eq)
+    | BONDED (Bonded Struct)
+    deriving Show
+
+instance Eq Value where
+    (BOOL a) == (BOOL b) = a == b
+    (INT8 a) == (INT8 b) = a == b
+    (INT16 a) == (INT16 b) = a == b
+    (INT32 a) == (INT32 b) = a == b
+    (INT64 a) == (INT64 b) = a == b
+    (UINT8 a) == (UINT8 b) = a == b
+    (UINT16 a) == (UINT16 b) = a == b
+    (UINT32 a) == (UINT32 b) = a == b
+    (UINT64 a) == (UINT64 b) = a == b
+    (FLOAT a) == (FLOAT b) = a == b
+    (DOUBLE a) == (DOUBLE b) = a == b
+    (STRING a) == (STRING b) = a == b
+    (WSTRING a) == (WSTRING b) = a == b
+    (STRUCT a) == (STRUCT b) = a == b
+    (LIST ta a) == (LIST tb b) = ta == tb && a == b
+    (SET ta a) == (SET tb b) = ta == tb && a == b
+    (MAP ka va a) == (MAP kb vb b) = ka == kb && va == vb && a == b
+    (BONDED (BondedObject a)) == (BONDED (BondedObject b)) = a == b
+    (BONDED (BondedStream a)) == (BONDED (BondedStream b)) = a == b
+    _ == _ = False
 
 data Struct = Struct { base :: Maybe Struct, fields :: M.Map Ordinal Value }
     deriving (Show, Eq)

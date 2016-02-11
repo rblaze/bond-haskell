@@ -150,6 +150,10 @@ tests = testGroup "Haskell runtime tests"
           testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
               testJson "read/write golden Compat value" "golden.json.dat",
+--              testJsonWithSchema "read/write original Compat value with schema" "compat.json.dat",
+              testJsonWithSchema "read/write golden Compat value with schema" "golden.json.dat",
+--              testJsonWithRuntimeSchema "read/write original Compat value with runtime schema" "compat.json.dat",
+              testJsonWithRuntimeSchema "read/write golden Compat value with runtime schema" "golden.json.dat",
               testCase "read BasicTypes value" $
                 readAsType JsonProto (Proxy :: Proxy BasicTypes) "compat.json.dat",
               testCase "read Another value" $
@@ -295,8 +299,25 @@ testJson name f = goldenVsString name (compatDataPath </> "golden.json.dat") $ d
             assertFailure msg
             return L.empty
         Right s -> do
-                    let d' = bondWrite JsonProto s
-                    return d'
+            let d' = bondWrite JsonProto s
+            return d'
+
+testJsonWithSchema :: String -> FilePath -> TestTree
+testJsonWithSchema name f = goldenVsString name (compatDataPath </> "golden.json.dat") $
+    eitherT (\ msg -> assertFailure msg >> return L.empty) return $ do
+        let schema = getSchema (Proxy :: Proxy Compat)
+        dat <- readData (compatDataPath </> f)
+        s <- hoistEither $ bondReadWithSchema JsonProto schema dat
+        hoistEither $ bondWriteWithSchema JsonProto schema s
+
+testJsonWithRuntimeSchema :: String -> FilePath -> TestTree
+testJsonWithRuntimeSchema name f = goldenVsString name (compatDataPath </> "golden.json.dat") $
+    eitherT (\ msg -> assertFailure msg >> return L.empty) return $ do
+        schemadat <- readData (compatDataPath </> "compat.schema.dat")
+        schema <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+        dat <- readData (compatDataPath </> f)
+        s <- hoistEither $ bondReadWithSchema JsonProto schema dat
+        hoistEither $ bondWriteWithSchema JsonProto schema s
 
 readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = assertEither $ do
