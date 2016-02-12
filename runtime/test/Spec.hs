@@ -375,18 +375,13 @@ checkShallowSchema = assertEither $ do
     void $ hoistEither $ checkStructSchema schema $ Struct (Just $ Struct Nothing M.empty) M.empty
 
 testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
-testInvalidTaggedWrite p s
-    = case bondWriteTagged p s of
-        Left msg -> return $ "error caught: " ++ msg
-        Right _ -> assertFailure "error not caught" >> return ""
+testInvalidTaggedWrite p s = assertWithMsg $ checkHasError $ bondWriteTagged p s
 
 failToSaveDefaultNothing :: BondProto t => t -> IO String
 failToSaveDefaultNothing p =
     let struct = Struct (Just $ Struct Nothing M.empty) M.empty
         schema = getSchema (Proxy :: Proxy BasicTypes)
-     in case bondWriteWithSchema p schema struct of
-            Left msg -> return $ "error caught: " ++ msg
-            Right _ -> assertFailure "error not caught" >> return ""
+     in assertWithMsg $ checkHasError $ bondWriteWithSchema p schema struct
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)
