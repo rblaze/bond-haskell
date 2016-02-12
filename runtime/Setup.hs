@@ -41,26 +41,33 @@ runHbc args conf pd lbi = do
 
     -- generate json schemas for unittests
     runProgram verbosity gbc ["schema", "-o", outPath, "-r", schemaPath </> "bond.bond"]
-    writeFile (outPath </> "DataPath.hs") $
-        "module DataPath where\n\
-        \autogenPath :: String\n\
-        \autogenPath = " ++ show outPath
+
+    let dataPathFile = outPath </> "DataPath.hs"
+    dataPathFileExists <- doesFileExist dataPathFile
+    when (not dataPathFileExists) $
+        writeFile dataPathFile $
+            "module DataPath where\n\
+            \autogenPath :: String\n\
+            \autogenPath = " ++ show outPath
 
     -- generate code for unittests
-    let testSchemasPath = "test" </> "compat" </> "schemas"
-    let compatFlag = outPath </> "compatgen.flg"
-    testSchemaFiles <- map (testSchemasPath </>) . filter (".bond" `isSuffixOf`) <$>
-                getDirectoryContents testSchemasPath
-    compatGenFlagExists <- doesFileExist compatFlag
-    needCompatRegen <- if compatGenFlagExists
-                        then do
-                            filesTS <- mapM getModificationTime testSchemaFiles
-                            flagTS <- getModificationTime compatFlag
-                            return $ any (flagTS <) filesTS
-                        else return True
-    when (needCompatRegen && (fromFlagOrDefault False $ configTests conf)) $ do
-        runProgram verbosity hbc $ ["-o", outPath] ++ testSchemaFiles
-        writeFile compatFlag ""
+    when (fromFlagOrDefault False $ configTests conf) $ do
+        regenSchemas verbosity hbc ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
+        regenSchemas verbosity hbc ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
 
     -- run default hook
     postConf simpleUserHooks args conf pd lbi
+
+regenSchemas :: Verbosity -> ConfiguredProgram -> FilePath -> FilePath -> FilePath -> IO ()
+regenSchemas verbosity hbc schemasDir outDir flagFile = do
+    schemaFiles <- map (schemasDir </>) . filter (".bond" `isSuffixOf`) <$> getDirectoryContents schemasDir
+    flagFileExists <- doesFileExist flagFile
+    needSchemaRegen <- if flagFileExists
+                        then do
+                            filesTS <- mapM getModificationTime schemaFiles
+                            flagTS <- getModificationTime flagFile
+                            return $ any (flagTS <) filesTS
+                        else return True
+    when needSchemaRegen $ do
+        runProgram verbosity hbc $ ["-o", outDir] ++ schemaFiles
+        writeFile flagFile ""

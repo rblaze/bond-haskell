@@ -7,6 +7,8 @@ import Data.Bond.Schema.SchemaDef
 import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
+import Unittest.Simple.Inner
+import Unittest.Simple.Outer
 
 import Control.Monad
 import Control.Monad.Trans
@@ -47,42 +49,50 @@ tests = testGroup "Haskell runtime tests"
           testCaseInfo "non-struct in inheritance chain" $ checkSchemaError "inherit_from_int.json",
           testCaseInfo "index out of range" $ checkSchemaError "index_out_of_range.json",
           testCaseInfo "field type mismatch" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)],
           testCaseInfo "field type mismatch in field struct" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList
+            checkSchemaMismatch (Proxy :: Proxy Outer) $ Struct Nothing $ M.fromList
               [
                 (Ordinal 20, STRUCT $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)])
               ],
           testCaseInfo "type mismatch in list" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_BOOL [])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_BOOL [])],
           testCaseInfo "type mismatch in list element struct" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_STRUCT
-              [
-                STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)]
-              ])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_STRUCT
+                  [
+                    STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)]
+                  ])],
           testCaseInfo "type mismatch in set" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 50, SET bT_BOOL [])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 50, SET bT_BOOL [])],
           testCaseInfo "type mismatch in map key" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_BOOL bT_STRUCT [])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_BOOL bT_STRUCT [])],
           testCaseInfo "type mismatch in map value" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_BOOL [])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_BOOL [])],
           testCaseInfo "type mismatch in map element key" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-              [
-                (BOOL True, STRUCT $ Struct (Just $ Struct Nothing M.empty) M.empty)
-              ])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+                  [
+                    (BOOL True, STRUCT $ Struct (Just $ Struct Nothing M.empty) M.empty)
+                  ])],
           testCaseInfo "type mismatch in map element value" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-              [
-                (UINT32 42, BOOL True)
-              ])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+                  [
+                    (UINT32 42, BOOL True)
+                  ])],
           testCaseInfo "type mismatch in map element field" $
-            checkSchemaMismatch "test.outer.json" $ Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-              [
-                (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
-              ])],
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+                  [
+                    (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
+                  ])],
           testCaseInfo "schema too deep for struct" $
-            checkSchemaMismatch "test.inner.json" $ Struct Nothing M.empty,
+            checkSchemaMismatch (Proxy :: Proxy Inner) $ Struct Nothing M.empty,
           testCase "shallow schema" checkShallowSchema
         ],
       testGroup "Protocol tests"
@@ -362,10 +372,9 @@ checkSchemaError f = assertWithMsg $ do
     schema <- hoistEither $ bondRead JsonProto dat
     checkHasError $ checkStructSchema schema (Struct Nothing M.empty)
 
-checkSchemaMismatch :: FilePath -> Struct -> IO String
-checkSchemaMismatch f s = assertWithMsg $ do
-    dat <- readData (simpleSchemasPath </> f)
-    schema <- hoistEither $ bondRead JsonProto dat
+checkSchemaMismatch :: BondStruct a => Proxy a -> Struct -> IO String
+checkSchemaMismatch a s = assertWithMsg $ do
+    let schema = getSchema a
     checkHasError $ checkStructSchema schema s
 
 checkShallowSchema :: Assertion
