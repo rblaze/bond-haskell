@@ -91,12 +91,10 @@ binaryDecode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-binaryEncode :: forall a t. (BinaryPut (WriterM t), BondStruct a, Protocol t) => t -> a -> BL.ByteString
+binaryEncode :: forall a t. (BinaryPut (WriterM t), BondStruct a, Protocol t) => t -> a -> Either String BL.ByteString
 binaryEncode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in case tryPut g of
-            Left msg -> error $ "putter returned unexpected error " ++ msg
-            Right s -> s
+     in tryPut g
 
 getTaggedData :: forall t. (ReaderM t ~ B.Get, TaggedProtocol t) => BondGet t Struct
 getTaggedData = fieldLoop $ Struct Nothing M.empty
@@ -190,6 +188,7 @@ putTaggedData s = do
             saveTypedValue tk k
             saveTypedValue tv v
       )
+    saveValue (BONDED (BondedObject v)) = (bT_STRUCT, putTaggedStruct v)
     saveTypedValue td v
         = let (realtd, writer) = saveValue v
            in if td == realtd

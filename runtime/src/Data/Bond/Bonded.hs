@@ -42,5 +42,5 @@ castValue (BondedStream s) = bondUnmarshal s
 putValue :: a -> Bonded a
 putValue = BondedObject
 
-marshalValue :: (BondProto t, BondStruct a) => t -> a -> Bonded b
-marshalValue t = BondedStream . bondMarshal' t
+marshalValue :: (BondProto t, BondStruct a) => t -> a -> Either String (Bonded b)
+marshalValue t = fmap BondedStream . bondMarshal' t

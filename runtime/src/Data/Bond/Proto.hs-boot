@@ -5,4 +5,4 @@ import qualified Data.ByteString.Lazy as BL
 class BondProto t
 class BondStruct a
 
-bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> BL.ByteString
+bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> Either String BL.ByteString

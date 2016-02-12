@@ -27,31 +27,26 @@ import Data.Bond.SimpleBinaryProto
 import Data.Bond.Struct
 import Data.Bond.Types
 
--- compile-time schemas API
--- + bondRead :: BondProto t, BondStruct a => t -> BS.ByteString -> Either String a
--- + bondWrite :: BondProto t, BondStruct a => t -> a -> BS.ByteString
+-- * compile-time schemas API
+-- 'bondRead'
+-- 'bondWrite'
+-- 'bondUnmarshal'
+-- 'bondMarshal'
 
--- + bondUnmarshal :: BondStruct a => BS.ByteString -> Either String a
--- + bondMarshal :: BondProto t, BondStruct a => t -> a -> BS.ByteString
+-- * runtime schema API
+-- 'bondReadWithSchema'
+-- 'bondWriteWithSchema'
+-- 'bondUnmarshalWithSchema'
+-- 'bondMarshalWithSchema'
 
--- runtime schema API
--- bondReadWithSchema :: BondProto t => t -> SchemaDef -> BS.ByteString -> Either String Struct
--- bondWriteWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
+-- * schemaless API
+-- 'bondReadTagged'
+-- 'bondWriteTagged'
+-- 'bondUnmarshalTagged'
+-- 'bondMarshalTagged'
 
--- + bondUnmarshalWithSchema :: SchemaDef -> BS.ByteString -> Either String Struct
--- + bondMarshalWithSchema :: BondProto t => t -> SchemaDef -> Struct -> Either String BS.ByteString
-
--- schemaless API
--- + bondReadTagged :: BondProto t => t -> BS.ByteString -> Either String Struct
--- + bondWriteTagged :: BondProto t => t -> Struct -> Either String BS.ByteString
-
--- + bondUnmarshalTagged :: BS.ByteString -> Either String Struct
--- + bondMarshalTagged :: BondProto t => t -> Struct -> Either String BS.ByteString
-
--- Bonded API
--- + getValue
--- + castValue
-
--- + putValue :: a -> Bonded a
--- + marshalValue :: BondProto t, BondStruct a => t -> a -> Bonded b
--- private: transcoder
+-- * Bonded API
+-- 'getValue'
+-- 'castValue'
+-- 'putValue'
+-- 'marshalValue'

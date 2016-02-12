@@ -178,12 +178,12 @@ jsonDecode s = do
 
     runReader (runErrorT g) v
 
-jsonEncode :: forall a. BondStruct a => a -> BL.ByteString
+jsonEncode :: forall a. BondStruct a => a -> Either String BL.ByteString
 jsonEncode a =
     let BondPut g = bondPutStruct a :: BondPut JsonProto
      in case runState (runErrorT g) (error "no object") of
-            (Left msg, _) -> error $ "putter returned unexpected error " ++ msg
-            (Right (), v) -> A.encode v
+            (Left msg, _) -> Left msg
+            (Right (), v) -> Right $ A.encode v
 
 useObject :: String -> A.Value -> (A.Object -> BondGet JsonProto a) -> BondGet JsonProto a
 useObject _ (A.Object v) p = p v

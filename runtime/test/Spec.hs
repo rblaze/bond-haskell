@@ -19,7 +19,7 @@ import Test.Tasty
 import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 
 import DataPath
@@ -92,7 +92,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Compat with compile-time schema" $
                 readCompatWithSchema SimpleBinaryProto "compat.simple2.dat",
               testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema SimpleBinaryProto "compat.simple2.dat"
+                readCompatWithRuntimeSchema SimpleBinaryProto "compat.simple2.dat",
+              testCaseInfo "fail to save default nothing" $ failToSaveDefaultNothing SimpleBinaryProto
             ],
           testGroup "SimpleBinary v1"
             [ testCase "read/write Compat value" $
@@ -100,7 +101,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read Compat with compile-time schema" $
                 readCompatWithSchema SimpleBinaryV1Proto "compat.simple.dat",
               testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema SimpleBinaryV1Proto "compat.simple.dat"
+                readCompatWithRuntimeSchema SimpleBinaryV1Proto "compat.simple.dat",
+              testCaseInfo "fail to save default nothing" $ failToSaveDefaultNothing SimpleBinaryV1Proto
             ],
           testGroup "FastBinary"
             [ testCase "read/write Compat value" $
@@ -197,41 +199,57 @@ crossTests :: [TestTree]
 crossTests =
     [crossTest "" left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
     [crossTest "" left right | left <- protos, right <- protos, getName left < getName right] ++
-    [crossTest "w/o schema: " left right | left <- taggedProtos, right <- taggedProtos, getName left < getName right]
+    [crossTest "w/o schema: " left right | left <- taggedProtos, right <- taggedProtos, getName left < getName right] ++
+--    [crossWriteTest "" left right | left <- protos, right <- protoWriters, getName left /= getName right] ++
+    [crossWriteTest "" left right | left <- simpleProtos, right <- simpleWriters, getName left /= getName right]
     where
     -- Simple protocol has different m_defaults from all others. Also some enum values differ.
     -- Json differs in uint64 values.
     -- See comments in https://github.com/Microsoft/bond/blob/master/cpp/test/compat/serialization.cpp
     simpleProtos = [
-        ("Simple", bondRead SimpleBinaryProto :: L.ByteString -> Either String Compat, "compat.simple2.dat"),
+        ("Simple", bondRead SimpleBinaryProto :: BL.ByteString -> Either String Compat, "compat.simple2.dat"),
         ("Simple v1", bondRead SimpleBinaryV1Proto, "compat.simple.dat")
      ]
+    simpleWriters = [
+        ("Simple", bondWrite SimpleBinaryProto, "compat.simple2.dat"),
+        ("Simple v1", bondWrite SimpleBinaryV1Proto, "compat.simple.dat")
+     ]
     protos = [
-        ("Compact", bondRead CompactBinaryProto :: L.ByteString -> Either String Compat, "compat.compact2.dat"),
+        ("Compact", bondRead CompactBinaryProto :: BL.ByteString -> Either String Compat, "compat.compact2.dat"),
         ("Compact v1", bondRead CompactBinaryV1Proto, "compat.compact.dat"),
         ("Fast", bondRead FastBinaryProto, "compat.fast.dat")
      ]
+    protoWriters = [
+        ("Compact", bondWrite CompactBinaryProto :: Compat -> Either String BL.ByteString, "compat.compact2.dat"),
+        ("Compact v1", bondWrite CompactBinaryV1Proto, "compat.compact.dat"),
+        ("Fast", bondWrite FastBinaryProto, "compat.fast.dat")
+     ]
     taggedProtos = [
-        ("Compact", bondReadTagged CompactBinaryProto :: L.ByteString -> Either String Struct, "compat.compact2.dat"),
+        ("Compact", bondReadTagged CompactBinaryProto :: BL.ByteString -> Either String Struct, "compat.compact2.dat"),
         ("Compact v1", bondReadTagged CompactBinaryV1Proto, "compat.compact.dat"),
         ("Fast", bondReadTagged FastBinaryProto, "compat.fast.dat")
      ]
     getName (n, _, _) = n
     crossTest prefix (lname, lreader, lfile) (rname, rreader, rfile)
-        = testCase (prefix ++ lname ++ " - " ++ rname) $ do
-            ldat <- L.readFile (compatDataPath </> lfile)
-            let lparse = lreader ldat
-            whenLeft lparse assertFailure
-            rdat <- L.readFile (compatDataPath </> rfile)
-            let rparse = rreader rdat
-            whenLeft rparse assertFailure
-            assertEqual "values do not match" lparse rparse
+        = testCase (prefix ++ lname ++ " - " ++ rname) $ assertEither $ do
+            ldata <- readData (compatDataPath </> lfile)
+            left <- hoistEither $ lreader ldata
+            rdata <- readData (compatDataPath </> rfile)
+            right <- hoistEither $ rreader rdata
+            checkEqual "values do not match" left right
+    crossWriteTest prefix (lname, lreader, lfile) (rname, rwriter, rfile)
+        = testCase ("read/write " ++ prefix ++ lname ++ " - " ++ rname) $ assertEither $ do
+            ldata <- readData (compatDataPath </> lfile)
+            left <- hoistEither $ lreader ldata
+            out <- hoistEither $ rwriter left
+            golden <- readData (compatDataPath </> rfile)
+            checkEqual "values do not match" golden out
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = assertEither $ do
     dat <- readData (compatDataPath </> f)
     s <- hoistEither (bondRead p dat :: Either String Compat)
-    let d' = bondWrite p s
+    d' <- hoistEither $ bondWrite p s
     checkEqual "serialized value do not match original" dat d'
 
 readCompatTagged :: BondTaggedProto t => t -> String -> Assertion
@@ -262,7 +280,7 @@ readSchema :: Assertion
 readSchema = assertEither $ do
     dat <- readData (compatDataPath </> "compat.schema.dat")
     s <- hoistEither (bondUnmarshal dat :: Either String SchemaDef)
-    let d' = bondMarshal CompactBinaryV1Proto s
+    d' <- hoistEither $ bondMarshal CompactBinaryV1Proto s
     checkEqual "serialized value do not match original" dat d'
 
 readSchemaWithSchema :: Assertion
@@ -292,19 +310,17 @@ readSchemaTagged = assertEither $ do
 
 testJson :: String -> FilePath -> TestTree
 testJson name f = goldenVsString name (compatDataPath </> "golden.json.dat") $ do
-    dat <- L.readFile (compatDataPath </> f)
+    dat <- BL.readFile (compatDataPath </> f)
     let parse = bondRead JsonProto dat :: Either String Compat
     case parse of
-        Left msg -> do
-            assertFailure msg
-            return L.empty
-        Right s -> do
-            let d' = bondWrite JsonProto s
-            return d'
+        Left msg -> assertFailure msg >> return BL.empty
+        Right s -> case bondWrite JsonProto s of
+            Left msg -> assertFailure msg >> return BL.empty 
+            Right out -> return out
 
 testJsonWithSchema :: String -> FilePath -> TestTree
 testJsonWithSchema name f = goldenVsString name (compatDataPath </> "golden.json.dat") $
-    eitherT (\ msg -> assertFailure msg >> return L.empty) return $ do
+    eitherT (\ msg -> assertFailure msg >> return BL.empty) return $ do
         let schema = getSchema (Proxy :: Proxy Compat)
         dat <- readData (compatDataPath </> f)
         s <- hoistEither $ bondReadWithSchema JsonProto schema dat
@@ -312,7 +328,7 @@ testJsonWithSchema name f = goldenVsString name (compatDataPath </> "golden.json
 
 testJsonWithRuntimeSchema :: String -> FilePath -> TestTree
 testJsonWithRuntimeSchema name f = goldenVsString name (compatDataPath </> "golden.json.dat") $
-    eitherT (\ msg -> assertFailure msg >> return L.empty) return $ do
+    eitherT (\ msg -> assertFailure msg >> return BL.empty) return $ do
         schemadat <- readData (compatDataPath </> "compat.schema.dat")
         schema <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
         dat <- readData (compatDataPath </> f)
@@ -364,6 +380,14 @@ testInvalidTaggedWrite p s
         Left msg -> return $ "error caught: " ++ msg
         Right _ -> assertFailure "error not caught" >> return ""
 
+failToSaveDefaultNothing :: BondProto t => t -> IO String
+failToSaveDefaultNothing p =
+    let struct = Struct (Just $ Struct Nothing M.empty) M.empty
+        schema = getSchema (Proxy :: Proxy BasicTypes)
+     in case bondWriteWithSchema p schema struct of
+            Left msg -> return $ "error caught: " ++ msg
+            Right _ -> assertFailure "error not caught" >> return ""
+
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)
 
@@ -376,18 +400,14 @@ zigzagInt64 x = x == fromZigZag (toZigZag x)
 zigzagWord64 :: Word64 -> Bool
 zigzagWord64 x = x == toZigZag (fromZigZag x :: Int64)
 
-whenLeft :: Monad m => Either a b -> (a -> m ()) -> m ()
-whenLeft (Right _) _ = return ()
-whenLeft (Left a) f = f a
-
 assertEither :: EitherT String IO () -> Assertion
 assertEither = eitherT assertFailure (const $ return ())
 
 assertWithMsg :: EitherT String IO String -> IO String
 assertWithMsg = eitherT (\ msg -> assertFailure msg >> return "") (\ msg -> return $ "error caught: " ++ msg)
 
-readData :: FilePath -> EitherT String IO L.ByteString
-readData = lift . L.readFile
+readData :: FilePath -> EitherT String IO BL.ByteString
+readData = lift . BL.readFile
 
 checkEqual :: (Eq a, Show a, MonadTrans t) => String -> a -> a -> t IO ()
 checkEqual m a b = lift $ assertEqual m a b

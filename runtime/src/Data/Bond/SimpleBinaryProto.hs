@@ -107,7 +107,7 @@ instance Protocol SimpleBinaryProto where
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ _ = bondPut
-    bondPutDefNothingField _ _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
+    bondPutDefNothingField _ _ Nothing = throwError "can't save empty \"default nothing\" field with untagged protocol"
     bondPutDefNothingField _ _ (Just v) = bondPut v
 
     bondPutBool True = putWord8 1
@@ -216,7 +216,7 @@ instance Protocol SimpleBinaryV1Proto where
     bondPutStruct = bondStructPut
     bondPutBaseStruct = bondStructPut
     bondPutField _ _ = bondPut
-    bondPutDefNothingField _ _ Nothing = fail "can't save empty \"default nothing\" field with untagged protocol"
+    bondPutDefNothingField _ _ Nothing = throwError "can't save empty \"default nothing\" field with untagged protocol"
     bondPutDefNothingField _ _ (Just v) = bondPut v
 
     bondPutBool True = putWord8 1
@@ -271,12 +271,10 @@ decode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ErrorT String B.PutM) => t -> a -> BL.ByteString
+encode :: forall a t. (BondStruct a, Protocol t, WriterM t ~ ErrorT String B.PutM) => t -> a -> Either String BL.ByteString
 encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
-     in case tryPut g of
-            Left msg -> error $ "putter returned unexpected error " ++ msg
-            Right s -> s
+     in tryPut g
 
 decodeWithSchema :: forall t. (SimpleProtocol t, ReaderM t ~ B.Get) => t -> SchemaDef -> BL.ByteString -> Either String Struct
 decodeWithSchema _ schema bs = do
