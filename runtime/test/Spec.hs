@@ -35,9 +35,6 @@ compatDataPath = "test" </> "compat" </> "data"
 brokenSchemasPath :: String
 brokenSchemasPath = "test" </> "broken_schemas"
 
-simpleSchemasPath :: String
-simpleSchemasPath = "test" </> "simple_schemas"
-
 tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
@@ -210,8 +207,7 @@ crossTests =
     [crossTest "" left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
     [crossTest "" left right | left <- protos, right <- protos, getName left < getName right] ++
     [crossTest "w/o schema: " left right | left <- taggedProtos, right <- taggedProtos, getName left < getName right] ++
---    [crossWriteTest "" left right | left <- protos, right <- protoWriters, getName left /= getName right] ++
-    [crossWriteTest "" left right | left <- simpleProtos, right <- simpleWriters, getName left /= getName right]
+    [crossWriteTest "" left right | left <- protos, right <- protoWriters, getName left /= getName right]
     where
     -- Simple protocol has different m_defaults from all others. Also some enum values differ.
     -- Json differs in uint64 values.
@@ -219,10 +215,6 @@ crossTests =
     simpleProtos = [
         ("Simple", bondRead SimpleBinaryProto :: BL.ByteString -> Either String Compat, "compat.simple2.dat"),
         ("Simple v1", bondRead SimpleBinaryV1Proto, "compat.simple.dat")
-     ]
-    simpleWriters = [
-        ("Simple", bondWrite SimpleBinaryProto, "compat.simple2.dat"),
-        ("Simple v1", bondWrite SimpleBinaryV1Proto, "compat.simple.dat")
      ]
     protos = [
         ("Compact", bondRead CompactBinaryProto :: BL.ByteString -> Either String Compat, "compat.compact2.dat"),
@@ -379,8 +371,7 @@ checkSchemaMismatch a s = assertWithMsg $ do
 
 checkShallowSchema :: Assertion
 checkShallowSchema = assertEither $ do
-    dat <- readData (simpleSchemasPath </> "test.outer.json")
-    schema <- hoistEither $ bondRead JsonProto dat
+    let schema = getSchema (Proxy :: Proxy Outer)
     void $ hoistEither $ checkStructSchema schema $ Struct (Just $ Struct Nothing M.empty) M.empty
 
 testInvalidTaggedWrite :: BondTaggedProto t => t -> Struct -> IO String
