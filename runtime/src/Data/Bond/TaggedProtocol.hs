@@ -190,6 +190,10 @@ putTaggedData s = do
       )
     saveValue (BONDED (BondedObject v)) = (bT_STRUCT, putTaggedStruct v)
     saveValue (BONDED _) = (bT_STRUCT, throwError "should decode bonded values before tagged writes")
+            -- FIXME be smart here
+            -- same sig - copy stream
+            -- tagged sig - unmarshal struct blindly, then marshal
+            -- untagged sig - return error, but do untagged decoding while matching struct with schema
     saveTypedValue td v
         = let (realtd, writer) = saveValue v
            in if td == realtd
