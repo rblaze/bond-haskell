@@ -21,7 +21,9 @@ import Data.Bond.SimpleBinaryProto
 import Data.Bond.Schema
 import Data.Bond.Struct
 
+import Control.Applicative
 import Data.Proxy
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.ByteString.Lazy as BL
 
