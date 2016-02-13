@@ -25,7 +25,7 @@ module Data.Bond.Types (
     Word8
   ) where
 
-import Data.Bond.Bonded
+import {-# SOURCE #-} Data.Bond.Bonded
 
 import Data.Data
 import Data.Int

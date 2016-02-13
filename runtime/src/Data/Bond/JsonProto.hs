@@ -394,11 +394,11 @@ jsonEncodeWithSchema schema s = do
             val <- get
             return [key, val]
         put $ A.Array $ V.fromList vs
-    putValue _ (BONDED (BondedStream stream)) = do
-        let (sig, rest) = BL.splitAt 4 stream
-        if sig == protoSig JsonProto
-            then case A.eitherDecode rest of
-                    Right v -> put v
-                    Left msg -> throwError $ "Bonded recode error: " ++ msg
-            else undefined -- FIXME recode stream to JSON
     putValue td (BONDED (BondedObject struct)) = putStruct td struct
+    putValue td (BONDED src@BondedStream{}) = do
+        BondedStream stream <- case bondRecodeStruct JsonProto schema{root = td} src of
+            Left msg -> throwError $ "Bonded recode error: " ++ msg
+            Right v -> return v
+        case A.eitherDecode (BL.drop 4 stream) of
+            Left msg -> throwError $ "Bonded recode error: " ++ msg
+            Right v -> put v

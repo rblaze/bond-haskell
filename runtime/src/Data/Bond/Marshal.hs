@@ -6,6 +6,7 @@ module Data.Bond.Marshal (
     bondUnmarshalWithSchema,
     bondUnmarshalTagged,
     bondRecode,
+    bondRecodeStruct,
     bondRecodeToTagged
   ) where
 
@@ -90,5 +91,22 @@ bondRecodeToTagged t (BondedStream stream)
     where
     (sig, _) = BL.splitAt 4 stream
     schema = getSchema (Proxy :: Proxy a)
+    taggedSigs = [protoSig FastBinaryProto, protoSig CompactBinaryProto, protoSig CompactBinaryV1Proto]
+    isTaggedSource = sig `elem` taggedSigs
+
+bondRecodeStruct :: forall t. BondProto t => t -> SchemaDef -> Bonded Struct -> Either String (Bonded Struct)
+bondRecodeStruct t schema (BondedObject a) = BondedStream <$> bondMarshalWithSchema t schema a
+bondRecodeStruct t schema (BondedStream stream)
+    | sig == protoSig t = Right $ BondedStream stream
+    | isTaggedSource = do
+        v <- bondUnmarshalTagged stream
+        s <- bondMarshalWithSchema t schema v
+        return (BondedStream s)
+    | otherwise = do
+        v <- bondUnmarshalWithSchema schema stream
+        s <- bondMarshalWithSchema t schema v
+        return (BondedStream s)
+    where
+    (sig, _) = BL.splitAt 4 stream
     taggedSigs = [protoSig FastBinaryProto, protoSig CompactBinaryProto, protoSig CompactBinaryV1Proto]
     isTaggedSource = sig `elem` taggedSigs
