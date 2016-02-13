@@ -84,6 +84,9 @@ test-suite bond-haskell-test
                        Unittest.Compat.Generic2
                        Unittest.Compat.Generic4
                        Unittest.Compat.WithBase
+                       Unittest.Simple.Base
+                       Unittest.Simple.Inner
+                       Unittest.Simple.Outer
   build-depends:       base
                      , aeson
                      , bond-haskell

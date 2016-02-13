@@ -1,20 +1,26 @@
-{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE ScopedTypeVariables, MultiWayIf #-}
 module Data.Bond.Marshal (
     BondProto(bondMarshal, bondMarshalWithSchema),
     BondTaggedProto(bondMarshalTagged),
     bondUnmarshal,
     bondUnmarshalWithSchema,
-    bondUnmarshalTagged
+    bondUnmarshalTagged,
+    bondRecode,
+    bondRecodeToTagged
   ) where
 
 import Data.Bond.Schema.SchemaDef
 
+import Data.Bond.Bonded
 import Data.Bond.CompactBinaryProto
 import Data.Bond.FastBinaryProto
 import Data.Bond.JsonProto
 import Data.Bond.Proto
 import Data.Bond.SimpleBinaryProto
+import Data.Bond.Schema
 import Data.Bond.Struct
+
+import Data.Proxy
 
 import qualified Data.ByteString.Lazy as BL
 
@@ -50,3 +56,39 @@ bondUnmarshalTagged s
              | sig == protoSig SimpleBinaryV1Proto -> Left "SimpleBinaryV1Proto does not support schemaless operations"
              | sig == protoSig JsonProto -> Left "JsonProto does not support schemaless operations"
              | otherwise -> Left "unknown signature in marshalled stream"
+
+bondRecode :: forall t a. (BondProto t, BondStruct a) => t -> Bonded a -> Either String (Bonded a)
+bondRecode t (BondedObject a) = BondedStream <$> bondMarshal t a
+bondRecode t (BondedStream stream)
+    | sig == protoSig t = Right $ BondedStream stream
+    | isTaggedSource = do
+        v <- bondUnmarshalTagged stream
+        s <- bondMarshalWithSchema t schema v
+        return (BondedStream s)
+    | otherwise = do
+        v <- bondUnmarshalWithSchema schema stream
+        s <- bondMarshalWithSchema t schema v
+        return (BondedStream s)
+    where
+    (sig, _) = BL.splitAt 4 stream
+    schema = getSchema (Proxy :: Proxy a)
+    taggedSigs = [protoSig FastBinaryProto, protoSig CompactBinaryProto, protoSig CompactBinaryV1Proto]
+    isTaggedSource = sig `elem` taggedSigs
+
+bondRecodeToTagged :: forall t a. (BondTaggedProto t, BondStruct a) => t -> Bonded a -> Either String (Bonded a)
+bondRecodeToTagged t (BondedObject a) = BondedStream <$> bondMarshal t a
+bondRecodeToTagged t (BondedStream stream)
+    | sig == protoSig t = Right $ BondedStream stream
+    | isTaggedSource = do
+        v <- bondUnmarshalTagged stream
+        s <- bondMarshalTagged t v
+        return (BondedStream s)
+    | otherwise = do
+        v <- bondUnmarshalWithSchema schema stream
+        s <- bondMarshalWithSchema t schema v
+        return (BondedStream s)
+    where
+    (sig, _) = BL.splitAt 4 stream
+    schema = getSchema (Proxy :: Proxy a)
+    taggedSigs = [protoSig FastBinaryProto, protoSig CompactBinaryProto, protoSig CompactBinaryV1Proto]
+    isTaggedSource = sig `elem` taggedSigs

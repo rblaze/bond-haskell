@@ -12,13 +12,17 @@ module Data.Bond (
     SimpleBinaryV1Proto(..),
     Struct(..),
     Value(..),
+    defaultValue,
     checkStructSchema,
     getSchema,
-    getValue
+    getValue,
+    marshalValue,
+    putValue
   ) where
 
 import Data.Bond.Bonded
 import Data.Bond.CompactBinaryProto
+import Data.Bond.Default
 import Data.Bond.FastBinaryProto
 import Data.Bond.JsonProto
 import Data.Bond.Proto
@@ -28,25 +32,25 @@ import Data.Bond.Struct
 import Data.Bond.Types
 
 -- * compile-time schemas API
--- 'bondRead'
+-- | 'bondRead'
 -- 'bondWrite'
 -- 'bondUnmarshal'
 -- 'bondMarshal'
 
 -- * runtime schema API
--- 'bondReadWithSchema'
+-- | 'bondReadWithSchema'
 -- 'bondWriteWithSchema'
 -- 'bondUnmarshalWithSchema'
 -- 'bondMarshalWithSchema'
 
 -- * schemaless API
--- 'bondReadTagged'
+-- | 'bondReadTagged'
 -- 'bondWriteTagged'
 -- 'bondUnmarshalTagged'
 -- 'bondMarshalTagged'
 
 -- * Bonded API
--- 'getValue'
+-- | 'getValue'
 -- 'castValue'
 -- 'putValue'
 -- 'marshalValue'

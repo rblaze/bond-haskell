@@ -4,6 +4,7 @@ module Data.Bond.JsonProto (
     ) where
 
 import Data.Bond.Default
+import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Schema
 import Data.Bond.Struct
@@ -151,14 +152,17 @@ instance Protocol JsonProto where
             \i -> let w = BS.index b i
                       c = fromIntegral w :: Int8
                    in A.Number (fromIntegral c)
-    bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = do
-        let (sig, rest) = BL.splitAt 4 s
-        if sig == protoSig JsonProto
-            then case A.eitherDecode rest of
-                    Right v -> put v
-                    Left msg -> throwError $ "Bonded recode error: " ++ msg
-            else undefined -- FIXME recode stream to JSON
+    bondPutBonded = putBonded
+
+putBonded :: forall a. BondStruct a => Bonded a -> BondPut JsonProto
+putBonded (BondedObject a) = bondPut a
+putBonded s = do
+    BondedStream stream <- case bondRecode JsonProto s of
+        Left msg -> throwError $ "Bonded recode error: " ++ msg
+        Right v -> return v
+    case A.eitherDecode (BL.drop 4 stream) of
+        Left msg -> throwError $ "Bonded recode error: " ++ msg
+        Right v -> put v
 
 typeError :: MonadError String m => String -> A.Value -> m a
 typeError s v = throwError $ typename ++ " found where " ++ s ++ " expected"

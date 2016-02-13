@@ -189,6 +189,7 @@ putTaggedData s = do
             saveTypedValue tv v
       )
     saveValue (BONDED (BondedObject v)) = (bT_STRUCT, putTaggedStruct v)
+    saveValue (BONDED _) = (bT_STRUCT, throwError "should decode bonded values before tagged writes")
     saveTypedValue td v
         = let (realtd, writer) = saveValue v
            in if td == realtd

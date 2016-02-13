@@ -7,6 +7,7 @@ module Data.Bond.CompactBinaryProto (
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
+import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
@@ -169,7 +170,11 @@ instance Protocol CompactBinaryProto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
+    bondPutBonded s = do
+        BondedStream stream <- case bondRecode CompactBinaryProto s of
+            Left msg -> throwError $ "Bonded recode error: " ++ msg
+            Right v -> return v
+        putLazyByteString (BL.drop 4 stream)
 
 instance TaggedProtocol CompactBinaryV1Proto where
     getFieldHeader = getCompactFieldHeader
@@ -279,7 +284,11 @@ instance Protocol CompactBinaryV1Proto where
         putListHeader bT_INT8 (BS.length b)
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
+    bondPutBonded s = do
+        BondedStream stream <- case bondRecode CompactBinaryV1Proto s of
+            Left msg -> throwError $ "Bonded recode error: " ++ msg
+            Right v -> return v
+        putLazyByteString (BL.drop 4 stream)
 
 getCompactFieldHeader :: (BondProto t, ReaderM t ~ B.Get) => BondGet t (BondDataType, Ordinal)
 getCompactFieldHeader = do

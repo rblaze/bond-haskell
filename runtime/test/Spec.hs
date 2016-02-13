@@ -7,8 +7,8 @@ import Data.Bond.Schema.SchemaDef
 import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
-import Unittest.Simple.Inner
-import Unittest.Simple.Outer
+import Unittest.Simple.Inner as Inner
+import Unittest.Simple.Outer as Outer
 
 import Control.Monad
 import Control.Monad.Trans
@@ -173,7 +173,8 @@ tests = testGroup "Haskell runtime tests"
               testCase "read/write SchemaDef value with schema" readSchemaWithSchema,
               testCase "read/write SchemaDef value w/o schema" readSchemaTagged
             ],
-          testGroup "Cross-tests" crossTests
+          testGroup "Cross-tests" crossTests,
+          testGroup "Bonded recoding" bondedRecodeTests
         ],
       testGroup "ZigZag encoding"
         [ testProperty "Int16" zigzagInt16,
@@ -182,6 +183,51 @@ tests = testGroup "Haskell runtime tests"
           testProperty "Word64" zigzagWord64
         ]
     ]
+
+bondedRecodeTests :: [TestTree]
+bondedRecodeTests =
+  [ testCase "Simple - Simple" $ recodeFromTo SimpleBinaryProto SimpleBinaryProto,
+    testCase "Simple - Simple v1" $ recodeFromTo SimpleBinaryProto SimpleBinaryV1Proto,
+    testCase "Simple - Compact" $ recodeFromTo SimpleBinaryProto CompactBinaryProto,
+    testCase "Simple - Compact v1" $ recodeFromTo SimpleBinaryProto CompactBinaryV1Proto,
+    testCase "Simple - Fast" $ recodeFromTo SimpleBinaryProto FastBinaryProto,
+    testCase "Simple - JSON" $ recodeFromTo SimpleBinaryProto JsonProto,
+
+    testCase "Simple v1 - Simple" $ recodeFromTo SimpleBinaryV1Proto SimpleBinaryProto,
+    testCase "Simple v1 - Simple v1" $ recodeFromTo SimpleBinaryV1Proto SimpleBinaryV1Proto,
+    testCase "Simple v1 - Compact" $ recodeFromTo SimpleBinaryV1Proto CompactBinaryProto,
+    testCase "Simple v1 - Compact v1" $ recodeFromTo SimpleBinaryV1Proto CompactBinaryV1Proto,
+    testCase "Simple v1 - Fast" $ recodeFromTo SimpleBinaryV1Proto FastBinaryProto,
+    testCase "Simple v1 - JSON" $ recodeFromTo SimpleBinaryV1Proto JsonProto,
+
+    testCase "Compact - Simple" $ recodeFromTo CompactBinaryProto SimpleBinaryProto,
+    testCase "Compact - Simple v1" $ recodeFromTo CompactBinaryProto SimpleBinaryV1Proto,
+    testCase "Compact - Compact" $ recodeFromTo CompactBinaryProto CompactBinaryProto,
+    testCase "Compact - Compact v1" $ recodeFromTo CompactBinaryProto CompactBinaryV1Proto,
+    testCase "Compact - Fast" $ recodeFromTo CompactBinaryProto FastBinaryProto,
+    testCase "Compact - JSON" $ recodeFromTo CompactBinaryProto JsonProto,
+
+    testCase "Compact v1 - Simple" $ recodeFromTo CompactBinaryV1Proto SimpleBinaryProto,
+    testCase "Compact v1 - Simple v1" $ recodeFromTo CompactBinaryV1Proto SimpleBinaryV1Proto,
+    testCase "Compact v1 - Compact" $ recodeFromTo CompactBinaryV1Proto CompactBinaryProto,
+    testCase "Compact v1 - Compact v1" $ recodeFromTo CompactBinaryV1Proto CompactBinaryV1Proto,
+    testCase "Compact v1 - Fast" $ recodeFromTo CompactBinaryV1Proto FastBinaryProto,
+    testCase "Compact v1 - JSON" $ recodeFromTo CompactBinaryV1Proto JsonProto,
+
+    testCase "Fast - Simple" $ recodeFromTo FastBinaryProto SimpleBinaryProto,
+    testCase "Fast - Simple v1" $ recodeFromTo FastBinaryProto SimpleBinaryV1Proto,
+    testCase "Fast - Compact" $ recodeFromTo FastBinaryProto CompactBinaryProto,
+    testCase "Fast - Compact v1" $ recodeFromTo FastBinaryProto CompactBinaryV1Proto,
+    testCase "Fast - Fast" $ recodeFromTo FastBinaryProto FastBinaryProto,
+    testCase "Fast - JSON" $ recodeFromTo FastBinaryProto JsonProto,
+
+    testCase "JSON - Simple" $ recodeFromTo JsonProto SimpleBinaryProto,
+    testCase "JSON - Simple v1" $ recodeFromTo JsonProto SimpleBinaryV1Proto,
+    testCase "JSON - Compact" $ recodeFromTo JsonProto CompactBinaryProto,
+    testCase "JSON - Compact v1" $ recodeFromTo JsonProto CompactBinaryV1Proto,
+    testCase "JSON - Fast" $ recodeFromTo JsonProto FastBinaryProto,
+    testCase "JSON - JSON" $ recodeFromTo JsonProto JsonProto
+  ]
 
 invalidTaggedWriteTests :: BondTaggedProto t => t -> TestTree
 invalidTaggedWriteTests t = testGroup "invalid tagged write tests"
@@ -382,6 +428,16 @@ failToSaveDefaultNothing p =
     let struct = Struct (Just $ Struct Nothing M.empty) M.empty
         schema = getSchema (Proxy :: Proxy BasicTypes)
      in assertWithMsg $ checkHasError $ bondWriteWithSchema p schema struct
+
+recodeFromTo :: forall t1 t2. (BondProto t1, BondProto t2) => t1 -> t2 -> Assertion
+recodeFromTo t1 t2 = assertEither $ do
+    let inner = defaultValue{ Inner.m_uint64 = 5, Inner.m_uint32 = [12, 34] } :: Inner
+    bonded <- hoistEither $ marshalValue t1 inner
+    let outer = defaultValue{ m_bonded_inner = bonded }
+    saved <- hoistEither $ bondWrite t2 outer
+    v <- hoistEither (bondRead t2 saved :: Either String Outer)
+    unpacked <- hoistEither $ getValue (m_bonded_inner v)
+    checkEqual "deserialized value do not match with original" inner unpacked
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)

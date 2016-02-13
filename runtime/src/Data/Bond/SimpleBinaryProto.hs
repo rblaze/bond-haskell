@@ -145,10 +145,13 @@ instance Protocol SimpleBinaryProto where
     bondPutBlob (Blob b) = do
         putVarInt $ BS.length b
         putByteString b
-    bondPutBonded (BondedObject _) = undefined
-    bondPutBonded (BondedStream s) = do
-        putWord32le $ fromIntegral $ BL.length s
-        putLazyByteString s
+    bondPutBonded (BondedObject v) = do
+        stream <- either throwError return $ bondMarshal CompactBinaryProto v
+        putWord32le $ fromIntegral $ BL.length stream
+        putLazyByteString stream
+    bondPutBonded (BondedStream stream) = do
+        putWord32le $ fromIntegral $ BL.length stream
+        putLazyByteString stream
 
 instance SimpleProtocol SimpleBinaryProto where
     getListHeader = getVarInt
@@ -254,7 +257,10 @@ instance Protocol SimpleBinaryV1Proto where
     bondPutBlob (Blob b) = do
         putWord32le $ fromIntegral $ BS.length b
         putByteString b
-    bondPutBonded (BondedObject _) = undefined
+    bondPutBonded (BondedObject v) = do
+        stream <- either throwError return $ bondMarshal CompactBinaryProto v
+        putWord32le $ fromIntegral $ BL.length stream
+        putLazyByteString stream
     bondPutBonded (BondedStream s) = do
         putWord32le $ fromIntegral $ BL.length s
         putLazyByteString s

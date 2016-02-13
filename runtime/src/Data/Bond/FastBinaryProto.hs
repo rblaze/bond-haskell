@@ -6,6 +6,7 @@ module Data.Bond.FastBinaryProto (
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
+import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
@@ -191,7 +192,11 @@ instance Protocol FastBinaryProto where
         putVarInt $ BS.length b
         putByteString b
     bondPutBonded (BondedObject a) = bondPut a
-    bondPutBonded (BondedStream s) = putLazyByteString (BL.drop 4 s) -- FIXME handle different protocols
+    bondPutBonded s = do
+        BondedStream stream <- case bondRecode FastBinaryProto s of
+            Left msg -> throwError $ "Bonded recode error: " ++ msg
+            Right v -> return v
+        putLazyByteString (BL.drop 4 stream)
 
 getList :: forall a. Serializable a => BondGet FastBinaryProto [a]
 getList = do
