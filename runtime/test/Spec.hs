@@ -1,4 +1,4 @@
-{-# Language ScopedTypeVariables #-}
+{-# Language GADTs, ScopedTypeVariables #-}
 import Data.Bond
 import Data.Bond.Marshal
 import Data.Bond.ZigZag
@@ -28,6 +28,35 @@ import DataPath
 
 main :: IO ()
 main = defaultMain tests
+
+data ProtoWrapper = forall t. BondProto t => ProtoWrapper String t FilePath
+                  | forall t. BondTaggedProto t => TaggedProtoWrapper String t FilePath
+
+fromTagged :: ProtoWrapper -> ProtoWrapper
+fromTagged (TaggedProtoWrapper n t dat) = ProtoWrapper n t dat
+fromTagged w = w
+
+taggedProtocols :: [ProtoWrapper]
+taggedProtocols =
+    [ TaggedProtoWrapper "CompactBinary" CompactBinaryProto "compat.compact2.dat"
+    , TaggedProtoWrapper "CompactBinary v1" CompactBinaryV1Proto "compat.compact.dat"
+    , TaggedProtoWrapper "FastBinary" FastBinaryProto "compat.fast.dat"
+    ]
+
+simpleProtocols :: [ProtoWrapper]
+simpleProtocols =
+    [ ProtoWrapper "SimpleBinary" SimpleBinaryProto "compat.simple2.dat"
+    , ProtoWrapper "SimpleBinary v1" SimpleBinaryV1Proto "compat.simple.dat"
+    ]
+
+jsonProtocol :: ProtoWrapper
+jsonProtocol = ProtoWrapper "JSON" JsonProto "compat.json.dat"
+
+untaggedProtocols :: [ProtoWrapper]
+untaggedProtocols = jsonProtocol : simpleProtocols
+
+allProtocols :: [ProtoWrapper]
+allProtocols = untaggedProtocols ++ taggedProtocols
 
 compatDataPath :: String
 compatDataPath = "test" </> "compat" </> "data"
@@ -92,71 +121,10 @@ tests = testGroup "Haskell runtime tests"
             checkSchemaMismatch (Proxy :: Proxy Inner) $ Struct Nothing M.empty,
           testCase "shallow schema" checkShallowSchema
         ],
-      testGroup "Protocol tests"
-        [ testGroup "SimpleBinary"
-            [ testCase "read/write Compat value" $
-                readCompat SimpleBinaryProto "compat.simple2.dat",
-              testCase "read Compat with compile-time schema" $
-                readCompatWithSchema SimpleBinaryProto "compat.simple2.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema SimpleBinaryProto "compat.simple2.dat",
-              testCaseInfo "fail to save default nothing" $ failToSaveDefaultNothing SimpleBinaryProto
-            ],
-          testGroup "SimpleBinary v1"
-            [ testCase "read/write Compat value" $
-                readCompat SimpleBinaryV1Proto "compat.simple.dat",
-              testCase "read Compat with compile-time schema" $
-                readCompatWithSchema SimpleBinaryV1Proto "compat.simple.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema SimpleBinaryV1Proto "compat.simple.dat",
-              testCaseInfo "fail to save default nothing" $ failToSaveDefaultNothing SimpleBinaryV1Proto
-            ],
-          testGroup "FastBinary"
-            [ testCase "read/write Compat value" $
-                readCompat FastBinaryProto "compat.fast.dat",
-              testCase "read BasicTypes value" $
-                readAsType FastBinaryProto (Proxy :: Proxy BasicTypes) "compat.fast.dat",
-              testCase "read Another value" $
-                readAsType FastBinaryProto (Proxy :: Proxy Another) "compat.fast.dat",
-              testCase "read Compat w/o schema" $
-                readCompatTagged FastBinaryProto "compat.fast.dat",
-              testCase "read Compat with compile-time schema" $
-                readCompatWithSchema FastBinaryProto "compat.fast.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema FastBinaryProto "compat.fast.dat",
-              invalidTaggedWriteTests FastBinaryProto
-            ],
-          testGroup "CompactBinary"
-            [ testCase "read/write Compat value" $
-                readCompat CompactBinaryProto "compat.compact2.dat",
-              testCase "read BasicTypes value" $
-                readAsType CompactBinaryProto (Proxy :: Proxy BasicTypes) "compat.compact2.dat",
-              testCase "read Another value" $
-                readAsType CompactBinaryProto (Proxy :: Proxy Another) "compat.compact2.dat",
-              testCase "read Compat w/o schema" $
-                readCompatTagged CompactBinaryProto "compat.compact2.dat",
-              testCase "read Compat with compile-time schema" $
-                readCompatWithSchema CompactBinaryProto "compat.compact2.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema CompactBinaryProto "compat.compact2.dat",
-              invalidTaggedWriteTests CompactBinaryProto
-            ],
-          testGroup "CompactBinary v1"
-            [ testCase "read/write Compat value" $
-                readCompat CompactBinaryV1Proto "compat.compact.dat",
-              testCase "read BasicTypes value" $
-                readAsType CompactBinaryV1Proto (Proxy :: Proxy BasicTypes) "compat.compact.dat",
-              testCase "read Another value" $
-                readAsType CompactBinaryV1Proto (Proxy :: Proxy Another) "compat.compact.dat",
-              testCase "read Compat w/o schema" $
-                readCompatTagged CompactBinaryV1Proto "compat.compact.dat",
-              testCase "read Compat with compile-time schema" $
-                readCompatWithSchema CompactBinaryV1Proto "compat.compact.dat",
-              testCase "read Compat with runtime schema" $
-                readCompatWithRuntimeSchema CompactBinaryV1Proto "compat.compact.dat",
-              invalidTaggedWriteTests CompactBinaryV1Proto
-            ],
-          testGroup "JSON"
+      testGroup "Protocol tests" $
+        (map testTagged taggedProtocols) ++
+        (map testSimple simpleProtocols) ++
+          [ testGroup "JSON"
             [ testJson "read/write original Compat value" "compat.json.dat",
               testJson "read/write golden Compat value" "golden.json.dat",
 --              testJsonWithSchema "read/write original Compat value with schema" "compat.json.dat",
@@ -183,51 +151,31 @@ tests = testGroup "Haskell runtime tests"
           testProperty "Word64" zigzagWord64
         ]
     ]
+    where
+    testTagged (TaggedProtoWrapper name proto dat) = testGroup name
+        [ testCase "read/write Compat value" $ readCompat proto dat
+        , testCase "read BasicTypes value" $ readAsType proto (Proxy :: Proxy BasicTypes) dat
+        , testCase "read Another value" $ readAsType proto (Proxy :: Proxy Another) dat
+        , testCase "read Compat w/o schema" $ readCompatTagged proto dat
+        , testCase "read Compat with compile-time schema" $ readCompatWithSchema proto dat
+        , testCase "read Compat with runtime schema" $ readCompatWithRuntimeSchema proto dat
+        , invalidTaggedWriteTests CompactBinaryProto
+        ]
+    testTagged _ = error "invalid protocol"
+
+    testSimple (ProtoWrapper name proto dat) = testGroup name
+        [ testCase "read/write Compat value" $ readCompat proto dat
+        , testCase "read Compat with compile-time schema" $ readCompatWithSchema proto dat
+        , testCase "read Compat with runtime schema" $ readCompatWithRuntimeSchema proto dat
+        , testCaseInfo "fail to save default nothing" $ failToSaveDefaultNothing proto
+        ]
+    testSimple _ = error "invalid protocol"
 
 bondedRecodeTests :: [TestTree]
-bondedRecodeTests =
-  [ testCase "Simple - Simple" $ recodeFromTo SimpleBinaryProto SimpleBinaryProto,
-    testCase "Simple - Simple v1" $ recodeFromTo SimpleBinaryProto SimpleBinaryV1Proto,
-    testCase "Simple - Compact" $ recodeFromTo SimpleBinaryProto CompactBinaryProto,
-    testCase "Simple - Compact v1" $ recodeFromTo SimpleBinaryProto CompactBinaryV1Proto,
-    testCase "Simple - Fast" $ recodeFromTo SimpleBinaryProto FastBinaryProto,
-    testCase "Simple - JSON" $ recodeFromTo SimpleBinaryProto JsonProto,
-
-    testCase "Simple v1 - Simple" $ recodeFromTo SimpleBinaryV1Proto SimpleBinaryProto,
-    testCase "Simple v1 - Simple v1" $ recodeFromTo SimpleBinaryV1Proto SimpleBinaryV1Proto,
-    testCase "Simple v1 - Compact" $ recodeFromTo SimpleBinaryV1Proto CompactBinaryProto,
-    testCase "Simple v1 - Compact v1" $ recodeFromTo SimpleBinaryV1Proto CompactBinaryV1Proto,
-    testCase "Simple v1 - Fast" $ recodeFromTo SimpleBinaryV1Proto FastBinaryProto,
-    testCase "Simple v1 - JSON" $ recodeFromTo SimpleBinaryV1Proto JsonProto,
-
-    testCase "Compact - Simple" $ recodeFromTo CompactBinaryProto SimpleBinaryProto,
-    testCase "Compact - Simple v1" $ recodeFromTo CompactBinaryProto SimpleBinaryV1Proto,
-    testCase "Compact - Compact" $ recodeFromTo CompactBinaryProto CompactBinaryProto,
-    testCase "Compact - Compact v1" $ recodeFromTo CompactBinaryProto CompactBinaryV1Proto,
-    testCase "Compact - Fast" $ recodeFromTo CompactBinaryProto FastBinaryProto,
-    testCase "Compact - JSON" $ recodeFromTo CompactBinaryProto JsonProto,
-
-    testCase "Compact v1 - Simple" $ recodeFromTo CompactBinaryV1Proto SimpleBinaryProto,
-    testCase "Compact v1 - Simple v1" $ recodeFromTo CompactBinaryV1Proto SimpleBinaryV1Proto,
-    testCase "Compact v1 - Compact" $ recodeFromTo CompactBinaryV1Proto CompactBinaryProto,
-    testCase "Compact v1 - Compact v1" $ recodeFromTo CompactBinaryV1Proto CompactBinaryV1Proto,
-    testCase "Compact v1 - Fast" $ recodeFromTo CompactBinaryV1Proto FastBinaryProto,
-    testCase "Compact v1 - JSON" $ recodeFromTo CompactBinaryV1Proto JsonProto,
-
-    testCase "Fast - Simple" $ recodeFromTo FastBinaryProto SimpleBinaryProto,
-    testCase "Fast - Simple v1" $ recodeFromTo FastBinaryProto SimpleBinaryV1Proto,
-    testCase "Fast - Compact" $ recodeFromTo FastBinaryProto CompactBinaryProto,
-    testCase "Fast - Compact v1" $ recodeFromTo FastBinaryProto CompactBinaryV1Proto,
-    testCase "Fast - Fast" $ recodeFromTo FastBinaryProto FastBinaryProto,
-    testCase "Fast - JSON" $ recodeFromTo FastBinaryProto JsonProto,
-
-    testCase "JSON - Simple" $ recodeFromTo JsonProto SimpleBinaryProto,
-    testCase "JSON - Simple v1" $ recodeFromTo JsonProto SimpleBinaryV1Proto,
-    testCase "JSON - Compact" $ recodeFromTo JsonProto CompactBinaryProto,
-    testCase "JSON - Compact v1" $ recodeFromTo JsonProto CompactBinaryV1Proto,
-    testCase "JSON - Fast" $ recodeFromTo JsonProto FastBinaryProto,
-    testCase "JSON - JSON" $ recodeFromTo JsonProto JsonProto
-  ]
+bondedRecodeTests = [testCase (name1 ++ " - " ++ name2) (recodeFromTo t1 t2)
+                        | ProtoWrapper name1 t1 _ <- map fromTagged allProtocols
+                        , ProtoWrapper name2 t2 _ <- map fromTagged allProtocols
+                    ]
 
 invalidTaggedWriteTests :: BondTaggedProto t => t -> TestTree
 invalidTaggedWriteTests t = testGroup "invalid tagged write tests"
@@ -248,50 +196,55 @@ invalidTaggedWriteTests t = testGroup "invalid tagged write tests"
             $ M.fromList [(Ordinal 1, MAP bT_UINT64 bT_WSTRING [(UINT64 1, STRING $ fromString "foo")])]
   ]
 
+-- Simple protocol has different m_defaults from all others. Also some enum values differ.
+-- Json differs in uint64 values.
+-- See comments in https://github.com/Microsoft/bond/blob/master/cpp/test/compat/serialization.cpp
 crossTests :: [TestTree]
 crossTests =
-    [crossTest "" left right | left <- simpleProtos, right <- simpleProtos, getName left < getName right] ++
-    [crossTest "" left right | left <- protos, right <- protos, getName left < getName right] ++
-    [crossTest "w/o schema: " left right | left <- taggedProtos, right <- taggedProtos, getName left < getName right] ++
-    [crossWriteTest "" left right | left <- protos, right <- protoWriters, getName left /= getName right]
+    [crossTest left right
+        | left <- simpleProtocols
+        , right <- simpleProtocols
+        , getName left < getName right
+    ] ++
+    [crossTest left right
+        | left <- taggedProtocols
+        , right <- taggedProtocols
+        , getName left < getName right
+    ] ++
+    [crossTestTagged left right
+        | left <- taggedProtocols
+        , right <- taggedProtocols
+        , getName left < getName right
+    ]
     where
-    -- Simple protocol has different m_defaults from all others. Also some enum values differ.
-    -- Json differs in uint64 values.
-    -- See comments in https://github.com/Microsoft/bond/blob/master/cpp/test/compat/serialization.cpp
-    simpleProtos = [
-        ("Simple", bondRead SimpleBinaryProto :: BL.ByteString -> Either String Compat, "compat.simple2.dat"),
-        ("Simple v1", bondRead SimpleBinaryV1Proto, "compat.simple.dat")
-     ]
-    protos = [
-        ("Compact", bondRead CompactBinaryProto :: BL.ByteString -> Either String Compat, "compat.compact2.dat"),
-        ("Compact v1", bondRead CompactBinaryV1Proto, "compat.compact.dat"),
-        ("Fast", bondRead FastBinaryProto, "compat.fast.dat")
-     ]
-    protoWriters = [
-        ("Compact", bondWrite CompactBinaryProto :: Compat -> Either String BL.ByteString, "compat.compact2.dat"),
-        ("Compact v1", bondWrite CompactBinaryV1Proto, "compat.compact.dat"),
-        ("Fast", bondWrite FastBinaryProto, "compat.fast.dat")
-     ]
-    taggedProtos = [
-        ("Compact", bondReadTagged CompactBinaryProto :: BL.ByteString -> Either String Struct, "compat.compact2.dat"),
-        ("Compact v1", bondReadTagged CompactBinaryV1Proto, "compat.compact.dat"),
-        ("Fast", bondReadTagged FastBinaryProto, "compat.fast.dat")
-     ]
-    getName (n, _, _) = n
-    crossTest prefix (lname, lreader, lfile) (rname, rreader, rfile)
-        = testCase (prefix ++ lname ++ " - " ++ rname) $ assertEither $ do
+    getName (ProtoWrapper name _ _) = name
+    getName (TaggedProtoWrapper name _ _) = name
+
+    crossTest (ProtoWrapper lname lproto lfile) (ProtoWrapper rname rproto rfile)
+        = testCase (lname ++ " - " ++ rname) $ assertEither $ do
             ldata <- readData (compatDataPath </> lfile)
-            left <- hoistEither $ lreader ldata
+            left <- hoistEither (bondRead lproto ldata :: Either String Compat)
             rdata <- readData (compatDataPath </> rfile)
-            right <- hoistEither $ rreader rdata
+            right <- hoistEither $ bondRead rproto rdata
             checkEqual "values do not match" left right
-    crossWriteTest prefix (lname, lreader, lfile) (rname, rwriter, rfile)
-        = testCase ("read/write " ++ prefix ++ lname ++ " - " ++ rname) $ assertEither $ do
+            lout <- hoistEither $ bondWrite lproto right
+            checkEqual ("value saved with " ++ lname ++ " do not match original") ldata lout
+            rout <- hoistEither $ bondWrite rproto left
+            checkEqual ("value saved with " ++ rname ++ " do not match original") rdata rout
+    crossTest left right  = crossTest (fromTagged left) (fromTagged right)
+
+    crossTestTagged (TaggedProtoWrapper lname lproto lfile) (TaggedProtoWrapper rname rproto rfile)
+        = testCase ("w/o schema: " ++ lname ++ " - " ++ rname) $ assertEither $ do
             ldata <- readData (compatDataPath </> lfile)
-            left <- hoistEither $ lreader ldata
-            out <- hoistEither $ rwriter left
-            golden <- readData (compatDataPath </> rfile)
-            checkEqual "values do not match" golden out
+            left <- hoistEither $ bondReadTagged lproto ldata
+            rdata <- readData (compatDataPath </> rfile)
+            right <- hoistEither $ bondReadTagged rproto rdata
+            checkEqual "values do not match" left right
+            lout <- hoistEither $ bondWriteTagged lproto right
+            checkEqual ("value saved with " ++ lname ++ " do not match original") ldata lout
+            rout <- hoistEither $ bondWriteTagged rproto left
+            checkEqual ("value saved with " ++ rname ++ " do not match original") rdata rout
+    crossTestTagged _ _ = error "invalid protocols"
 
 readCompat :: BondProto t => t -> String -> Assertion
 readCompat p f = assertEither $ do
