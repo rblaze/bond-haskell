@@ -34,6 +34,7 @@ library
                        Data.Bond.Schema.StructDef
                        Data.Bond.Schema.TypeDef
                        Data.Bond.Schema.Variant
+                       Data.Bond.Internal.SchemaOps
   other-modules:       Data.Bond.BinaryClass
                        Data.Bond.BinaryUtils
                        Data.Bond.Bonded
@@ -50,6 +51,8 @@ library
                        Data.Bond.Utils
                        Data.Bond.Wire
                        Data.Bond.Schema.ProtocolType
+                       Data.Bond.Internal.OrdinalSet
+                       Data.Bond.Internal.TypedSchema
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
                      , aeson

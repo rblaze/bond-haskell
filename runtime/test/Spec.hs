@@ -2,6 +2,7 @@
 import Data.Bond
 import Data.Bond.Marshal
 import Data.Bond.ZigZag
+import Data.Bond.Internal.SchemaOps
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.SchemaDef
 import Unittest.Compat.Another.Another
@@ -68,7 +69,8 @@ tests :: TestTree
 tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
-          testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef
+          testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef,
+          testCase "check compile/decompile schema is identity" checkCompileIdentity
         ],
       testGroup "Runtime schema validation tests"
         [ testCaseInfo "loop in inheritance chain" $ checkSchemaError "inheritance_loop.json",
@@ -391,6 +393,13 @@ recodeFromTo t1 t2 = assertEither $ do
     v <- hoistEither (bondRead t2 saved :: Either String Outer)
     unpacked <- hoistEither $ getValue (m_bonded_inner v)
     checkEqual "deserialized value do not match with original" inner unpacked
+
+checkCompileIdentity :: Assertion
+checkCompileIdentity = assertEither $ do
+    let schema = getSchema (Proxy :: Proxy Compat)
+    parsedSchema <- hoistEither $ parseSchema schema
+    let assembledSchema = assembleSchema parsedSchema
+    checkEqual "original and decompiled schema do not match" schema assembledSchema
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)

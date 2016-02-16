@@ -50,18 +50,24 @@ newtype Blob = Blob BS.ByteString
 
 class EncodedString a where
     fromString :: String -> a
+    fromString = fromText . T.pack
+
+    toString :: a -> String
+    toString = T.unpack . toText
+
     fromText :: T.Text -> a
+    toText :: a -> T.Text
 
 instance EncodedString Utf8 where
-    fromString = fromText . T.pack
     fromText = Utf8 . T.encodeUtf8
+    toText (Utf8 s) = T.decodeUtf8 s
 
 instance EncodedString Utf16 where
-    fromString = fromText . T.pack
     fromText = Utf16 . T.encodeUtf16LE
+    toText (Utf16 s) = T.decodeUtf16LE s
 
-instance Show Utf8 where show (Utf8 s) = show $ T.unpack $ T.decodeUtf8 s
-instance Show Utf16 where show (Utf16 s) = show $ T.unpack $ T.decodeUtf16LE s
+instance Show Utf8 where show s = show $ toString s
+instance Show Utf16 where show s = show $ toString s
 
 newtype Ordinal = Ordinal Word16
     deriving (Eq, Ord, Show, Hashable)
