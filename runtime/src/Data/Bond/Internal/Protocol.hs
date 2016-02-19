@@ -42,13 +42,13 @@ type BondPut t = BondPutM t ()
 class Default a => BondType a where
     -- | Read value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
-    -- | Put value into stream.
+    -- | Write value.
     bondPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
-    -- | Get name of entity.
+    -- | Get name of type.
     getName :: Proxy a -> Text
-    -- | Get qualified of entity.
+    -- | Get qualified name of type.
     getQualifiedName :: Proxy a -> Text
-    -- | Get ElementTypeInfo for this type 
+    -- | Get ElementTypeInfo for this type.
     getElementType :: Proxy a -> ElementTypeInfo
 
 class BondType a => BondStruct a where
