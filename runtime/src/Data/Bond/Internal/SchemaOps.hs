@@ -16,6 +16,7 @@ import qualified Data.Bond.Schema.FieldDef as FD
 import qualified Data.Bond.Schema.StructDef as SD
 import qualified Data.Bond.Schema.TypeDef as TD
 
+import Control.Applicative ((<$>))
 import Control.Arrow
 import Control.Monad.State.Strict
 import Control.Monad.Error
@@ -24,6 +25,7 @@ import Data.List
 import Data.Maybe
 import Data.Typeable
 import Data.Vector ((//))
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.IntSet as IS
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V

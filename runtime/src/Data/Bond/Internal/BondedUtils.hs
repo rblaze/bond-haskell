@@ -10,7 +10,9 @@ import Data.Bond.Struct
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.TypedSchema
 
+import Control.Applicative ((<$>))
 import Data.Proxy
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.ByteString.Lazy as BL
 
 bondRecode :: forall t a. (BondProto t, BondStruct a) => t -> Bonded a -> Either String (Bonded a)

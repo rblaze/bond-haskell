@@ -15,7 +15,7 @@ import Control.Monad.State.Class
 import Data.Hashable
 import Data.Proxy
 import Data.Text
-import Prelude
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.HashSet as H
 import qualified Data.Map as M
 import qualified Data.Set as S

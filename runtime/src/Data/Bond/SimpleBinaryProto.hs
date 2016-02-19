@@ -20,7 +20,6 @@ import Data.Bond.Internal.TypedSchema
 import Data.Bond.Schema.ProtocolType
 
 import Control.Applicative
-import Control.Monad
 import Control.Monad.Error
 import Data.List
 import Data.Maybe
@@ -33,6 +32,7 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import qualified Data.Traversable as T -- XXX lts-2
 import qualified Data.Vector as V
 
 data SimpleBinaryProto = SimpleBinaryProto
@@ -292,7 +292,7 @@ decodeWithSchema _ rootSchema bs = do
         parent <- case structBase schema of
             Nothing -> return Nothing
             Just baseSchema -> Just <$> readStruct baseSchema
-        fs <- mapM (readField . fieldType) (structFields schema)
+        fs <- T.mapM (readField . fieldType) (structFields schema)
         return $ Struct parent fs
     readField = readValue . fieldToElementType
 
@@ -326,7 +326,7 @@ decodeWithSchema _ rootSchema bs = do
             v <- readValue value
             return (k, v)
 
-encodeWithSchema :: forall t. (SimpleProtocol t, BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> StructSchema -> Struct -> Either String BL.ByteString
+encodeWithSchema :: forall t. (SimpleProtocol t, Functor (WriterM t), BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> StructSchema -> Struct -> Either String BL.ByteString
 encodeWithSchema _ rootSchema s = do
     struct <- checkStructSchema rootSchema s
     let BondPut writer = putStruct rootSchema struct
