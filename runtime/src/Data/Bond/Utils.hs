@@ -1,6 +1,5 @@
 module Data.Bond.Utils where
 
-import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
 
 import Data.Bits
@@ -22,24 +21,3 @@ protoHeader (ProtocolType protoSig) protoVer = BL.pack [s0, s1, v0, v1]
     s1 = fromIntegral (protoSig `shiftR` 8)
     v0 = fromIntegral protoVer
     v1 = fromIntegral (protoVer `shiftR` 8)
-
-bondTypeName :: BondDataType -> String
-bondTypeName t
-    | t == bT_BOOL = "bool"
-    | t == bT_UINT8 = "uint8"
-    | t == bT_UINT16 = "uint16"
-    | t == bT_UINT32 = "uint32"
-    | t == bT_UINT64 = "uint64"
-    | t == bT_FLOAT = "float"
-    | t == bT_DOUBLE = "double"
-    | t == bT_STRING = "string"
-    | t == bT_STRUCT = "struct"
-    | t == bT_LIST = "list"
-    | t == bT_SET = "set"
-    | t == bT_MAP = "map"
-    | t == bT_INT8 = "int8"
-    | t == bT_INT16 = "int16"
-    | t == bT_INT32 = "int32"
-    | t == bT_INT64 = "int64"
-    | t == bT_WSTRING = "wstring"
-    | otherwise = let BondDataType v = t in "tag " ++ show v

@@ -8,10 +8,9 @@ import Data.Bond.BinaryUtils
 import Data.Bond.Default
 import Data.Bond.Struct
 import Data.Bond.Types
-import Data.Bond.Utils
-import Data.Bond.Wire
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.SchemaOps
+import Data.Bond.Internal.SchemaUtils
 import Data.Bond.Internal.TypedSchema
 
 import Control.Applicative

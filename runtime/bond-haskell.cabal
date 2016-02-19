@@ -48,7 +48,6 @@ library
                        Data.Bond.TaggedProtocol
                        Data.Bond.Types
                        Data.Bond.Utils
-                       Data.Bond.Wire
                        Data.Bond.Schema.ProtocolType
                        Data.Bond.Internal.BondedUtils
                        Data.Bond.Internal.OrdinalSet

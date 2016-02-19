@@ -16,7 +16,7 @@ import qualified Data.Bond.Schema.FieldDef as FD
 import qualified Data.Bond.Schema.StructDef as SD
 import qualified Data.Bond.Schema.TypeDef as TD
 
-import Control.Applicative ((<$>))
+import Control.Applicative hiding (optional)
 import Control.Arrow
 import Control.Monad.State.Strict
 import Control.Monad.Error

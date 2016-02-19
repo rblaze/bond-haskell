@@ -28,8 +28,7 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
     dataDecl = DataDecl noLoc NewType [] typeName []
         [ QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"]) ]
         [ (pQual "Show", []), (pQual "Eq", []), (pQual "Ord", []), (pQual "Enum", [])
-        , (implQual "Hashable", [])
-        , (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", [])
+        , (implQual "Hashable", []), (implQual "Default", []), (implQual "Typeable", [])
         ]
     bondTypeDecl = InstDecl noLoc Nothing [] [] (implQual "BondType")
         [typeCon]

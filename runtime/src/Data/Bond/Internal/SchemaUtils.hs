@@ -1,7 +1,10 @@
 module Data.Bond.Internal.SchemaUtils where
 
+import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.TypedSchema
 import Data.Bond.Schema.BondDataType
+
+import Data.Proxy
 
 bondTypeName :: BondDataType -> String
 bondTypeName t
@@ -43,3 +46,6 @@ elementToBondDataType (ElementBonded _) = bT_STRUCT
 elementToBondDataType (ElementList _) = bT_LIST
 elementToBondDataType (ElementSet _) = bT_SET
 elementToBondDataType (ElementMap _ _) = bT_MAP
+
+getWireType :: BondType a => Proxy a -> BondDataType
+getWireType = elementToBondDataType . getElementType

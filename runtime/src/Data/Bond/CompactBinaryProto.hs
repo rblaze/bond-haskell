@@ -11,10 +11,10 @@ import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
-import Data.Bond.Wire
 import Data.Bond.ZigZag
 import Data.Bond.Internal.BondedUtils
 import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.SchemaUtils
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType

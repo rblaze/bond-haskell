@@ -4,7 +4,6 @@ module Data.Bond.Internal.Protocol where
 import Data.Bond.BinaryClass
 import Data.Bond.Default
 import Data.Bond.Types
-import Data.Bond.Wire
 import Data.Bond.Internal.TypedSchema
 import Data.Bond.Internal.Utils
 
@@ -40,7 +39,7 @@ deriving instance (BinaryPut (WriterM t)) => BinaryPut (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
-class (Default a, WireType a) => BondType a where
+class Default a => BondType a where
     -- | Read value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Put value into stream.
@@ -52,7 +51,7 @@ class (Default a, WireType a) => BondType a where
     -- | Get ElementTypeInfo for this type 
     getElementType :: Proxy a -> ElementTypeInfo
 
-class (Default a, BondType a) => BondStruct a where
+class BondType a => BondStruct a where
     -- | Read struct from untagged stream
     bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
     bondStructGetBase :: (Monad (ReaderM t), Protocol t) => a -> BondGet t a

@@ -118,7 +118,7 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
         Nothing
         (Just [EThingAll $ UnQual typeName])
         imports
-        [dataDecl, defaultDecl, wiretypeDecl, bondTypeDecl,
+        [dataDecl, defaultDecl, bondTypeDecl,
          bondStructDecl
         ]
 
@@ -149,9 +149,6 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
             patBind noLoc (PVar $ Ident "defaultValue") $
                 RecConstr (UnQual typeName) fieldDefaults
         ]
-    wiretypeDecl = InstDecl noLoc Nothing [] [] (implQual "WireType")
-        [makeType True typeName declParams]
-        [InsDecl $ wildcardFunc "getWireType" (Con $ implQual "bT_STRUCT")]
     bondTypeDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "BondType") declParams ++
             map (typeParamConstraint $ implQual "Typeable") declParams)

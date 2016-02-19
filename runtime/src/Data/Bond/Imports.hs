@@ -11,7 +11,6 @@ import Control.Monad (ap)
 import Data.Bond.Proto as X
 import Data.Bond.Default as X
 import Data.Bond.Types as X
-import Data.Bond.Wire as X
 import Data.Bond.Internal.OrdinalSet as X
 import Data.Bond.Internal.Protocol as X
 import Data.Bond.Internal.TypedSchema as X
