@@ -4,7 +4,7 @@ module Data.Bond.JsonProto (
     ) where
 
 import Data.Bond.Default
-import {-# SOURCE #-} Data.Bond.Marshal
+import Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Struct
 import Data.Bond.Types
