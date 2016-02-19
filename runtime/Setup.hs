@@ -35,7 +35,7 @@ runHbc args conf pd lbi = do
                             return (flagTS < bondTS || flagTS < bondConstTS)
                         else return True
     when needSchemaRegen $ do
-        runProgram verbosity hbc ["-h", "-o", buildDir lbi, "--schema-bootstrap", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
+        runProgram verbosity hbc ["-h", "-o", buildDir lbi, "--hsboot", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
         createDirectoryIfMissing False outPath
         writeFile schemaFlag ""
 

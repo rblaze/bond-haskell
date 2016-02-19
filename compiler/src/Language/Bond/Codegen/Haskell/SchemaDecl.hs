@@ -1,134 +1,112 @@
-{-# LANGUAGE NamedFieldPuns #-}
-
 module Language.Bond.Codegen.Haskell.SchemaDecl (
-    convertDefault,
-    importSchema,
-    sQual,
-    typeDefGenDecl
+    getSchema,
+    structNameAndType
   ) where
 
-import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext(..))
 import Language.Bond.Codegen.Haskell.Util
 
+import Language.Bond.Codegen.TypeMapping (MappingContext(..))
+import Language.Bond.Syntax.Types
+
+import Data.Maybe
 import Language.Haskell.Exts
 import Language.Haskell.Exts.SrcLoc (noLoc)
 
-schemaModuleAlias :: ModuleName
-schemaModuleAlias = ModuleName "S'"
-
-importSchema :: ImportDecl
-importSchema = importTemplate
-  { importModule = ModuleName "Data.Bond.Schema",
-    importAs = Just schemaModuleAlias
-  }
-
-sQual :: String -> QName
-sQual = Qual schemaModuleAlias . Ident
-
-defUpdate :: [FieldUpdate] -> Exp
-defUpdate = RecUpdate (Var $ implQual "defaultValue")
-
-fieldTypeVar :: String -> Name
-fieldTypeVar fname = Ident ("type'" ++ fname)
-
-makeAttr :: MappingContext -> Attribute -> Exp
-makeAttr ctx a = Tuple Boxed [
-    stringL $ getQualifiedName ctx $ attrName a,
-    stringL $ attrValue a
-  ]
-
-convertDefault :: MappingContext -> Field -> Default -> Exp
-convertDefault ctx field defval = case defval of
-    DefaultBool b -> updateRec (sQual "uint_value") (intL $ fromEnum b)
-    DefaultInteger v ->
-        case v of
-            _ | fieldType field `elem` [BT_Int8, BT_Int16, BT_Int32, BT_Int64] -> updateRec (sQual "int_value") (intL v)
-              | fieldType field `elem` [BT_Float, BT_Double] -> updateRec (sQual "double_value") (intL v)
-              | otherwise -> updateRec (sQual "uint_value") (intL v)
-    DefaultFloat v -> updateRec (sQual "double_value") (floatL v)
-    DefaultString v ->
-        if fieldType field == BT_String
-            then updateRec (sQual "string_value") $
-                    App (Var $ implQual "fromString") (stringL v)
-            else updateRec (sQual "wstring_value") $
-                    App (Var $ implQual "fromString") (stringL v)
-    DefaultEnum v -> let BT_UserDefined decl [] = fieldType field
-                         ns = getDeclNamespace ctx decl
-                         typename = makeDeclName decl
-                      in updateRec (sQual "int_value") $
-                            App (Var $ pQual "fromIntegral") $
-                            App (Var $ pQual "fromEnum") (Var $ Qual (mkModuleName ns typename) (mkVar v))
-    DefaultNothing -> updateRec (sQual "nothing") (Con $ pQual "True")
+makeFieldType :: String -> MappingContext -> Field -> Exp
+makeFieldType settype ctx field
+    | BT_Bool <- fieldType field = reuseDefault "FieldBool"
+    | BT_Int8 <- fieldType field = reuseDefault "FieldInt8"
+    | BT_Int16 <- fieldType field = reuseDefault "FieldInt16"
+    | BT_Int32 <- fieldType field = reuseDefault "FieldInt32"
+    | BT_Int64 <- fieldType field = reuseDefault "FieldInt64"
+    | BT_UInt8 <- fieldType field = reuseDefault "FieldUInt8"
+    | BT_UInt16 <- fieldType field = reuseDefault "FieldUInt16"
+    | BT_UInt32 <- fieldType field = reuseDefault "FieldUInt32"
+    | BT_UInt64 <- fieldType field = reuseDefault "FieldUInt64"
+    | BT_Float <- fieldType field = reuseDefault "FieldFloat"
+    | BT_Double <- fieldType field = reuseDefault "FieldDouble"
+    | BT_String <- fieldType field = reuseDefault "FieldString"
+    | BT_WString <- fieldType field = reuseDefault "FieldWString"
+    | BT_UserDefined Enum{} _ <- fieldType field =
+        App (Con $ implQual "FieldInt32") $ Paren $
+            App (Con $ implQual "DefaultValue") $ Paren $
+                App (Var $ pQual "fromIntegral") $ Paren $
+                    App (Var $ pQual "fromEnum") $ Paren $
+                        App (Var $ UnQual $ mkVar $ makeFieldName field) (Var $ implQual "defaultValue")
+    | BT_Maybe t <- fieldType field =
+        App (Var $ implQual "elementToDefNothingFieldType") $ Paren $
+            App (Var $ implQual "getElementType") $ Paren $
+                proxyOf $ hsType settype ctx t
+    | t <- fieldType field = 
+        App (Var $ implQual "elementToFieldType") $ Paren $
+            App (Var $ implQual "getElementType") $ Paren $
+                proxyOf $ hsType settype ctx t
     where
-    updateRec fname fval = defUpdate [FieldUpdate fname fval]
+    reuseDefault con = App (Con $ implQual con) $ Paren $
+        App (Con $ implQual "DefaultValue") $ Paren $
+            App (Var $ UnQual $ mkVar $ makeFieldName field) (Var $ implQual "defaultValue")
 
-typeDefGenDecl :: String -> MappingContext -> Declaration -> Decl
-typeDefGenDecl setType ctx decl@Struct{} = InstDecl noLoc Nothing []
-    (map (typeParamConstraint $ implQual "Serializable") (declParams decl) ++
-        map (typeParamConstraint $ sQual "TypeDefGen") (declParams decl))
-    (sQual "TypeDefGen")
-    [makeType True typeName (declParams decl)]
-    [InsDecl $ simpleFun noLoc (Ident "getTypeDef") proxyVar $
-        App (App (Var $ sQual "withStruct") (Var $ UnQual proxyVar)) $ Paren $ Do $
-        -- get base typedef
-        (case structBase decl of
-            Just t -> (mkFindType baseTypeVar (hsType setType ctx t) :)
-            Nothing -> id
-        )
-        -- get field typedefs
-        (map (\f -> mkFindType (fieldTypeVar $ fieldName f) (hsUnwrappedType $ fieldType f)) (structFields decl) ++
-        -- create struct
-        [Qualifier $ App (Var $ pQual "return") $
-            Tuple Boxed [
-                App (App (App (Var $ sQual "makeStructMeta")
-                    (Paren $ App (Var $ sQual "getTypeName") (Var $ UnQual proxyVar)))
-                    (Paren $ App (Var $ sQual "getQualifiedTypeName") (Var $ UnQual proxyVar)))
-                    (List $ map (makeAttr ctx) $ declAttributes decl),
-                case structBase decl of
-                    Nothing -> Con $ pQual "Nothing"
-                    Just _ -> App (Con $ pQual "Just") (Var $ UnQual baseTypeVar),
-                List $ map makeFieldDef (structFields decl)
+getSchema :: CodegenOpts -> MappingContext -> Declaration -> InstDecl
+getSchema opts ctx decl = InsDecl $ simpleFun noLoc (Ident "getSchema") (Ident "type'proxy") $
+                RecConstr (implQual "StructSchema")
+                    [ FieldUpdate (implQual "structTag") $
+                        App (Var $ implQual "typeRep") (Var $ unqual "type'proxy")
+                    , FieldUpdate (implQual "structName") $
+                        App (Var $ implQual "getName") (Var $ unqual "type'proxy")
+                    , FieldUpdate (implQual "structQualifiedName") $
+                        App (Var $ implQual "getQualifiedName") (Var $ unqual "type'proxy")
+                    , FieldUpdate (implQual "structAttrs") $
+                        App (Var $ implQual "makeMap") (List $ map makeAttr (declAttributes decl))
+                    , FieldUpdate (implQual "structBase") $
+                        case structBase decl of
+                            Nothing -> Con (pQual "Nothing")
+                            Just base -> App (Con $ pQual "Just") $ Paren $
+                                App (Var $ implQual "getSchema") (Paren $ proxyOf $ hsType (setType opts) ctx base)
+                    , FieldUpdate (implQual "structFields") $
+                        App (Var $ implQual "makeMap") (List $ map makeFieldInfo (structFields decl))
+                    , FieldUpdate (implQual "structOrdinalsRequiredOnWrite") $
+                        App (Var $ implQual "fromOrdinalList") (List $ filterOrdinals (/= Optional) (structFields decl))
+                    , FieldUpdate (implQual "structOrdinalsRequiredOnRead") $
+                        App (Var $ implQual "fromOrdinalList") (List $ filterOrdinals (== Required) (structFields decl))
+                    ]
+    where
+    filterOrdinals f = mapMaybe (\ field ->
+        if f (fieldModifier field)
+            then Just $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal field)
+            else Nothing)
+    makeFieldInfo field = Tuple Boxed
+        [ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal field)
+        , RecConstr (implQual "FieldSchema")
+            [ FieldUpdate (implQual "fieldName") $ strE $ fieldName field
+            , FieldUpdate (implQual "fieldAttrs") $
+                App (Var $ implQual "makeMap") (List $ map makeAttr (fieldAttributes field))
+            , FieldUpdate (implQual "fieldModifier") $ Con $ implQual $
+                case fieldModifier field of
+                    Optional -> "FieldOptional"
+                    Required -> "FieldRequired"
+                    RequiredOptional -> "FieldRequiredOptional"
+            , FieldUpdate (implQual "fieldType") $ makeFieldType (setType opts) ctx field
             ]
-        ]),
-     InsDecl $ wildcardFunc "getTypeName" $
-        if null (declParams decl)
-            then stringL $ declName decl
-            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ declName decl))
-                    (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies),
-     InsDecl $ wildcardFunc "getQualifiedTypeName" $
-        if null (declParams decl)
-            then stringL $ getDeclTypeName ctx{namespaceMapping = []} decl
-            else App (App (Var $ sQual "makeGenericTypeName") (stringL $ getDeclTypeName ctx{namespaceMapping = []} decl))
-                    (List $ map (App (Var $ sQual "getQualifiedTypeName")) paramProxies)
+        ]
+    makeAttr a = Tuple Boxed
+        [ strE $ getQualifiedName ctx $ attrName a
+        , strE $ attrValue a 
+        ]
+
+
+structNameAndType :: MappingContext -> Declaration -> [InstDecl]
+structNameAndType ctx decl =
+    [ InsDecl $ wildcardFunc "getName" $ nameFunc $ declName decl
+    , InsDecl $ wildcardFunc "getQualifiedName" $ nameFunc $ getDeclTypeName ctx{namespaceMapping = []} decl
+    , InsDecl $ simpleFun noLoc (Ident "getElementType") (Ident "type'proxy") $
+            App (Con $ implQual "ElementStruct") (Paren $ App (Var $ implQual "getSchema") (Var $ unqual "type'proxy"))
     ]
     where
-    typeName = mkType (makeDeclName decl)
-    proxyVar = Ident "type''proxy"
-    baseTypeVar = Ident "type''base"
-    hsUnwrappedType (BT_Maybe t) = hsType setType ctx t
-    hsUnwrappedType t = hsType setType ctx t
-    mkFindType varname typ =
-        Generator noLoc (PVar varname) $
-            App (Var $ sQual "findTypeDef") $ Paren $
-                ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") typ)
-    paramProxies = map (Paren . ExpTypeSig noLoc (Con $ implQual "Proxy") . TyApp (TyCon $ implQual "Proxy") . TyVar . mkVar . paramName) (declParams decl)
-    makeFieldDef f =
-        App
-            (App
-                (App
-                    (Var $ sQual "makeFieldDef")
-                    (Var $ UnQual proxyVar))
-                (intL $ fieldOrdinal f))
-            (Var $ UnQual $ fieldTypeVar (fieldName f))
-
-typeDefGenDecl _ ctx decl@Enum{} = InstDecl noLoc Nothing [] []
-    (sQual "TypeDefGen")
-    [TyCon $ UnQual $ mkType $ makeDeclName decl]
-    [InsDecl $ wildcardFunc "getTypeDef" $ App (Var $ sQual "getTypeDef") $
-        ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") (implType "Int32")),
-     InsDecl $ wildcardFunc "getTypeName" $ stringL (declName decl),
-     InsDecl $ wildcardFunc "getQualifiedTypeName" $ stringL (getDeclTypeName ctx{namespaceMapping = []} decl)
-    ]
-
-typeDefGenDecl _ _ _ = error "typeDefGenDecl called for invalid type"
+    paramProxies = map (Paren . proxyOf . TyVar . mkVar . paramName) (declParams decl)
+    nameFunc ownName = 
+        if null (declParams decl)
+            then strE ownName
+            else appFun (Var $ implQual "makeGenericName")
+                    [ strE ownName
+                    , List $ map (App (Var $ implQual "getQualifiedName")) paramProxies
+                    ]

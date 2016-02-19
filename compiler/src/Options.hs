@@ -11,7 +11,7 @@ data Options = Haskell
         , output_dir :: FilePath
         , using :: [String]
         , namespace :: [String]
-        , schema_bootstrap :: Bool
+        , hsboot :: Bool
         , hashset :: Bool
         , noShow :: Bool
         , noEq :: Bool
@@ -25,7 +25,7 @@ haskell = Haskell
     , output_dir = "." &= typDir &= name "o" &= help "Output generated files into the specified directory"
     , using = def &= typ "MAPPING" &= name "u" &= help "Custom type alias mapping in the form alias=type"
     , namespace = def &= typ "MAPPING" &= name "n" &= help "Custom namespace mapping in the form bond_namespace=language_namespace"
-    , schema_bootstrap = def &= name "s" &= help "Generate special code for runtime schema structures (internal use)"
+    , hsboot = def &= name "s" &= help "Generate both .hs and .hs-boot files"
     , hashset = def &= name "h" &= help "Use HashSet for set<T> fields"
     , noShow = def &= explicit &= name "noshow" &= help "do not derive Show instance for structs"
     , noEq = def &= explicit &= name "noeq" &= help "do not derive Eq instance for structs"

@@ -2,20 +2,19 @@
 module Data.Bond.TaggedProtocol where
 
 import Data.Bond.Schema.BondDataType
-import Data.Bond.Schema.Modifier
-import Data.Bond.Schema.SchemaDef
 
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Default
-import Data.Bond.Proto
-import Data.Bond.Schema
 import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
+import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.SchemaOps
+import Data.Bond.Internal.TypedSchema
 
-import Control.Applicative hiding (optional)
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Error
 import Data.Bits
@@ -42,11 +41,11 @@ class Protocol t => TaggedProtocol t where
 
 getStruct :: forall a t. (Functor (ReaderM t), Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
 getStruct level = do
-    let fs = fieldsInfo (Proxy :: Proxy a)
+    let fieldsMap = structFields $ getSchema (Proxy :: Proxy a)
     b <- bondStructGetBase defaultValue
     -- iterate over stream, update fields
     let readField wiretype ordinal s =
-            if M.member ordinal fs
+            if M.member ordinal fieldsMap
                 then bondStructGetField ordinal s
                 else do
                     skipType wiretype -- unknown field, ignore it
@@ -58,7 +57,6 @@ getStruct level = do
                | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
                | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipRestOfStruct >> return s
                | otherwise -> readField wiretype ordinal s >>= loop
-
     loop b
 
 putStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
@@ -71,14 +69,14 @@ putStruct level a = do
 putBaseStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => a -> BondPut t
 putBaseStruct = putStruct BaseStruct
 
-putField :: forall a b t. (Monad (BondPutM t), TaggedProtocol t, Serializable a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
-putField p n a = do
+putField :: forall a b t. (Monad (BondPutM t), TaggedProtocol t, BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
+putField p ordinal value = do
     let tag = getWireType (Proxy :: Proxy a)
-    let info = M.findWithDefault (error "unknown field ordinal") n (fieldsInfo p)
-    let needToSave = not (equalToDefault (fieldDefault info) a) || fieldModifier info /= optional
+    let info = M.findWithDefault (error "internal error: unknown field ordinal") ordinal (structFields $ getSchema p)
+    let needToSave = not (equalToDefault (fieldType info) value) || fieldModifier info /= FieldOptional
     when needToSave $ do
-        putFieldHeader tag n
-        bondPut a
+        putFieldHeader tag ordinal
+        bondPut value
 
 putTag :: BinaryPut (BondPutM t) => BondDataType -> BondPut t
 putTag = putWord8 . fromIntegral . fromEnum
@@ -145,7 +143,7 @@ readTagged _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-readTaggedWithSchema :: forall t. (ReaderM t ~ B.Get, TaggedProtocol t) => t -> SchemaDef -> BL.ByteString -> Either String Struct
+readTaggedWithSchema :: forall t. (ReaderM t ~ B.Get, TaggedProtocol t) => t -> StructSchema -> BL.ByteString -> Either String Struct
 readTaggedWithSchema _ schema s =
     let BondGet g = getTaggedStruct :: BondGet t Struct
      in case B.runGetOrFail g s of
@@ -204,5 +202,5 @@ writeTagged :: forall t. (MonadError String (BondPutM t), BinaryPut (WriterM t),
 writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
                    in tryPut g
 
-writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> SchemaDef -> Struct -> Either String BL.ByteString
+writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> StructSchema -> Struct -> Either String BL.ByteString
 writeTaggedWithSchema t schema struct = checkStructSchema schema struct >>= writeTagged t

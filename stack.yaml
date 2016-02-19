@@ -11,6 +11,7 @@ packages:
 # Packages to be pulled from upstream that are not in the resolver (e.g., acme-missiles-0.3)
 extra-deps:
 - bond-0.4.0.1
+- haskell-src-exts-qq-0.7
 
 # Override default flag values for local packages and extra-deps
 flags: {}

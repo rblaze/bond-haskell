@@ -21,11 +21,13 @@ main = do
 
     let opts = CodegenOpts {
         setType = if hashset options then "HashSet" else "Set",
-        schemaBootstrapMode = schema_bootstrap options,
         deriveEq = not (noEq options),
         deriveShow = not (noShow options)
       }
-    forM_ (files options) $ codegen options [decl_hs opts, decl_hsboot opts]
+    let codegens = if hsboot options
+        then [decl_hs opts, decl_hsboot opts]
+        else [decl_hs opts]
+    forM_ (files options) $ codegen options codegens
 
 codegen :: Options -> [Template] -> FilePath -> IO ()
 codegen options templates file = do

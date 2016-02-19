@@ -22,9 +22,6 @@ getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
 getTypeModules (TyList t) = getTypeModules t
 getTypeModules _ = []
 
-makeFieldName :: Field -> String
-makeFieldName f = overrideName (fieldName f) (fieldAttributes f)
-
 defaultFieldValue :: MappingContext -> Language.Bond.Syntax.Types.Field -> FieldUpdate
 defaultFieldValue ctx f@Field{fieldType, fieldDefault}
     = FieldUpdate (UnQual $ mkVar $ makeFieldName f) (defValue fieldDefault)
@@ -33,8 +30,7 @@ defaultFieldValue ctx f@Field{fieldType, fieldDefault}
     defValue (Just (DefaultBool v)) = Con $ pQual $ show v
     defValue (Just (DefaultInteger v)) = intL v
     defValue (Just (DefaultFloat v)) = floatL v
-    defValue (Just (DefaultString v))
-        = App (Var $ implQual "fromString") (stringL v)
+    defValue (Just (DefaultString v)) = strE v
     defValue (Just (DefaultEnum v))
         = let BT_UserDefined decl [] = fieldType
               ns = getDeclNamespace ctx decl
@@ -78,7 +74,7 @@ getField decl = InsDecl $ FunBind $ map fieldFunc (structFields decl) ++ [defaul
     self = Ident "self'"
     val = Ident "field'val"
     defaultFunc = Match noLoc (Ident "bondStructGetField") [PWildCard, PWildCard] Nothing
-            (UnGuardedRhs $ App (Var $ pQual "error") (stringL "unknown field ordinal")) noBinds
+            (UnGuardedRhs $ App (Var $ pQual "error") (strE "unknown field ordinal")) noBinds
     fieldFunc f = Match noLoc (Ident "bondStructGetField")
             [PParen $ PApp (implQual "Ordinal") [PLit Signless $ Int $ fromIntegral $ fieldOrdinal f], PVar self]
             Nothing
@@ -104,14 +100,11 @@ structPut tname decl = InsDecl $ FunBind [Match noLoc (Ident "bondStructPut") [s
                     App (Var $ implQual "bondPutBaseStruct") $ Paren $ App (Var $ UnQual baseStructField) (Var $ UnQual self)
                 ]
     fieldsCode = map putField (structFields decl)
-    putField f =
-        App
-            (App
-                (App
-                    (Var $ putFunc f)
-                    (ExpTypeSig noLoc (Con $ implQual "Proxy") (TyApp (TyCon $ implQual "Proxy") (makeType True tname (declParams decl))))) 
-                (Paren $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f)))
-            (Paren $ App (Var $ UnQual $ mkVar $ makeFieldName f) (Var $ UnQual self))
+    putField f = appFun (Var $ putFunc f)
+                    [ proxyOf $ makeType True tname (declParams decl)
+                    , Paren $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f)
+                    , Paren $ App (Var $ UnQual $ mkVar $ makeFieldName f) (Var $ UnQual self)
+                    ]
     putFunc f | fieldDefault f == Just DefaultNothing = implQual "bondPutDefNothingField"
               | otherwise = implQual "bondPutField"
 
@@ -120,18 +113,16 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
-            [Ident "ScopedTypeVariables", Ident "DeriveDataTypeable"]
+            [Ident "ScopedTypeVariables", Ident "DeriveDataTypeable", Ident "OverloadedStrings"]
         ]
         Nothing
         (Just [EThingAll $ UnQual typeName])
         imports
-        [dataDecl, defaultDecl, wiretypeDecl, bondSerializableDecl,
-         bondStructDecl, typeDefGenDecl (setType opts) ctx decl,
-         fieldsInfoSig, fieldsInfo
+        [dataDecl, defaultDecl, wiretypeDecl, bondTypeDecl,
+         bondStructDecl
         ]
 
-    imports | schemaBootstrapMode opts = importInternalModule : importPrelude : importSchema{importSrc = True} : map (\ m -> importTemplate{importModule = m}) fieldModules
-            | otherwise = importInternalModule : importPrelude : importSchema : map (\ m -> importTemplate{importModule = m}) fieldModules
+    imports = importInternalModule : importPrelude : map (\ m -> importTemplate{importModule = m}) fieldModules
 
     typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
@@ -161,61 +152,34 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
     wiretypeDecl = InstDecl noLoc Nothing [] [] (implQual "WireType")
         [makeType True typeName declParams]
         [InsDecl $ wildcardFunc "getWireType" (Con $ implQual "bT_STRUCT")]
-    bondSerializableDecl = InstDecl noLoc Nothing []
-        (map (typeParamConstraint $ implQual "Default") declParams ++
-            map (typeParamConstraint $ implQual "Serializable") declParams ++
-            map (typeParamConstraint $ sQual "TypeDefGen") declParams)
-        (implQual "Serializable")
+    bondTypeDecl = InstDecl noLoc Nothing []
+        (map (typeParamConstraint $ implQual "BondType") declParams ++
+            map (typeParamConstraint $ implQual "Typeable") declParams)
+        (implQual "BondType")
         [makeType True typeName declParams]
-        [InsDecl $
+        ([InsDecl $
             patBind noLoc (PVar $ Ident "bondGet") $
                 Var (implQual "bondGetStruct"),
          InsDecl $
             patBind noLoc (PVar $ Ident "bondPut") $
                 Var (implQual "bondPutStruct")
-        ]
+        ] ++ structNameAndType ctx decl)
     bondStructDecl = InstDecl noLoc Nothing []
-        (map (typeParamConstraint $ implQual "Default") declParams ++
-            map (typeParamConstraint $ implQual "Serializable") declParams ++
-            map (typeParamConstraint $ sQual "TypeDefGen") declParams)
+        (map (typeParamConstraint $ implQual "BondType") declParams ++
+            map (typeParamConstraint $ implQual "Typeable") declParams)
         (implQual "BondStruct")
         [makeType True typeName declParams]
-        [structPut typeName decl,
-         getUntagged typeName decl,
-         getBase decl,
-         getField decl,
-         InsDecl $ wildcardFunc "fieldsInfo" $ Var (unqual "fields'info")
-        ]
-    fieldsInfoSig = TypeSig noLoc [Ident "fields'info"] $ TyApp (TyApp (TyCon $ implQual "Map") (TyCon $ implQual "Ordinal")) (TyCon $ implQual "FieldInfo")
-    fieldsInfo = patBind noLoc (PVar $ Ident "fields'info") $ App (Var $ implQual "makeMap") $ List $ map makeFieldInfo structFields
-    textL = App (Var $ implQual "pack") . stringL
-    makeFieldInfo f = Tuple Boxed
-        [App (Con $ implQual "Ordinal") (intL $ fieldOrdinal f),
-         RecConstr (implQual "FieldInfo")
-            [FieldUpdate (implQual "fieldName") $ textL (fieldName f),
-             FieldUpdate (implQual "fieldAttrs") $ App (Var $ implQual "makeMap") $
-                List $ map makeAttr (fieldAttributes f),
-             FieldUpdate (implQual "fieldModifier") $ Con $ sQual $
-                case fieldModifier f of
-                    Optional -> "optional"
-                    Required -> "required"
-                    RequiredOptional -> "requiredOptional",
-             FieldUpdate (implQual "fieldDefault") $
-                case fieldDefault f of
-                    Nothing -> Var $ implQual "defaultValue"
-                    Just defval -> convertDefault ctx f defval
-            ]
-        ]
-    makeAttr a = Tuple Boxed
-        [textL (getQualifiedName ctx $ attrName a),
-         textL $ attrValue a
+        [ structPut typeName decl
+        , getUntagged typeName decl
+        , getBase decl
+        , getField decl
+        , getSchema opts ctx decl
         ]
 
 structDecl _ _ _ _ = error "structDecl called for invalid type"
 
 structHsBootDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-structHsBootDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams} =
-    if schemaBootstrapMode opts then Just hsboot else Nothing
+structHsBootDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams} = Just hsboot
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing
         (importInternalModule{importSrc = True} : map (\ m -> importTemplate{importModule = m, importSrc = True}) fieldModules)

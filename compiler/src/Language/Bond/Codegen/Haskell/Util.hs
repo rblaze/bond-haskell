@@ -11,7 +11,6 @@ import Data.Maybe
 
 data CodegenOpts = CodegenOpts
     { setType :: String
-    , schemaBootstrapMode :: Bool
     , deriveShow :: Bool
     , deriveEq :: Bool
     }
@@ -53,9 +52,6 @@ implQual = Qual internalModuleAlias . Ident
 
 implType :: String -> Language.Haskell.Exts.Type
 implType = TyCon . implQual
-
-stringL :: String -> Exp
-stringL = Lit . String
 
 intL :: Integral a => a -> Exp
 intL n | n >= 0 = Lit $ Int $ fromIntegral n
@@ -138,8 +134,14 @@ hsType s c (BT_UserDefined decl params) = foldl1 TyApp $ declType : map (hsType 
                    typename = declName decl
                 in TyCon $ Qual (mkModuleName ns typename) (mkType typename)
 
+proxyOf :: Language.Haskell.Exts.Type -> Exp
+proxyOf = ExpTypeSig noLoc (Con $ implQual "Proxy") . TyApp (TyCon $ implQual "Proxy")
+
 makeDeclName :: Declaration -> String
 makeDeclName decl = overrideName (declName decl) (declAttributes decl)
+
+makeFieldName :: Field -> String
+makeFieldName f = overrideName (fieldName f) (fieldAttributes f)
 
 overrideName :: String -> [Attribute] -> String
 overrideName def attrs = maybe def attrValue $ find (\a -> attrName a == ["HaskellName"]) attrs

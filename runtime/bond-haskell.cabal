@@ -24,7 +24,6 @@ library
   exposed-modules:     Data.Bond
                        Data.Bond.Imports
                        Data.Bond.Marshal
-                       Data.Bond.Schema
                        Data.Bond.ZigZag
                        Data.Bond.Schema.BondDataType
                        Data.Bond.Schema.FieldDef
@@ -51,8 +50,12 @@ library
                        Data.Bond.Utils
                        Data.Bond.Wire
                        Data.Bond.Schema.ProtocolType
+                       Data.Bond.Internal.BondedUtils
                        Data.Bond.Internal.OrdinalSet
+                       Data.Bond.Internal.Protocol
+                       Data.Bond.Internal.SchemaUtils
                        Data.Bond.Internal.TypedSchema
+                       Data.Bond.Internal.Utils
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
                      , aeson
@@ -68,7 +71,7 @@ library
                      , unordered-containers >= 0.2
                      , vector >= 0.10
   default-language:    Haskell2010
-  ghc-options:         -threaded -W -Wall
+  ghc-options:         -threaded -W -Wall -fno-warn-warnings-deprecations
 
 test-suite bond-haskell-test
   type:                exitcode-stdio-1.0

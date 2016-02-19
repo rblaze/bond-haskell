@@ -1,7 +1,7 @@
 module Data.Bond (
     BondProto(bondRead, bondWrite, bondReadWithSchema, bondWriteWithSchema),
     BondTaggedProto(bondReadTagged, bondWriteTagged),
-    BondStruct,
+    BondStruct(getSchema),
     CompactBinaryProto(..),
     CompactBinaryV1Proto(..),
     EncodedString(..),
@@ -14,7 +14,6 @@ module Data.Bond (
     Value(..),
     defaultValue,
     checkStructSchema,
-    getSchema,
     getValue,
     marshalValue,
     putValue
@@ -26,10 +25,11 @@ import Data.Bond.Default
 import Data.Bond.FastBinaryProto
 import Data.Bond.JsonProto
 import Data.Bond.Proto
-import Data.Bond.Schema
 import Data.Bond.SimpleBinaryProto
 import Data.Bond.Struct
 import Data.Bond.Types
+import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.SchemaOps
 
 -- * compile-time schemas API
 -- | 'bondRead'

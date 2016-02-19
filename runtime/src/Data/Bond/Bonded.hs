@@ -3,6 +3,7 @@ module Data.Bond.Bonded where
 
 import {-# SOURCE #-} Data.Bond.Marshal
 import {-# SOURCE #-} Data.Bond.Proto
+import {-# SOURCE #-} Data.Bond.Internal.Protocol
 
 import Control.Exception
 import Data.Typeable

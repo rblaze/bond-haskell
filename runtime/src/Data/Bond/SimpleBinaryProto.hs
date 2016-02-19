@@ -9,24 +9,21 @@ import Data.Bond.BinaryUtils
 import Data.Bond.Cast
 import Data.Bond.CompactBinaryProto
 import Data.Bond.Proto
-import Data.Bond.Schema
 import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Utils
+import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.SchemaOps
+import Data.Bond.Internal.SchemaUtils
+import Data.Bond.Internal.TypedSchema
 
-import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
-import Data.Bond.Schema.SchemaDef
-import qualified Data.Bond.Schema.FieldDef as FD
-import qualified Data.Bond.Schema.StructDef as SD
-import qualified Data.Bond.Schema.TypeDef as TD
 
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Error
 import Data.List
 import Data.Maybe
-import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Binary.Get as B
@@ -34,7 +31,7 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashSet as H
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -282,135 +279,120 @@ encode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
      in tryPut g
 
-decodeWithSchema :: forall t. (SimpleProtocol t, ReaderM t ~ B.Get) => t -> SchemaDef -> BL.ByteString -> Either String Struct
-decodeWithSchema _ schema bs = do
-    checkSchema schema
+decodeWithSchema :: forall t. (SimpleProtocol t, ReaderM t ~ B.Get) => t -> StructSchema -> BL.ByteString -> Either String Struct
+decodeWithSchema _ rootSchema bs = do
     case B.runGetOrFail reader bs of
         Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
         Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
         Right (_, _, a) -> Right a
     where
-    BondGet reader = readStruct (root schema)
-    readStruct :: TD.TypeDef -> BondGet t Struct
-    readStruct td = do
-        let idx = fromIntegral $ TD.struct_def td
-        let sd = structs schema ! idx
-        parent <- case SD.base_def sd of 
+    BondGet reader = readStruct rootSchema
+    readStruct :: StructSchema -> BondGet t Struct
+    readStruct schema = do
+        parent <- case structBase schema of
             Nothing -> return Nothing
-            Just tdescr -> Just <$> readStruct tdescr
-        fs <- M.fromList . V.toList <$> V.mapM readField (SD.fields sd)
+            Just baseSchema -> Just <$> readStruct baseSchema
+        fs <- mapM (readField . fieldType) (structFields schema)
         return $ Struct parent fs
-    readField f = do
-        value <- readValue (FD.typedef f)
-        return (Ordinal $ FD.id f, value)
-    readValue td
-        | TD.id td == bT_BOOL = BOOL <$> bondGetBool
-        | TD.id td == bT_UINT8 = UINT8 <$> bondGetUInt8
-        | TD.id td == bT_UINT16 = UINT16 <$> bondGetUInt16
-        | TD.id td == bT_UINT32 = UINT32 <$> bondGetUInt32
-        | TD.id td == bT_UINT64 = UINT64 <$> bondGetUInt64
-        | TD.id td == bT_INT8 = INT8 <$> bondGetInt8
-        | TD.id td == bT_INT16 = INT16 <$> bondGetInt16
-        | TD.id td == bT_INT32 = INT32 <$> bondGetInt32
-        | TD.id td == bT_INT64 = INT64 <$> bondGetInt64
-        | TD.id td == bT_FLOAT = FLOAT <$> bondGetFloat
-        | TD.id td == bT_DOUBLE = DOUBLE <$> bondGetDouble
-        | TD.id td == bT_STRING = STRING <$> bondGetString
-        | TD.id td == bT_WSTRING = WSTRING <$> bondGetWString
-        | TD.id td == bT_STRUCT && TD.bonded_type td = do
-            n <- getWord32le
-            BONDED . BondedStream <$> getLazyByteString (fromIntegral n)
-        | TD.id td == bT_STRUCT = STRUCT <$> readStruct td
-        | TD.id td == bT_LIST = do
-            let Just et = TD.element td
-            n <- getListHeader
-            LIST (TD.id et) <$> replicateM n (readValue et)
-        | TD.id td == bT_SET = do
-            let Just et = TD.element td
-            n <- getListHeader
-            SET (TD.id et) <$> replicateM n (readValue et)
-        | TD.id td == bT_MAP = do
-            let Just kt = TD.key td
-            let Just vt = TD.element td
-            n <- getListHeader
-            fmap (MAP (TD.id kt) (TD.id vt)) $ replicateM n $ do
-                k <- readValue kt
-                v <- readValue vt
-                return (k, v)
-        | otherwise = error $ "schema validation bug: unknown field type " ++ bondTypeName (TD.id td)
+    readField = readValue . fieldToElementType
 
-encodeWithSchema :: forall t. (SimpleProtocol t, BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> SchemaDef -> Struct -> Either String BL.ByteString
-encodeWithSchema _ schema s = do
-    struct <- checkStructSchema schema s
-    let BondPut writer = putStruct (root schema) struct
+    readValue ElementBool = BOOL <$> bondGetBool
+    readValue ElementUInt8 = UINT8 <$> bondGetUInt8
+    readValue ElementUInt16 = UINT16 <$> bondGetUInt16
+    readValue ElementUInt32 = UINT32 <$> bondGetUInt32
+    readValue ElementUInt64 = UINT64 <$> bondGetUInt64
+    readValue ElementInt8 = INT8 <$> bondGetInt8
+    readValue ElementInt16 = INT16 <$> bondGetInt16
+    readValue ElementInt32 = INT32 <$> bondGetInt32
+    readValue ElementInt64 = INT64 <$> bondGetInt64
+    readValue ElementFloat = FLOAT <$> bondGetFloat
+    readValue ElementDouble = DOUBLE <$> bondGetDouble
+    readValue ElementString = STRING <$> bondGetString
+    readValue ElementWString = WSTRING <$> bondGetWString
+    readValue (ElementBonded _) = do
+        n <- getWord32le
+        BONDED . BondedStream <$> getLazyByteString (fromIntegral n)
+    readValue (ElementStruct schema) = STRUCT <$> readStruct schema
+    readValue (ElementList element) = do
+        n <- getListHeader
+        LIST (elementToBondDataType element) <$> replicateM n (readValue element)
+    readValue (ElementSet element) = do
+        n <- getListHeader
+        SET (elementToBondDataType element) <$> replicateM n (readValue element)
+    readValue (ElementMap key value) = do
+        n <- getListHeader
+        fmap (MAP (elementToBondDataType key) (elementToBondDataType value)) $ replicateM n $ do
+            k <- readValue key
+            v <- readValue value
+            return (k, v)
+
+encodeWithSchema :: forall t. (SimpleProtocol t, BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> StructSchema -> Struct -> Either String BL.ByteString
+encodeWithSchema _ rootSchema s = do
+    struct <- checkStructSchema rootSchema s
+    let BondPut writer = putStruct rootSchema struct
     tryPut writer
     where
-    putStruct :: TD.TypeDef -> Struct -> BondPut t
-    putStruct td struct = do
-        let idx = fromIntegral $ TD.struct_def td
-        let sd = structs schema ! idx
-        case (SD.base_def sd, base struct) of 
+    putStruct :: StructSchema -> Struct -> BondPut t
+    putStruct schema struct = do
+        case (structBase schema, base struct) of 
             (Nothing, Nothing) -> return ()
-            (Just tdescr, Just baseStruct) -> putStruct tdescr baseStruct
-            _ -> error "struct validation bug: inheritance chain in schema do not match one in struct"
-        V.mapM_ (putField $ fields struct) (SD.fields sd)
-    putField fieldmap f = do
-        value <- maybe (mkDefault f) return $ M.lookup (Ordinal $ FD.id f) fieldmap
-        putValue (FD.typedef f) value
-    mkDefault f = do
-        let def = default_value (FD.metadata f)
-        when (nothing def) $ throwError "can't serialize default nothing with SimpleBinary protocol"
-        let td = FD.typedef f
-        let typ = TD.id td
-        if | typ == bT_BOOL -> return $ BOOL $ uint_value def /= 0
-           | typ == bT_INT8 -> return $ INT8 $ fromIntegral $ int_value def
-           | typ == bT_INT16 -> return $ INT16 $ fromIntegral $ int_value def
-           | typ == bT_INT32 -> return $ INT32 $ fromIntegral $ int_value def
-           | typ == bT_INT64 -> return $ INT64 $ fromIntegral $ int_value def
-           | typ == bT_UINT8 -> return $ UINT8 $ fromIntegral $ int_value def
-           | typ == bT_UINT16 -> return $ UINT16 $ fromIntegral $ int_value def
-           | typ == bT_UINT32 -> return $ UINT32 $ fromIntegral $ int_value def
-           | typ == bT_UINT64 -> return $ UINT64 $ fromIntegral $ int_value def
-           | typ == bT_DOUBLE -> return $ DOUBLE $ double_value def
-           | typ == bT_FLOAT -> return $ FLOAT $ realToFrac $ double_value def
-           | typ == bT_STRING -> return $ STRING $ string_value def
-           | typ == bT_WSTRING -> return $ WSTRING $ wstring_value def
-           | typ == bT_LIST -> return $ LIST (TD.id $ fromJust $ TD.element td) []
-           | typ == bT_SET -> return $ SET (TD.id $ fromJust $ TD.element td) []
-           | typ == bT_MAP -> return $ MAP (TD.id $ fromJust $ TD.key td) (TD.id $ fromJust $ TD.element td) []
-           | otherwise -> throwError $ "can't make default value for type " ++ bondTypeName typ ++ ", struct must have it"
-    putValue _ (BOOL b) = bondPutBool b
-    putValue _ (INT8 v) = bondPutInt8 v
-    putValue _ (INT16 v) = bondPutInt16 v
-    putValue _ (INT32 v) = bondPutInt32 v
-    putValue _ (INT64 v) = bondPutInt64 v
-    putValue _ (UINT8 v) = bondPutUInt8 v
-    putValue _ (UINT16 v) = bondPutUInt16 v
-    putValue _ (UINT32 v) = bondPutUInt32 v
-    putValue _ (UINT64 v) = bondPutUInt64 v
-    putValue _ (FLOAT v) = bondPutFloat v
-    putValue _ (DOUBLE v) = bondPutDouble v
-    putValue _ (STRING v) = bondPutString v
-    putValue _ (WSTRING v) = bondPutWString v
-    putValue td (STRUCT v) | TD.bonded_type td = putValue td (BONDED $ BondedObject v)
-    putValue td (STRUCT v) = putStruct td v
-    putValue td (LIST _ xs) = do
-        let Just etd = TD.element td
+            (Just baseSchema, Just baseStruct) -> putStruct baseSchema baseStruct
+            _ -> error "internal error: inheritance chain in schema do not match one in struct"
+        mapM_ (putField $ fields struct) $ M.toAscList $ structFields schema
+    putField fieldmap (fieldId, fieldInfo) = do
+        value <- maybe (getDefault $ fieldType fieldInfo) return $ M.lookup fieldId fieldmap
+        putValue (fieldToElementType $ fieldType fieldInfo) value
+
+    getDefault (FieldBool d) = BOOL <$> checkForNothing d
+    getDefault (FieldInt8 d) = INT8 <$> checkForNothing d
+    getDefault (FieldInt16 d) = INT16 <$> checkForNothing d
+    getDefault (FieldInt32 d) = INT32 <$> checkForNothing d
+    getDefault (FieldInt64 d) = INT64 <$> checkForNothing d
+    getDefault (FieldUInt8 d) = UINT8 <$> checkForNothing d
+    getDefault (FieldUInt16 d) = UINT16 <$> checkForNothing d
+    getDefault (FieldUInt32 d) = UINT32 <$> checkForNothing d
+    getDefault (FieldUInt64 d) = UINT64 <$> checkForNothing d
+    getDefault (FieldFloat d) = FLOAT <$> checkForNothing d
+    getDefault (FieldDouble d) = DOUBLE <$> checkForNothing d
+    getDefault (FieldString d) = STRING <$> checkForNothing d
+    getDefault (FieldWString d) = WSTRING <$> checkForNothing d
+    getDefault (FieldStruct _ _) = error "not implemented: default value for structs"
+    getDefault (FieldBonded _ _) = error "not implemented: default value for bonded"
+    getDefault (FieldList d element) = LIST (elementToBondDataType element) . const [] <$> checkForNothing d
+    getDefault (FieldSet d element) = SET (elementToBondDataType element) . const [] <$> checkForNothing d
+    getDefault (FieldMap d key value) = MAP (elementToBondDataType key) (elementToBondDataType value) . const [] <$> checkForNothing d
+
+    checkForNothing DefaultNothing = throwError "can't serialize default nothing with SimpleBinary protocol"
+    checkForNothing (DefaultValue a) = return a
+
+    putValue ElementBool (BOOL b) = bondPutBool b
+    putValue ElementInt8 (INT8 v) = bondPutInt8 v
+    putValue ElementInt16 (INT16 v) = bondPutInt16 v
+    putValue ElementInt32 (INT32 v) = bondPutInt32 v
+    putValue ElementInt64 (INT64 v) = bondPutInt64 v
+    putValue ElementUInt8 (UINT8 v) = bondPutUInt8 v
+    putValue ElementUInt16 (UINT16 v) = bondPutUInt16 v
+    putValue ElementUInt32 (UINT32 v) = bondPutUInt32 v
+    putValue ElementUInt64 (UINT64 v) = bondPutUInt64 v
+    putValue ElementFloat (FLOAT v) = bondPutFloat v
+    putValue ElementDouble (DOUBLE v) = bondPutDouble v
+    putValue ElementString (STRING v) = bondPutString v
+    putValue ElementWString (WSTRING v) = bondPutWString v
+    putValue (ElementStruct schema) (STRUCT v) = putStruct schema v
+    putValue (ElementList element) (LIST _ xs) = do
         putListHeader $ length xs
-        mapM_ (putValue etd) xs
-    putValue td (SET _ xs) = do
-        let Just etd = TD.element td
+        mapM_ (putValue element) xs
+    putValue (ElementSet element) (SET _ xs) = do
         putListHeader $ length xs
-        mapM_ (putValue etd) xs
-    putValue td (MAP _ _ xs) = do
-        let Just vtd = TD.element td
-        let Just ktd = TD.key td
+        mapM_ (putValue element) xs
+    putValue (ElementMap key value) (MAP _ _ xs) = do
         putListHeader $ length xs
-        forM_ xs $ \ (k, v) -> putValue ktd k >> putValue vtd v
-    putValue _ (BONDED (BondedStream stream)) = do
+        forM_ xs $ \ (k, v) -> putValue key k >> putValue value v
+    putValue ElementBonded{} (BONDED (BondedStream stream)) = do
         putWord32le $ fromIntegral $ BL.length stream
         putLazyByteString stream
-    putValue td (BONDED (BondedObject struct)) = do
-        stream <- either throwError return $ bondMarshalWithSchema CompactBinaryProto schema{root = td} struct
+    putValue (ElementBonded schema) (BONDED (BondedObject struct)) = do
+        stream <- either throwError return $ bondMarshalWithSchema CompactBinaryProto schema struct
         putWord32le $ fromIntegral $ BL.length stream
         putLazyByteString stream
+    putValue _ _ = error "internal error: schema type do not match value type"

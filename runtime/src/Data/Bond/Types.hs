@@ -22,13 +22,15 @@ module Data.Bond.Types (
     Word16,
     Word32,
     Word64,
-    Word8
+    Word8,
+    fromString
   ) where
 
 import {-# SOURCE #-} Data.Bond.Bonded
 
 import Data.Data
 import Data.Int
+import Data.String
 import Data.Word
 import Data.Hashable
 import qualified Data.ByteString as BS
@@ -49,18 +51,21 @@ newtype Blob = Blob BS.ByteString
     deriving (Show, Eq, Ord, Hashable, Typeable)
 
 class EncodedString a where
-    fromString :: String -> a
-    fromString = fromText . T.pack
-
     toString :: a -> String
     toString = T.unpack . toText
 
     fromText :: T.Text -> a
     toText :: a -> T.Text
 
+instance IsString Utf8 where
+    fromString = fromText . T.pack
+
 instance EncodedString Utf8 where
     fromText = Utf8 . T.encodeUtf8
     toText (Utf8 s) = T.decodeUtf8 s
+
+instance IsString Utf16 where
+    fromString = fromText . T.pack
 
 instance EncodedString Utf16 where
     fromText = Utf16 . T.encodeUtf16LE

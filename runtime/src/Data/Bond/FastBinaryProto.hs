@@ -6,12 +6,13 @@ module Data.Bond.FastBinaryProto (
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
-import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
+import Data.Bond.Internal.BondedUtils
+import Data.Bond.Internal.Protocol
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
@@ -198,21 +199,21 @@ instance Protocol FastBinaryProto where
             Right v -> return v
         putLazyByteString (BL.drop 4 stream)
 
-getList :: forall a. Serializable a => BondGet FastBinaryProto [a]
+getList :: forall a. BondType a => BondGet FastBinaryProto [a]
 getList = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     replicateM n bondGet
 
-getVector :: forall a. Serializable a => BondGet FastBinaryProto (Vector a)
+getVector :: forall a. BondType a => BondGet FastBinaryProto (Vector a)
 getVector = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     V.replicateM n bondGet
 
-getMap :: forall k v. (Ord k, Serializable k, Serializable v) => BondGet FastBinaryProto (Map k v)
+getMap :: forall k v. (Ord k, BondType k, BondType v) => BondGet FastBinaryProto (Map k v)
 getMap = do
     let etk = getWireType (Proxy :: Proxy k)
     let etv = getWireType (Proxy :: Proxy v)
@@ -226,22 +227,22 @@ getMap = do
         v <- bondGet
         return (k, v)
 
-putList :: forall a. Serializable a => [a] -> BondPut FastBinaryProto
+putList :: forall a. BondType a => [a] -> BondPut FastBinaryProto
 putList xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     mapM_ bondPut xs
 
-putHashSet :: forall a. Serializable a => HashSet a -> BondPut FastBinaryProto
+putHashSet :: forall a. BondType a => HashSet a -> BondPut FastBinaryProto
 putHashSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     mapM_ bondPut $ H.toList xs
 
-putSet :: forall a. Serializable a => Set a -> BondPut FastBinaryProto
+putSet :: forall a. BondType a => Set a -> BondPut FastBinaryProto
 putSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v. (Serializable k, Serializable v) => Map k v -> BondPut FastBinaryProto
+putMap :: forall k v. (BondType k, BondType v) => Map k v -> BondPut FastBinaryProto
 putMap m = do
     putTag $ getWireType (Proxy :: Proxy k)
     putTag $ getWireType (Proxy :: Proxy v)
@@ -250,7 +251,7 @@ putMap m = do
         bondPut k
         bondPut v
 
-putVector :: forall a. Serializable a => Vector a -> BondPut FastBinaryProto
+putVector :: forall a. BondType a => Vector a -> BondPut FastBinaryProto
 putVector xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs

@@ -6,17 +6,16 @@ module Data.Bond.JsonProto (
 import Data.Bond.Default
 import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
-import Data.Bond.Schema
 import Data.Bond.Struct
 import Data.Bond.Types
 import Data.Bond.Utils
+import Data.Bond.Internal.BondedUtils
+import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.SchemaOps
+import Data.Bond.Internal.SchemaUtils
+import Data.Bond.Internal.TypedSchema
 
-import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
-import Data.Bond.Schema.SchemaDef
-import qualified Data.Bond.Schema.FieldDef as FD
-import qualified Data.Bond.Schema.StructDef as SD
-import qualified Data.Bond.Schema.TypeDef as TD
 
 import Control.Applicative hiding (optional)
 import Control.Monad
@@ -30,7 +29,6 @@ import Data.Proxy
 import Data.Scientific
 import Data.Text (Text)
 import Data.Text.Encoding
-import Data.Vector ((!))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 
 import qualified Data.Aeson as A
@@ -39,7 +37,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as H
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -228,32 +226,33 @@ parseStruct = do
     baseStruct <- bondStructGetBase defaultValue
 
     useObject "struct" value $ \obj -> do
-        let parseField s (ordinal, info) = do
-                let fname = M.findWithDefault (fieldName info) "JsonName" (fieldAttrs info)
-                case HM.lookup fname obj of
+        let parseField s (ordinal, fieldInfo) = do
+                let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
+                case HM.lookup fieldname obj of
                     Nothing -> return s
                     Just v -> local (const v) $ bondStructGetField ordinal s
-        foldM parseField baseStruct $ M.toList $ fieldsInfo (Proxy :: Proxy a)
+        foldM parseField baseStruct $ M.toList $ structFields $ getSchema (Proxy :: Proxy a)
 
-putField :: forall a b . (Serializable a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut JsonProto
-putField p n a = do
-    let info = M.findWithDefault (error "unknown field ordinal") n (fieldsInfo p)
-    let needToSave = not (equalToDefault (fieldDefault info) a) || fieldModifier info /= optional
+putField :: forall a b . (BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut JsonProto
+putField p ordinal a = do
+    let fieldInfo = M.findWithDefault (error "internal error: unknown field ordinal") ordinal (structFields $ getSchema p)
+    -- FIXME check all required fields written
+    let needToSave = not (equalToDefault (fieldType fieldInfo) a) || fieldModifier fieldInfo /= FieldOptional
     when needToSave $ do
-        let fname = M.findWithDefault (fieldName info) "JsonName" (fieldAttrs info)
+        let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
         A.Object obj <- get
         bondPut a
         v <- get
-        put $ A.Object $ HM.insert fname v obj
+        put $ A.Object $ HM.insert fieldname v obj
 
-putList :: forall a. Serializable a => [a] -> BondPut JsonProto
+putList :: forall a. BondType a => [a] -> BondPut JsonProto
 putList xs = do
     vs <- forM xs $ \x -> do
         bondPut x
         get
     put $ A.Array $ V.fromList vs
 
-putMap :: forall k v. (Serializable k, Serializable v) => Map k v -> BondPut JsonProto
+putMap :: forall k v. (BondType k, BondType v) => Map k v -> BondPut JsonProto
 putMap m = do
     vs <- flip concatMapM (M.toList m) $ \(k, v) -> do
         bondPut k
@@ -263,142 +262,127 @@ putMap m = do
         return [key, val]
     put $ A.Array $ V.fromList vs
 
-jsonDecodeWithSchema :: SchemaDef -> BL.ByteString -> Either String Struct
-jsonDecodeWithSchema schema bs = do
-    checkSchema schema
-    v <- A.eitherDecode bs
-    runReader (runErrorT rdr) v
+jsonDecodeWithSchema :: StructSchema -> BL.ByteString -> Either String Struct
+jsonDecodeWithSchema rootSchema bs = A.eitherDecode bs >>= runReader (runErrorT rdr)
     where
-    BondGet rdr = readStruct (root schema)
-    readStruct :: TD.TypeDef -> BondGet JsonProto Struct
-    readStruct td = do
-        let idx = fromIntegral $ TD.struct_def td
-        let sd = structs schema ! idx
-        parent <- case SD.base_def sd of 
+    BondGet rdr = readStruct rootSchema
+    readStruct :: StructSchema -> BondGet JsonProto Struct
+    readStruct schema = do
+        parent <- case structBase schema of 
             Nothing -> return Nothing
-            Just tdescr -> Just <$> readStruct tdescr
+            Just baseSchema -> Just <$> readStruct baseSchema
         value <- ask
         useObject "struct" value $ \ obj -> do
-            fs <- M.fromList . catMaybes . V.toList <$> V.mapM (readField obj) (SD.fields sd)
+            fs <- M.fromList . catMaybes <$> mapM (readField obj) (M.toList $ structFields schema)
             return $ Struct parent fs
-    readField obj f = do
-        let meta = FD.metadata f
-        let Utf8 fname = M.findWithDefault (name meta) (Utf8 "JsonName") (attributes meta)
-        case HM.lookup (decodeUtf8 fname) obj of
+    readField obj (fieldId, fieldInfo) = do
+        let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
+        case HM.lookup fieldname obj of
             Nothing -> return Nothing
             Just v -> do
-                fieldValue <- local (const v) (readValue $ FD.typedef f)
-                return $ Just (Ordinal $ FD.id f, fieldValue)
-    readValue td
-        | TD.id td == bT_BOOL = BOOL <$> bondGetBool
-        | TD.id td == bT_UINT8 = UINT8 <$> bondGetUInt8
-        | TD.id td == bT_UINT16 = UINT16 <$> bondGetUInt16
-        | TD.id td == bT_UINT32 = UINT32 <$> bondGetUInt32
-        | TD.id td == bT_UINT64 = UINT64 <$> bondGetUInt64
-        | TD.id td == bT_INT8 = INT8 <$> bondGetInt8
-        | TD.id td == bT_INT16 = INT16 <$> bondGetInt16
-        | TD.id td == bT_INT32 = INT32 <$> bondGetInt32
-        | TD.id td == bT_INT64 = INT64 <$> bondGetInt64
-        | TD.id td == bT_FLOAT = FLOAT <$> bondGetFloat
-        | TD.id td == bT_DOUBLE = DOUBLE <$> bondGetDouble
-        | TD.id td == bT_STRING = STRING <$> bondGetString
-        | TD.id td == bT_WSTRING = WSTRING <$> bondGetWString
-        | TD.id td == bT_STRUCT && TD.bonded_type td = do
-            v <- ask
-            return $ BONDED $ BondedStream $ BL.append (protoSig JsonProto) (A.encode v)
-        | TD.id td == bT_STRUCT = STRUCT <$> readStruct td
-        | TD.id td == bT_LIST = useArrayOrNull "list" $ \v -> do
-            let Just et = TD.element td
-            LIST (TD.id et) <$> mapM (\x -> local (const x) (readValue et)) (V.toList v)
-        | TD.id td == bT_SET = useArray "set" $ \v -> do
-            let Just et = TD.element td
-            SET (TD.id et) <$> mapM (\x -> local (const x) (readValue et)) (V.toList v)
-        | TD.id td == bT_MAP = useArray "map" $ \v -> do
-            let Just kt = TD.key td
-            let Just vt = TD.element td
-            let readPair ss = case ss of
-                    [] -> return []
-                    (key:val:xs) -> do
-                        ke <- local (const key) $ readValue kt
-                        ve <- local (const val) $ readValue vt
-                        rest <- readPair xs
-                        return $ (ke, ve) : rest
-                    _ -> throwError "map key without value"
-            MAP (TD.id kt) (TD.id vt) <$> readPair (V.toList v)
-        | otherwise = error $ "schema validation bug: unknown field type " ++ bondTypeName (TD.id td)
+                fieldValue <- local (const v) $ readValue (fieldToElementType $ fieldType fieldInfo)
+                return $ Just (fieldId, fieldValue)
 
-jsonEncodeWithSchema :: SchemaDef -> Struct -> Either String BL.ByteString
-jsonEncodeWithSchema schema s = do
-    struct <- checkStructSchema schema s
-    let BondPut writer = putStruct (root schema) struct
+    readValue ElementBool = BOOL <$> bondGetBool
+    readValue ElementUInt8 = UINT8 <$> bondGetUInt8
+    readValue ElementUInt16 = UINT16 <$> bondGetUInt16
+    readValue ElementUInt32 = UINT32 <$> bondGetUInt32
+    readValue ElementUInt64 = UINT64 <$> bondGetUInt64
+    readValue ElementInt8 = INT8 <$> bondGetInt8
+    readValue ElementInt16 = INT16 <$> bondGetInt16
+    readValue ElementInt32 = INT32 <$> bondGetInt32
+    readValue ElementInt64 = INT64 <$> bondGetInt64
+    readValue ElementFloat = FLOAT <$> bondGetFloat
+    readValue ElementDouble = DOUBLE <$> bondGetDouble
+    readValue ElementString = STRING <$> bondGetString
+    readValue ElementWString = WSTRING <$> bondGetWString
+    readValue (ElementBonded _) = do
+        v <- ask
+        return $ BONDED $ BondedStream $ BL.append (protoSig JsonProto) (A.encode v)
+    readValue (ElementStruct schema) = STRUCT <$> readStruct schema
+    readValue (ElementList element) = useArrayOrNull "list" $ \v ->
+        LIST (elementToBondDataType element) <$> forM (V.toList v) (\x ->
+            local (const x) (readValue element))
+    readValue (ElementSet element) = useArrayOrNull "set" $ \v ->
+        SET (elementToBondDataType element) <$> forM (V.toList v) (\x ->
+            local (const x) (readValue element))
+    readValue (ElementMap key value) = useArray "map" $ \v -> do
+        let readPair ss = case ss of
+                [] -> return []
+                (kobj:vobj:xs) -> do
+                    k <- local (const kobj) $ readValue key
+                    val <- local (const vobj) $ readValue value
+                    rest <- readPair xs
+                    return $ (k, val) : rest
+                _ -> throwError "map key without value"
+        MAP (elementToBondDataType key) (elementToBondDataType value) <$> readPair (V.toList v)
+
+jsonEncodeWithSchema :: StructSchema -> Struct -> Either String BL.ByteString
+jsonEncodeWithSchema rootSchema s = do
+    struct <- checkStructSchema rootSchema s
+    let BondPut writer = putStruct rootSchema struct
     case runState (runErrorT writer) (error "no object") of
         (Left msg, _) -> Left msg
         (Right (), v) -> Right $ A.encode v
     where
-    putStruct :: TD.TypeDef -> Struct -> BondPut JsonProto
-    putStruct td struct = do
+    putStruct :: StructSchema -> Struct -> BondPut JsonProto
+    putStruct schema struct = do
         put A.emptyObject
-        putStructData td struct
-    putStructData td struct = do
-        let idx = fromIntegral $ TD.struct_def td
-        let sd = structs schema ! idx
-        case (SD.base_def sd, base struct) of 
+        putStructData schema struct
+    putStructData schema struct = do
+        case (structBase schema, base struct) of 
             (Nothing, Nothing) -> return ()
-            (Just tdescr, Just baseStruct) -> putStructData tdescr baseStruct
-            _ -> error "struct validation bug: inheritance chain in schema do not match one in struct"
-        V.mapM_ (putStructField $ fields struct) (SD.fields sd)
-    putStructField fieldmap f = do
-        let meta = FD.metadata f
-        let Utf8 fname = M.findWithDefault (name meta) (Utf8 "JsonName") (attributes meta)
-        case M.lookup (Ordinal $ FD.id f) fieldmap of
-            Nothing -> return ()
-            Just value -> do
+            (Just baseSchema, Just baseStruct) -> putStructData baseSchema baseStruct
+            _ -> error "internal error: inheritance chain in schema do not match one in struct"
+        mapM_ (putStructField $ structFields schema) $ M.toList $ fields struct
+    putStructField schemamap (fieldId, fieldValue) =
+        case M.lookup fieldId schemamap of
+            Nothing -> return () -- XXX schemaless operations not implemented
+            Just fieldInfo -> do
+                let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
                 A.Object obj <- get
-                putValue (FD.typedef f) value
+                putValue (fieldToElementType $ fieldType fieldInfo) fieldValue
                 v <- get
-                put $ A.Object $ HM.insert (decodeUtf8 fname) v obj
-    putValue _ (BOOL b) = bondPutBool b
-    putValue _ (INT8 v) = bondPutInt8 v
-    putValue _ (INT16 v) = bondPutInt16 v
-    putValue _ (INT32 v) = bondPutInt32 v
-    putValue _ (INT64 v) = bondPutInt64 v
-    putValue _ (UINT8 v) = bondPutUInt8 v
-    putValue _ (UINT16 v) = bondPutUInt16 v
-    putValue _ (UINT32 v) = bondPutUInt32 v
-    putValue _ (UINT64 v) = bondPutUInt64 v
-    putValue _ (FLOAT v) = bondPutFloat v
-    putValue _ (DOUBLE v) = bondPutDouble v
-    putValue _ (STRING v) = bondPutString v
-    putValue _ (WSTRING v) = bondPutWString v
-    putValue td (STRUCT v) | TD.bonded_type td = putValue td (BONDED $ BondedObject v)
-    putValue td (STRUCT v) = putStruct td v
-    putValue td (LIST _ xs) = do
-        let Just etd = TD.element td
+                put $ A.Object $ HM.insert fieldname v obj
+
+    putValue ElementBool (BOOL b) = bondPutBool b
+    putValue ElementInt8 (INT8 v) = bondPutInt8 v
+    putValue ElementInt16 (INT16 v) = bondPutInt16 v
+    putValue ElementInt32 (INT32 v) = bondPutInt32 v
+    putValue ElementInt64 (INT64 v) = bondPutInt64 v
+    putValue ElementUInt8 (UINT8 v) = bondPutUInt8 v
+    putValue ElementUInt16 (UINT16 v) = bondPutUInt16 v
+    putValue ElementUInt32 (UINT32 v) = bondPutUInt32 v
+    putValue ElementUInt64 (UINT64 v) = bondPutUInt64 v
+    putValue ElementFloat (FLOAT v) = bondPutFloat v
+    putValue ElementDouble (DOUBLE v) = bondPutDouble v
+    putValue ElementString (STRING v) = bondPutString v
+    putValue ElementWString (WSTRING v) = bondPutWString v
+    putValue (ElementStruct schema) (STRUCT v) = putStruct schema v
+    putValue (ElementList element) (LIST _ xs) = do
         vs <- forM xs $ \x -> do
-            putValue etd x
+            putValue element x
             get
         put $ A.Array $ V.fromList vs
-    putValue td (SET _ xs) = do
-        let Just etd = TD.element td
+    putValue (ElementSet element) (SET _ xs) = do
         vs <- forM xs $ \x -> do
-            putValue etd x
+            putValue element x
             get
         put $ A.Array $ V.fromList vs
-    putValue td (MAP _ _ xs) = do
-        let Just vtd = TD.element td
-        let Just ktd = TD.key td
+    putValue (ElementMap key value) (MAP _ _ xs) = do
         vs <- flip concatMapM xs $ \(k, v) -> do
-            putValue ktd k
-            key <- get
-            putValue vtd v
-            val <- get
-            return [key, val]
+            putValue key k
+            kobj <- get
+            putValue value v
+            vobj <- get
+            return [kobj, vobj]
         put $ A.Array $ V.fromList vs
-    putValue td (BONDED (BondedObject struct)) = putStruct td struct
-    putValue td (BONDED src@BondedStream{}) = do
-        BondedStream stream <- case bondRecodeStruct JsonProto schema{root = td} src of
+    putValue (ElementBonded schema) (BONDED stream@BondedStream{}) = do
+        BondedStream jsonstream <- case bondRecodeStruct JsonProto schema stream of
             Left msg -> throwError $ "Bonded recode error: " ++ msg
             Right v -> return v
-        case A.eitherDecode (BL.drop 4 stream) of
+        case A.eitherDecode (BL.drop 4 jsonstream) of
             Left msg -> throwError $ "Bonded recode error: " ++ msg
             Right v -> put v
+    putValue (ElementBonded schema) (BONDED (BondedObject struct)) = putStruct schema struct
+    putValue _ _ = error "internal error: schema type do not match value type"

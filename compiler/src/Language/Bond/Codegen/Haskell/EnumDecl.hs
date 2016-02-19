@@ -4,34 +4,34 @@ module Language.Bond.Codegen.Haskell.EnumDecl (
     ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping
-import Language.Bond.Codegen.Haskell.SchemaDecl
+import Language.Bond.Codegen.TypeMapping (MappingContext(..))
 import Language.Bond.Codegen.Haskell.Util
 import Language.Haskell.Exts hiding (mode)
 import Language.Haskell.Exts.SrcLoc (noLoc)
 
 enumDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumDecl opts ctx moduleName decl@Enum{} = Just source
+enumDecl _ ctx moduleName decl@Enum{} = Just source
     where
     source = Module noLoc moduleName
-        [LanguagePragma noLoc
-            [Ident "GeneralizedNewtypeDeriving", Ident "DeriveDataTypeable"]
+        [ LanguagePragma noLoc
+            [ Ident "GeneralizedNewtypeDeriving"
+            , Ident "DeriveDataTypeable"
+            , Ident "OverloadedStrings"
+            ]
         ]
         Nothing
         Nothing
-        imports
-        (dataDecl : serializableDecl : typeDefGenDecl (error "do not use") ctx decl : typeSig : values)
-    imports | schemaBootstrapMode opts = [importInternalModule, importPrelude, importSchema{importSrc = True}]
-            | otherwise = [importInternalModule, importPrelude, importSchema]
+        [importInternalModule, importPrelude]
+        (dataDecl : bondTypeDecl : typeSig : values)
     typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
     dataDecl = DataDecl noLoc NewType [] typeName []
-        [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])]
-        [(pQual "Show", []), (pQual "Eq", []), (pQual "Ord", []), (pQual "Enum", []),
-         (implQual "Hashable", []),
-         (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", [])
+        [ QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"]) ]
+        [ (pQual "Show", []), (pQual "Eq", []), (pQual "Ord", []), (pQual "Enum", [])
+        , (implQual "Hashable", [])
+        , (implQual "WireType", []), (implQual "Default", []), (implQual "Typeable", [])
         ]
-    serializableDecl = InstDecl noLoc Nothing [] [] (implQual "Serializable")
+    bondTypeDecl = InstDecl noLoc Nothing [] [] (implQual "BondType")
         [typeCon]
         [InsDecl $
             FunBind
@@ -45,7 +45,10 @@ enumDecl opts ctx moduleName decl@Enum{} = Just source
             PatBind noLoc (PVar $ Ident "bondGet")
                 (UnGuardedRhs $
                     appFun (Var $ pQual "fmap") [Con $ UnQual typeName, Var $ implQual "bondGet"])
-                noBinds
+                noBinds,
+         InsDecl $ wildcardFunc "getName" $ strE (declName decl),
+         InsDecl $ wildcardFunc "getQualifiedName" $ strE (getDeclTypeName ctx{namespaceMapping = []} decl),
+         InsDecl $ wildcardFunc "getElementType" $ Con (implQual "ElementInt32")
         ]
     typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
     values = makeValue 0 (enumConstants decl)
@@ -60,7 +63,7 @@ enumDecl opts ctx moduleName decl@Enum{} = Just source
 enumDecl _ _ _ _ = error "enumDecl called for invalid type"
 
 enumHsBootDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> Maybe Module
-enumHsBootDecl opts _ moduleName decl@Enum{} = if schemaBootstrapMode opts then Just hsboot else Nothing
+enumHsBootDecl _ _ moduleName decl@Enum{} = Just hsboot
     where
     hsboot = Module noLoc moduleName [] Nothing Nothing [importInternalModule{importSrc = True}, importPrelude] [
                 DataDecl noLoc NewType [] typeName [] [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])] [],

@@ -2,8 +2,8 @@
 module Data.Bond.BinaryUtils where
 
 import Data.Bond.BinaryClass
-import Data.Bond.Proto
 import Data.Bond.Types
+import Data.Bond.Internal.Protocol
 
 import Control.Applicative
 import Data.Bits

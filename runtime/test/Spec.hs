@@ -1,4 +1,4 @@
-{-# Language GADTs, ScopedTypeVariables #-}
+{-# Language GADTs, ScopedTypeVariables, OverloadedStrings #-}
 import Data.Bond
 import Data.Bond.Marshal
 import Data.Bond.ZigZag
@@ -192,10 +192,10 @@ invalidTaggedWriteTests t = testGroup "invalid tagged write tests"
             $ M.fromList [(Ordinal 1, SET bT_STRUCT [STRUCT $ Struct Nothing M.empty, BOOL True])],
     testCaseInfo "type mismatch in map key" $
         testInvalidTaggedWrite t $ Struct Nothing
-            $ M.fromList [(Ordinal 1, MAP bT_UINT32 bT_STRING [(UINT64 1, STRING $ fromString "bar")])],
+            $ M.fromList [(Ordinal 1, MAP bT_UINT32 bT_STRING [(UINT64 1, STRING "bar")])],
     testCaseInfo "type mismatch in map value" $
         testInvalidTaggedWrite t $ Struct Nothing
-            $ M.fromList [(Ordinal 1, MAP bT_UINT64 bT_WSTRING [(UINT64 1, STRING $ fromString "foo")])]
+            $ M.fromList [(Ordinal 1, MAP bT_UINT64 bT_WSTRING [(UINT64 1, STRING "foo")])]
   ]
 
 -- Simple protocol has different m_defaults from all others. Also some enum values differ.
@@ -273,7 +273,8 @@ readCompatWithSchema p f = assertEither $ do
 readCompatWithRuntimeSchema :: BondProto t => t -> String -> Assertion
 readCompatWithRuntimeSchema p f = assertEither $ do
     schemadat <- readData (compatDataPath </> "compat.schema.dat")
-    schema <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+    schemadef <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+    schema <- hoistEither $ parseSchema schemadef
     dat <- readData (compatDataPath </> f)
     s <- hoistEither $ bondReadWithSchema p schema dat
     outdat <- hoistEither $ bondWriteWithSchema p schema s
@@ -333,7 +334,8 @@ testJsonWithRuntimeSchema :: String -> FilePath -> TestTree
 testJsonWithRuntimeSchema name f = goldenVsString name (compatDataPath </> "golden.json.dat") $
     eitherT (\ msg -> assertFailure msg >> return BL.empty) return $ do
         schemadat <- readData (compatDataPath </> "compat.schema.dat")
-        schema <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+        schemadef <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+        schema <- hoistEither $ parseSchema schemadef
         dat <- readData (compatDataPath </> f)
         s <- hoistEither $ bondReadWithSchema JsonProto schema dat
         hoistEither $ bondWriteWithSchema JsonProto schema s
@@ -346,24 +348,26 @@ readAsType p _ f = assertEither $ do
 matchCompatSchemaDef :: Assertion
 matchCompatSchemaDef = assertEither $ do
     dat <- readData (compatDataPath </> "compat.schema.dat")
-    s <- hoistEither $ bondUnmarshal dat
-    let s' = getSchema (Proxy :: Proxy Compat)
-    checkEqual "schemas do not match" s s'
+    fileSchema <- hoistEither $ bondUnmarshal dat
+    let schema = getSchema (Proxy :: Proxy Compat)
+    let assembledSchema = assembleSchema schema
+    checkEqual "schemas do not match" fileSchema assembledSchema
 
 -- gbc's json schemas differ slightly from bond.bond definition,
 -- so tests can't compare json representations.
 matchGeneratedSchemaDef :: Assertion
 matchGeneratedSchemaDef = assertEither $ do
     dat <- readData (autogenPath </> "bond.SchemaDef.json")
-    s <- hoistEither $ bondRead JsonProto dat
-    let s' = getSchema (Proxy :: Proxy SchemaDef)
-    checkEqual "schemas do not match" s s'
+    fileSchema <- hoistEither $ bondRead JsonProto dat
+    let schema = getSchema (Proxy :: Proxy SchemaDef)
+    let assembledSchema = assembleSchema schema
+    checkEqual "schemas do not match" fileSchema assembledSchema
 
 checkSchemaError :: FilePath -> IO String
 checkSchemaError f = assertWithMsg $ do
     dat <- readData (brokenSchemasPath </> f)
     schema <- hoistEither $ bondRead JsonProto dat
-    checkHasError $ checkStructSchema schema (Struct Nothing M.empty)
+    checkHasError $ parseSchema schema
 
 checkSchemaMismatch :: BondStruct a => Proxy a -> Struct -> IO String
 checkSchemaMismatch a s = assertWithMsg $ do
@@ -380,7 +384,8 @@ testInvalidTaggedWrite p s = assertWithMsg $ checkHasError $ bondWriteTagged p s
 
 failToSaveDefaultNothing :: BondProto t => t -> IO String
 failToSaveDefaultNothing p =
-    let struct = Struct (Just $ Struct Nothing M.empty) M.empty
+    let struct = Struct (Just $ Struct Nothing M.empty)
+            $ M.fromList [(Ordinal 13, UINT8 0), (Ordinal 16, INT32 0)]
         schema = getSchema (Proxy :: Proxy BasicTypes)
      in assertWithMsg $ checkHasError $ bondWriteWithSchema p schema struct
 
@@ -396,10 +401,13 @@ recodeFromTo t1 t2 = assertEither $ do
 
 checkCompileIdentity :: Assertion
 checkCompileIdentity = assertEither $ do
-    let schema = getSchema (Proxy :: Proxy Compat)
-    parsedSchema <- hoistEither $ parseSchema schema
+    schemadat <- readData (compatDataPath </> "compat.schema.dat")
+    schemadef <- hoistEither (bondUnmarshal schemadat :: Either String SchemaDef)
+    parsedSchema <- hoistEither $ parseSchema schemadef
     let assembledSchema = assembleSchema parsedSchema
-    checkEqual "original and decompiled schema do not match" schema assembledSchema
+    checkEqual "original and decompiled schema do not match" schemadef assembledSchema
+--    reparsedSchema <- hoistEither $ parseSchema assembledSchema
+--    checkEqual "original and parsed schema do not match" parsedSchema reparsedSchema
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)

@@ -7,13 +7,14 @@ module Data.Bond.CompactBinaryProto (
 import Data.Bond.BinaryClass
 import Data.Bond.BinaryUtils
 import Data.Bond.Cast
-import {-# SOURCE #-} Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.TaggedProtocol
 import Data.Bond.Types
 import Data.Bond.Utils
 import Data.Bond.Wire
 import Data.Bond.ZigZag
+import Data.Bond.Internal.BondedUtils
+import Data.Bond.Internal.Protocol
 
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.ProtocolType
@@ -320,21 +321,21 @@ getBlob = do
     unless (t == bT_INT8) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in blob field"
     Blob <$> getByteString n
 
-getList :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t [a]
+getList :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, BondType a) => BondGet t [a]
 getList = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     replicateM n bondGet
 
-getVector :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, Serializable a) => BondGet t (Vector a)
+getVector :: forall a t. (TaggedProtocol t, ReaderM t ~ B.Get, BondType a) => BondGet t (Vector a)
 getVector = do
     let et = getWireType (Proxy :: Proxy a)
     (t, n) <- getListHeader
     unless (t == et) $ fail $ "invalid element tag " ++ bondTypeName t ++ " in list field, " ++ bondTypeName et ++ " expected"
     V.replicateM n bondGet
 
-getMap :: forall k v t. (TaggedProtocol t, ReaderM t ~ B.Get, Ord k, Serializable k, Serializable v) => BondGet t (Map k v)
+getMap :: forall k v t. (TaggedProtocol t, ReaderM t ~ B.Get, Ord k, BondType k, BondType v) => BondGet t (Map k v)
 getMap = do
     let etk = getWireType (Proxy :: Proxy k)
     let etv = getWireType (Proxy :: Proxy v)
@@ -390,22 +391,22 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ bondTypeName t
 
-putList :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => [a] -> BondPut t
+putList :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), BondType a) => [a] -> BondPut t
 putList xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     mapM_ bondPut xs
 
-putHashSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), BondType a) => HashSet a -> BondPut t
 putHashSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => Set a -> BondPut t
+putSet :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), BondType a) => Set a -> BondPut t
 putSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     mapM_ bondPut $ S.toList xs
 
-putMap :: forall k v t. (Protocol t, BinaryPut (BondPutM t), Serializable k, Serializable v) => Map k v -> BondPut t
+putMap :: forall k v t. (Protocol t, BinaryPut (BondPutM t), BondType k, BondType v) => Map k v -> BondPut t
 putMap m = do
     putTag $ getWireType (Proxy :: Proxy k)
     putTag $ getWireType (Proxy :: Proxy v)
@@ -414,7 +415,7 @@ putMap m = do
         bondPut k
         bondPut v
 
-putVector :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), Serializable a) => Vector a -> BondPut t
+putVector :: forall a t. (TaggedProtocol t, BinaryPut (BondPutM t), BondType a) => Vector a -> BondPut t
 putVector xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs
