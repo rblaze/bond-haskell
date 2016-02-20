@@ -1,10 +1,5 @@
 {-# Language FlexibleContexts #-}
-module Data.Bond.Cast (
-        wordToFloat,
-        floatToWord,
-        wordToDouble,
-        doubleToWord
-    ) where
+module Data.Bond.Internal.Cast where
 
 import Control.Monad.ST (runST, ST)
 import Data.Array.ST (newArray, readArray, MArray, STUArray)

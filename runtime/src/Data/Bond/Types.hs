@@ -26,7 +26,7 @@ module Data.Bond.Types (
     fromString
   ) where
 
-import {-# SOURCE #-} Data.Bond.Bonded
+import {-# SOURCE #-} Data.Bond.Internal.Bonded
 
 import Data.Data
 import Data.Int

@@ -1,4 +1,4 @@
-module Data.Bond.ZigZag where
+module Data.Bond.Internal.ZigZag where
 
 import Data.Int
 import Data.Word

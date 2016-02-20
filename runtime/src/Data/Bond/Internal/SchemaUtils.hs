@@ -1,7 +1,7 @@
 module Data.Bond.Internal.SchemaUtils where
 
+import Data.Bond.TypedSchema
 import Data.Bond.Internal.Protocol
-import Data.Bond.Internal.TypedSchema
 import Data.Bond.Schema.BondDataType
 
 import Data.Proxy

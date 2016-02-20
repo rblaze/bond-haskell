@@ -24,7 +24,11 @@ library
   exposed-modules:     Data.Bond
                        Data.Bond.Imports
                        Data.Bond.Marshal
-                       Data.Bond.ZigZag
+                       Data.Bond.Proto
+                       Data.Bond.Struct
+                       Data.Bond.TypedSchema
+                       Data.Bond.Types
+                       Data.Bond.Internal.ZigZag
                        Data.Bond.Schema.BondDataType
                        Data.Bond.Schema.FieldDef
                        Data.Bond.Schema.Metadata
@@ -33,28 +37,26 @@ library
                        Data.Bond.Schema.StructDef
                        Data.Bond.Schema.TypeDef
                        Data.Bond.Schema.Variant
-                       Data.Bond.Internal.SchemaOps
-  other-modules:       Data.Bond.BinaryClass
-                       Data.Bond.BinaryUtils
-                       Data.Bond.Bonded
-                       Data.Bond.Cast
-                       Data.Bond.CompactBinaryProto
-                       Data.Bond.Default
-                       Data.Bond.FastBinaryProto
-                       Data.Bond.JsonProto
-                       Data.Bond.Proto
-                       Data.Bond.SimpleBinaryProto
-                       Data.Bond.Struct
-                       Data.Bond.TaggedProtocol
-                       Data.Bond.Types
-                       Data.Bond.Utils
-                       Data.Bond.Schema.ProtocolType
+  other-modules:       Data.Bond.Internal.BinaryClass
+                       Data.Bond.Internal.BinaryUtils
+                       Data.Bond.Internal.Bonded
                        Data.Bond.Internal.BondedUtils
+                       Data.Bond.Internal.Cast
+                       Data.Bond.Internal.CompactBinaryProto
+                       Data.Bond.Internal.Default
+                       Data.Bond.Internal.FastBinaryProto
+                       Data.Bond.Internal.JsonProto
+                       Data.Bond.Internal.MarshalUtils
                        Data.Bond.Internal.OrdinalSet
                        Data.Bond.Internal.Protocol
+                       Data.Bond.Internal.ProtoUtils
+                       Data.Bond.Internal.SchemaOps
                        Data.Bond.Internal.SchemaUtils
-                       Data.Bond.Internal.TypedSchema
+                       Data.Bond.Internal.SimpleBinaryProto
+                       Data.Bond.Internal.TaggedProtocol
                        Data.Bond.Internal.Utils
+                       Data.Bond.Internal.Utils
+                       Data.Bond.Schema.ProtocolType
   build-depends:       base >= 4.7 && < 5
 --                     , bond-haskell-compiler
                      , aeson

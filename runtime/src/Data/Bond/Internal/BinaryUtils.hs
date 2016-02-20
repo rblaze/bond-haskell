@@ -1,8 +1,8 @@
 {-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts #-}
-module Data.Bond.BinaryUtils where
+module Data.Bond.Internal.BinaryUtils where
 
-import Data.Bond.BinaryClass
 import Data.Bond.Types
+import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.Protocol
 
 import Control.Applicative

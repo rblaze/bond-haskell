@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Data.Bond.Internal.TypedSchema where
+module Data.Bond.TypedSchema where
 
 import Data.Bond.Types
 import Data.Bond.Internal.OrdinalSet

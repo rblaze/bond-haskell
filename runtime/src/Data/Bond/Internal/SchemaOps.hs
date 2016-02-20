@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Data.Bond.Internal.SchemaOps where
 
-import Data.Bond.Default
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Types
+import Data.Bond.Internal.Default
 import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.SchemaUtils
-import Data.Bond.Internal.TypedSchema
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.Metadata
 import Data.Bond.Schema.Modifier

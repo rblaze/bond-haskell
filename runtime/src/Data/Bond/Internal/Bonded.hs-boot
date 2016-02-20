@@ -1,4 +1,4 @@
-module Data.Bond.Bonded where
+module Data.Bond.Internal.Bonded where
 
 import Data.Typeable
 import qualified Data.ByteString.Lazy as BL

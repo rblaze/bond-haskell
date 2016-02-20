@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Data.Bond.Bonded where
+module Data.Bond.Internal.Bonded where
 
 import Data.Bond.Marshal
-import {-# SOURCE #-} Data.Bond.Proto
+import Data.Bond.Internal.MarshalUtils
 import {-# SOURCE #-} Data.Bond.Internal.Protocol
 
 import Control.Exception

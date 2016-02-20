@@ -9,11 +9,11 @@ module Data.Bond.Imports
     , fromOrdinalList
     ) where 
 
-import Data.Bond.Default as X
+import Data.Bond.TypedSchema as X
 import Data.Bond.Types as X
+import Data.Bond.Internal.Default as X
 import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.Protocol
-import Data.Bond.Internal.TypedSchema as X
 import Data.Bond.Internal.Utils as X
 
 import Control.Monad (ap)

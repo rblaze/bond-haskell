@@ -1,19 +1,19 @@
 {-# Language MultiWayIf, ScopedTypeVariables, FlexibleContexts, TypeFamilies, OverloadedStrings #-}
-module Data.Bond.JsonProto (
+module Data.Bond.Internal.JsonProto (
         JsonProto(..)
     ) where
 
-import Data.Bond.Default
 import Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Utils
 import Data.Bond.Internal.BondedUtils
+import Data.Bond.Internal.Default
 import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.ProtoUtils
 import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SchemaUtils
-import Data.Bond.Internal.TypedSchema
 
 import Data.Bond.Schema.ProtocolType
 

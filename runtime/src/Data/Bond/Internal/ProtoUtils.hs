@@ -1,4 +1,4 @@
-module Data.Bond.Utils where
+module Data.Bond.Internal.ProtoUtils where
 
 import Data.Bond.Schema.ProtocolType
 

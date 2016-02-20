@@ -7,14 +7,14 @@ module Data.Bond.Marshal (
     bondUnmarshalTagged
   ) where
 
-import {-# SOURCE #-} Data.Bond.CompactBinaryProto
-import {-# SOURCE #-} Data.Bond.FastBinaryProto
-import {-# SOURCE #-} Data.Bond.JsonProto
-import {-# SOURCE #-} Data.Bond.SimpleBinaryProto
+import {-# SOURCE #-} Data.Bond.Internal.CompactBinaryProto
+import {-# SOURCE #-} Data.Bond.Internal.FastBinaryProto
+import {-# SOURCE #-} Data.Bond.Internal.JsonProto
+import {-# SOURCE #-} Data.Bond.Internal.SimpleBinaryProto
 import Data.Bond.Proto
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Internal.Protocol
-import Data.Bond.Internal.TypedSchema
 
 import qualified Data.ByteString.Lazy as BL
 

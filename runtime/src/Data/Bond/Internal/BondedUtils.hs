@@ -1,14 +1,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Data.Bond.Internal.BondedUtils where
 
-import {-# SOURCE #-} Data.Bond.CompactBinaryProto
-import {-# SOURCE #-} Data.Bond.FastBinaryProto
-import Data.Bond.Bonded
+import {-# SOURCE #-} Data.Bond.Internal.CompactBinaryProto
+import {-# SOURCE #-} Data.Bond.Internal.FastBinaryProto
 import Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
+import Data.Bond.Internal.Bonded
 import Data.Bond.Internal.Protocol
-import Data.Bond.Internal.TypedSchema
 
 import Control.Applicative
 import Data.Proxy

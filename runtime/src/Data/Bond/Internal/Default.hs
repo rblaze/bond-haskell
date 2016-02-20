@@ -1,9 +1,7 @@
-module Data.Bond.Default (
-    Default(..)
-  ) where
+module Data.Bond.Internal.Default where
 
+import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Internal.TypedSchema
 import Data.Maybe
 import qualified Data.ByteString as BS
 import qualified Data.HashSet as H

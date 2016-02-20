@@ -1,4 +1,4 @@
-module Data.Bond.JsonProto where
+module Data.Bond.Internal.JsonProto where
 
 import Data.Bond.Proto
 

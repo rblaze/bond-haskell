@@ -1,4 +1,4 @@
-module Data.Bond.SimpleBinaryProto where
+module Data.Bond.Internal.SimpleBinaryProto where
 
 import Data.Bond.Proto
 

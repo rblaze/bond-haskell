@@ -1,10 +1,10 @@
 {-# LANGUAGE UndecidableInstances, FlexibleContexts, GeneralizedNewtypeDeriving, StandaloneDeriving, ScopedTypeVariables, TypeFamilies, FlexibleInstances, MultiParamTypeClasses, OverloadedStrings #-}
 module Data.Bond.Internal.Protocol where
 
-import Data.Bond.BinaryClass
-import Data.Bond.Default
+import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Internal.TypedSchema
+import Data.Bond.Internal.BinaryClass
+import Data.Bond.Internal.Default
 import Data.Bond.Internal.Utils
 
 import Control.Applicative

@@ -1,21 +1,21 @@
 {-# Language ScopedTypeVariables, TypeFamilies, FlexibleContexts, MultiWayIf #-}
-module Data.Bond.SimpleBinaryProto (
+module Data.Bond.Internal.SimpleBinaryProto (
         SimpleBinaryProto(..),
         SimpleBinaryV1Proto(..)
     ) where
 
-import Data.Bond.BinaryClass
-import Data.Bond.BinaryUtils
-import Data.Bond.Cast
-import Data.Bond.CompactBinaryProto
 import Data.Bond.Proto
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Utils
+import Data.Bond.Internal.BinaryClass
+import Data.Bond.Internal.BinaryUtils
+import Data.Bond.Internal.Cast
+import Data.Bond.Internal.CompactBinaryProto
 import Data.Bond.Internal.Protocol
+import Data.Bond.Internal.ProtoUtils
 import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SchemaUtils
-import Data.Bond.Internal.TypedSchema
 
 import Data.Bond.Schema.ProtocolType
 

@@ -1,17 +1,17 @@
 {-# Language ScopedTypeVariables, MultiWayIf, TypeFamilies, FlexibleContexts #-}
-module Data.Bond.TaggedProtocol where
+module Data.Bond.Internal.TaggedProtocol where
 
 import Data.Bond.Schema.BondDataType
 
-import Data.Bond.BinaryClass
-import Data.Bond.BinaryUtils
-import Data.Bond.Default
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Types
+import Data.Bond.Internal.BinaryClass
+import Data.Bond.Internal.BinaryUtils
+import Data.Bond.Internal.Default
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SchemaUtils
-import Data.Bond.Internal.TypedSchema
 
 import Control.Applicative
 import Control.Monad

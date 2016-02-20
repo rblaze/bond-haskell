@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables, InstanceSigs, GADTs #-}
-module Data.Bond.BinaryClass where
+module Data.Bond.Internal.BinaryClass where
 
 import Control.Monad.Error
 import Data.Word

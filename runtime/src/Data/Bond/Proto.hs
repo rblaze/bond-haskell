@@ -1,8 +1,8 @@
 module Data.Bond.Proto where
 
 import Data.Bond.Struct
+import Data.Bond.TypedSchema
 import Data.Bond.Internal.Protocol
-import Data.Bond.Internal.TypedSchema
 
 import qualified Data.ByteString.Lazy as BL
 
@@ -22,7 +22,3 @@ class BondProto t => BondTaggedProto t where
     bondWriteTagged :: t -> Struct -> Either String BL.ByteString
     bondMarshalTagged :: t -> Struct -> Either String BL.ByteString
     bondMarshalTagged t = fmap (BL.append $ protoSig t) . bondWriteTagged t
-
--- XXX workaround for module loops
-bondMarshal' :: (BondProto t, BondStruct a) => t -> a -> Either String BL.ByteString
-bondMarshal' = bondMarshal

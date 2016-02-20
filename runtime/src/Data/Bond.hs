@@ -1,35 +1,37 @@
-module Data.Bond (
-    BondProto(bondRead, bondWrite, bondReadWithSchema, bondWriteWithSchema),
-    BondTaggedProto(bondReadTagged, bondWriteTagged),
-    BondStruct(getSchema),
-    CompactBinaryProto(..),
-    CompactBinaryV1Proto(..),
-    EncodedString(..),
-    FastBinaryProto(..),
-    JsonProto(..),
-    Ordinal(..),
-    SimpleBinaryProto(..),
-    SimpleBinaryV1Proto(..),
-    Struct(..),
-    Value(..),
-    defaultValue,
-    checkStructSchema,
-    getValue,
-    marshalValue,
-    putValue
-  ) where
+module Data.Bond
+    ( BondProto(bondRead, bondWrite, bondReadWithSchema, bondWriteWithSchema)
+    , BondStruct(getSchema)
+    , BondTaggedProto(bondReadTagged, bondWriteTagged)
+    , CompactBinaryProto(..)
+    , CompactBinaryV1Proto(..)
+    , EncodedString(..)
+    , FastBinaryProto(..)
+    , JsonProto(..)
+    , Ordinal(..)
+    , SimpleBinaryProto(..)
+    , SimpleBinaryV1Proto(..)
+    , Struct(..)
+    , Value(..)
+    , assembleSchema
+    , checkStructSchema
+    , defaultValue
+    , getValue
+    , marshalValue
+    , parseSchema
+    , putValue
+    ) where
 
-import Data.Bond.Bonded
-import Data.Bond.CompactBinaryProto
-import Data.Bond.Default
-import Data.Bond.FastBinaryProto
-import Data.Bond.JsonProto
 import Data.Bond.Proto
-import Data.Bond.SimpleBinaryProto
 import Data.Bond.Struct
 import Data.Bond.Types
+import Data.Bond.Internal.Bonded
+import Data.Bond.Internal.CompactBinaryProto
+import Data.Bond.Internal.Default
+import Data.Bond.Internal.FastBinaryProto
+import Data.Bond.Internal.JsonProto
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.SchemaOps
+import Data.Bond.Internal.SimpleBinaryProto
 
 -- * compile-time schemas API
 -- | 'bondRead'
