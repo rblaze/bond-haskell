@@ -9,6 +9,7 @@ import Data.Bond.Types
 import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.BinaryUtils
 import Data.Bond.Internal.Default
+import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SchemaUtils
@@ -40,7 +41,8 @@ class Protocol t => TaggedProtocol t where
 
 getStruct :: forall a t. (Functor (ReaderM t), Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
 getStruct level = do
-    let fieldsMap = structFields $ getSchema (Proxy :: Proxy a)
+    let schema = getSchema (Proxy :: Proxy a)
+    let fieldsMap = structFields schema
     b <- bondStructGetBase defaultValue
     -- iterate over stream, update fields
     let readField wiretype ordinal s =
@@ -49,14 +51,18 @@ getStruct level = do
                 else do
                     skipType wiretype -- unknown field, ignore it
                     return s
-    let loop s = do
+    let loop (s, ords) = do
             (wiretype, ordinal) <- getFieldHeader
             if | wiretype == bT_STOP && level == BaseStruct -> fail "BT_STOP found where BT_STOP_BASE expected"
-               | wiretype == bT_STOP && level == TopLevelStruct -> return s
-               | wiretype == bT_STOP_BASE && level == BaseStruct -> return s
-               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipRestOfStruct >> return s
-               | otherwise -> readField wiretype ordinal s >>= loop
-    loop b
+               | wiretype == bT_STOP && level == TopLevelStruct -> return (s, ords)
+               | wiretype == bT_STOP_BASE && level == BaseStruct -> return (s, ords)
+               | wiretype == bT_STOP_BASE && level == TopLevelStruct -> skipRestOfStruct >> return (s, ords)
+               | otherwise -> do
+                    s' <- readField wiretype ordinal s
+                    loop (s', deleteOrdinal ordinal ords)
+    (value, notRead) <- loop (b, structRequiredOrdinals schema)
+    unless (isEmptySet notRead) $ fail $ "required fields not read: " ++ show (map (getFieldName schema) $ toOrdinalList notRead)
+    return value
 
 putStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
 putStruct level a = do

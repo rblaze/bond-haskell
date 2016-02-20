@@ -94,6 +94,7 @@ test-suite bond-haskell-test
                        Unittest.Simple.Base
                        Unittest.Simple.Inner
                        Unittest.Simple.Outer
+                       Unittest.Simple.Reqopt                       
   build-depends:       base
                      , aeson
                      , bond-haskell

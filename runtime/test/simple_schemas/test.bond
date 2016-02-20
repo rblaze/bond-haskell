@@ -18,3 +18,9 @@ struct outer {
     50: set<int16> m_set_int16;
     60: map<uint32, inner> m_map_uint32_inner;
 }
+
+struct reqopt {
+    10: required int8 m_req_int8;
+    20: required_optional string m_reqopt_string;
+    30: required int16 m_req_nothing_int16 = nothing;
+}

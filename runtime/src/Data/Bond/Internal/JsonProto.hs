@@ -10,6 +10,7 @@ import Data.Bond.TypedSchema
 import Data.Bond.Types
 import Data.Bond.Internal.BondedUtils
 import Data.Bond.Internal.Default
+import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.ProtoUtils
 import Data.Bond.Internal.SchemaOps
@@ -118,7 +119,7 @@ instance Protocol JsonProto where
         bondStructPut v
     bondPutBaseStruct = bondStructPut
     bondPutField = putField
-    bondPutDefNothingField _ _ Nothing = return ()
+    bondPutDefNothingField p n Nothing = unless (isOptionalField p n) $ fail "can't write nothing to non-optional field"
     bondPutDefNothingField p n (Just v) = putField p n v
 
     bondPutBool = put . A.Bool
@@ -222,16 +223,22 @@ useString s p = do
 
 parseStruct :: forall a . BondStruct a => BondGet JsonProto a
 parseStruct = do
+    let schema = getSchema (Proxy :: Proxy a)
+
     value <- ask
     baseStruct <- bondStructGetBase defaultValue
 
-    useObject "struct" value $ \obj -> do
-        let parseField s (ordinal, fieldInfo) = do
+    (retval, notRead) <- useObject "struct" value $ \obj -> do
+        let parseField (s, ords) (ordinal, fieldInfo) = do
                 let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
                 case HM.lookup fieldname obj of
-                    Nothing -> return s
-                    Just v -> local (const v) $ bondStructGetField ordinal s
-        foldM parseField baseStruct $ M.toList $ structFields $ getSchema (Proxy :: Proxy a)
+                    Nothing -> return (s, ords)
+                    Just v -> do
+                        s' <- local (const v) $ bondStructGetField ordinal s
+                        return (s', deleteOrdinal ordinal ords)
+        foldM parseField (baseStruct, structRequiredOrdinals schema) $ M.toList (structFields schema)
+    unless (isEmptySet notRead) $ fail $ "required fields not read: " ++ show (map (getFieldName schema) $ toOrdinalList notRead)
+    return retval
 
 putField :: forall a b . (BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut JsonProto
 putField p ordinal a = do

@@ -69,8 +69,7 @@ data StructSchema = StructSchema
     , structAttrs :: M.Map Text Text
     , structBase :: Maybe StructSchema
     , structFields :: M.Map Ordinal FieldSchema
-    , structOrdinalsRequiredOnWrite :: OrdinalSet
-    , structOrdinalsRequiredOnRead :: OrdinalSet
+    , structRequiredOrdinals :: OrdinalSet
     }
 
 fieldToElementType :: FieldTypeInfo -> ElementTypeInfo

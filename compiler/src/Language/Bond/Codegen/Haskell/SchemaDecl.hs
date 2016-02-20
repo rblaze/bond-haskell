@@ -64,16 +64,14 @@ getSchema opts ctx decl = InsDecl $ simpleFun noLoc (Ident "getSchema") (Ident "
                                 App (Var $ implQual "getSchema") (Paren $ proxyOf $ hsType (setType opts) ctx base)
                     , FieldUpdate (implQual "structFields") $
                         App (Var $ implQual "makeMap") (List $ map makeFieldInfo (structFields decl))
-                    , FieldUpdate (implQual "structOrdinalsRequiredOnWrite") $
-                        App (Var $ implQual "fromOrdinalList") (List $ filterOrdinals (/= Optional) (structFields decl))
-                    , FieldUpdate (implQual "structOrdinalsRequiredOnRead") $
-                        App (Var $ implQual "fromOrdinalList") (List $ filterOrdinals (== Required) (structFields decl))
+                    , FieldUpdate (implQual "structRequiredOrdinals") $
+                        App (Var $ implQual "fromOrdinalList") (List requiredOrdinals)
                     ]
     where
-    filterOrdinals f = mapMaybe (\ field ->
-        if f (fieldModifier field)
+    requiredOrdinals = mapMaybe (\ field ->
+        if fieldModifier field == Required
             then Just $ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal field)
-            else Nothing)
+            else Nothing) (structFields decl)
     makeFieldInfo field = Tuple Boxed
         [ App (Con $ implQual "Ordinal") (intL $ fieldOrdinal field)
         , RecConstr (implQual "FieldSchema")

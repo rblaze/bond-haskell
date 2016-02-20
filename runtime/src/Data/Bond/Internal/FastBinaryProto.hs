@@ -161,7 +161,7 @@ instance Protocol FastBinaryProto where
     bondPutStruct = putStruct TopLevelStruct
     bondPutBaseStruct = putBaseStruct
     bondPutField = putField
-    bondPutDefNothingField _ _ Nothing = return () -- FIXME check for required
+    bondPutDefNothingField p n Nothing = unless (isOptionalField p n) $ fail "can't write nothing to non-optional field"
     bondPutDefNothingField p n (Just v) = putField p n v
 
     bondPutBool True = putWord8 1

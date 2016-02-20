@@ -9,6 +9,7 @@ import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
 import Unittest.Simple.Inner as Inner
 import Unittest.Simple.Outer as Outer
+import Unittest.Simple.Reqopt as ReqOpt
 
 import Control.Monad
 import Control.Monad.Trans
@@ -22,6 +23,7 @@ import Test.Tasty.Golden
 import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.Map as M
 
 import DataPath
@@ -135,7 +137,9 @@ tests = testGroup "Haskell runtime tests"
               testCase "read BasicTypes value" $
                 readAsType JsonProto (Proxy :: Proxy BasicTypes) "compat.json.dat",
               testCase "read Another value" $
-                readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
+                readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat",
+              testCaseInfo "fail to read with required field missing" $ jsonFailToReadMissingRequired,
+              testCaseInfo "fail to write nothing to required field" $ failToWriteRequiredNothing JsonProto
             ],
           testGroup "Marshalling"
             [ testCase "read/write SchemaDef value" readSchema,
@@ -160,7 +164,11 @@ tests = testGroup "Haskell runtime tests"
         , testCase "read Compat w/o schema" $ readCompatTagged proto dat
         , testCase "read Compat with compile-time schema" $ readCompatWithSchema proto dat
         , testCase "read Compat with runtime schema" $ readCompatWithRuntimeSchema proto dat
-        , invalidTaggedWriteTests CompactBinaryProto
+        , testCaseInfo "fail to read with required field missing" $ failToReadMissingRequired proto
+        , testCaseInfo "fail to read with schema and required field missing" $ failToReadMissingRequiredWithSchema proto
+        , testCaseInfo "fail to write nothing to required field" $ failToWriteRequiredNothing proto
+        , testCaseInfo "fail to write nothing to required field with schema" $ failToWriteRequiredNothingWithSchema proto
+        , invalidTaggedWriteTests proto
         ]
     testTagged _ = error "invalid protocol"
 
@@ -387,6 +395,35 @@ failToSaveDefaultNothing p =
             $ M.fromList [(Ordinal 13, UINT8 0), (Ordinal 16, INT32 0)]
         schema = getSchema (Proxy :: Proxy BasicTypes)
      in assertWithMsg $ checkHasError $ bondWriteWithSchema p schema struct
+
+failToReadMissingRequired :: BondTaggedProto t => t -> IO String
+failToReadMissingRequired p = assertWithMsg $ do
+    let struct = Struct Nothing M.empty
+    out <- hoistEither $ bondWriteTagged p struct
+    checkHasError $ (bondRead p out :: Either String Reqopt)
+
+jsonFailToReadMissingRequired :: IO String
+jsonFailToReadMissingRequired = assertWithMsg $ do
+    let dat = BL8.pack "{}"
+    checkHasError $ (bondRead JsonProto dat :: Either String Reqopt)
+
+failToReadMissingRequiredWithSchema :: BondTaggedProto t => t -> IO String
+failToReadMissingRequiredWithSchema p = assertWithMsg $ do
+    let struct = Struct Nothing M.empty
+    out <- hoistEither $ bondWriteTagged p struct
+    let schema = getSchema (Proxy :: Proxy Reqopt)
+    checkHasError $ bondReadWithSchema p schema out
+
+failToWriteRequiredNothing :: BondProto t => t -> IO String
+failToWriteRequiredNothing p = assertWithMsg $ do
+    let struct = defaultValue :: Reqopt
+    checkHasError $ bondWrite p struct
+
+failToWriteRequiredNothingWithSchema :: BondTaggedProto t => t -> IO String
+failToWriteRequiredNothingWithSchema p = assertWithMsg $ do
+    let struct = Struct Nothing $ M.fromList [(Ordinal 10, INT8 0)]
+    let schema = getSchema (Proxy :: Proxy Reqopt)
+    checkHasError $ bondWriteWithSchema p schema struct
 
 recodeFromTo :: forall t1 t2. (BondProto t1, BondProto t2) => t1 -> t2 -> Assertion
 recodeFromTo t1 t2 = assertEither $ do

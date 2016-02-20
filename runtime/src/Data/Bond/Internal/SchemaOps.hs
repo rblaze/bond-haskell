@@ -100,9 +100,7 @@ parseSchema schemadef = validateSchemaDef schemadef >> makeSchema
         let meta = SD.metadata struct
             tycon = mkTyCon3 "Bond" "RuntimeSchema" (toString $ qualified_name meta)
             typerep = mkTyConApp tycon []
-            mustWrite = fromOrdinalVector $ V.map (Ordinal . fromIntegral . FD.id) $
-                V.filter (\ f -> modifier (FD.metadata f) /= optional) $ SD.fields struct
-            mustRead = fromOrdinalVector $ V.map (Ordinal . fromIntegral . FD.id) $
+            requiredOrdinals = fromOrdinalVector $ V.map (Ordinal . fromIntegral . FD.id) $
                 V.filter (\ f -> modifier (FD.metadata f) == required) $ SD.fields struct
             fieldMap = M.fromList $ V.toList $ V.map makeField $ SD.fields struct
          in StructSchema
@@ -112,8 +110,7 @@ parseSchema schemadef = validateSchemaDef schemadef >> makeSchema
             , structAttrs = M.fromList $ map (toText *** toText) $ M.toList $ attributes meta
             , structBase = fmap (V.unsafeIndex substructs . fromIntegral . TD.struct_def) (SD.base_def struct)
             , structFields = fieldMap
-            , structOrdinalsRequiredOnWrite = mustWrite
-            , structOrdinalsRequiredOnRead = mustRead
+            , structRequiredOrdinals = requiredOrdinals
             }
     makeField field =
         let meta = FD.metadata field

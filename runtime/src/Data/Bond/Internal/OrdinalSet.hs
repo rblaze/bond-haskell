@@ -14,6 +14,12 @@ deleteOrdinal (Ordinal d) = IS.delete (fromIntegral d)
 memberOrdinal :: Ordinal -> OrdinalSet -> Bool
 memberOrdinal (Ordinal d) = IS.member (fromIntegral d)
 
+isEmptySet :: OrdinalSet -> Bool
+isEmptySet = IS.null
+
+toOrdinalList :: OrdinalSet -> [Ordinal]
+toOrdinalList = map (Ordinal . fromIntegral) . IS.toList
+
 fromOrdinalList :: [Ordinal] -> OrdinalSet
 fromOrdinalList = IS.fromList . map (\ (Ordinal d) -> fromIntegral d)
 

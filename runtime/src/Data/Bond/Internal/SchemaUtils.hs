@@ -1,10 +1,13 @@
 module Data.Bond.Internal.SchemaUtils where
 
 import Data.Bond.TypedSchema
+import Data.Bond.Types
 import Data.Bond.Internal.Protocol
 import Data.Bond.Schema.BondDataType
 
 import Data.Proxy
+import Data.Text
+import qualified Data.Map.Strict as M
 
 bondTypeName :: BondDataType -> String
 bondTypeName t
@@ -49,3 +52,17 @@ elementToBondDataType (ElementMap _ _) = bT_MAP
 
 getWireType :: BondType a => Proxy a -> BondDataType
 getWireType = elementToBondDataType . getElementType
+
+isOptionalField :: BondStruct a => Proxy a -> Ordinal -> Bool
+isOptionalField p n =
+    let schema = getSchema p
+        field = M.lookup n (structFields schema)
+     in case field of
+            Nothing -> True -- unknown fields presumed optional
+            Just f -> fieldModifier f == FieldOptional
+
+getFieldName :: StructSchema -> Ordinal -> String
+getFieldName schema ordinal =
+    case M.lookup ordinal (structFields schema) of
+        Nothing -> show ordinal
+        Just f -> unpack (fieldName f)
