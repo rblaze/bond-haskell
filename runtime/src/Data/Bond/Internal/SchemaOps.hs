@@ -366,7 +366,7 @@ checkStructSchema rootSchema rootStruct = do
         when (btkey /= expectedbtkey) $ Left $ "map key element type " ++ bondTypeName btkey ++ " does not match schema type " ++ bondTypeName expectedbtkey
         when (btvalue /= expectedbtvalue) $ Left $ "map value element type " ++ bondTypeName btvalue ++ " does not match schema type " ++ bondTypeName expectedbtvalue
         forM_ xs $ \(k, v) -> checkValueType key k >> checkValueType value v
-    checkValueType t v = Left $ "field type " ++ valueName v ++ " does not match schema type " ++ (bondTypeName $ elementToBondDataType t)
+    checkValueType t v = Left $ "field type " ++ valueName v ++ " does not match schema type " ++ bondTypeName (elementToBondDataType t)
 
     structStack = let step s = case base s of
                                 Nothing -> [s]

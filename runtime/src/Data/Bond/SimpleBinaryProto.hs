@@ -280,7 +280,7 @@ encode _ a =
      in tryPut g
 
 decodeWithSchema :: forall t. (SimpleProtocol t, ReaderM t ~ B.Get) => t -> StructSchema -> BL.ByteString -> Either String Struct
-decodeWithSchema _ rootSchema bs = do
+decodeWithSchema _ rootSchema bs =
     case B.runGetOrFail reader bs of
         Left (_, used, msg) -> Left $ "parse error at " ++ show used ++ ": " ++ msg
         Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
