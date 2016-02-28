@@ -2,13 +2,14 @@
 module Data.Bond.Internal.BinaryUtils where
 
 import Data.Bond.Types
-import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.Protocol
 
 import Control.Applicative
+import Control.Monad.Error
 import Data.Bits
 import Prelude -- workaround for Control.Applicative in ghc 7.10
 import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 
@@ -53,7 +54,30 @@ getVarInt = step 0
         rest <- if b `testBit` 7 then step (n + 1)  else return 0
         return $ (b `clearBit` 7) .|. (rest `shiftL` 7)
 
-putVarInt :: (FiniteBits a, Integral a, BinaryPut (BondPutM t)) => a -> BondPut t
+tryPut :: ErrorT String B.PutM () -> Either String BL.ByteString
+tryPut g = case B.runPutM (runErrorT g) of
+            (Left msg, _) -> Left msg
+            (Right (), bs) -> Right bs
+
+putWord8 :: WriterM t ~ ErrorT String B.PutM => Word8 -> BondPut t
+putWord8 = BondPut . lift . B.putWord8
+
+putWord16le :: WriterM t ~ ErrorT String B.PutM => Word16 -> BondPut t
+putWord16le = BondPut . lift . B.putWord16le
+
+putWord32le :: WriterM t ~ ErrorT String B.PutM => Word32 -> BondPut t
+putWord32le = BondPut . lift . B.putWord32le
+
+putWord64le :: WriterM t ~ ErrorT String B.PutM => Word64 -> BondPut t
+putWord64le = BondPut . lift . B.putWord64le
+
+putByteString :: WriterM t ~ ErrorT String B.PutM => BS.ByteString -> BondPut t
+putByteString = BondPut . lift . B.putByteString
+
+putLazyByteString :: WriterM t ~ ErrorT String B.PutM => BL.ByteString -> BondPut t
+putLazyByteString = BondPut . lift . B.putLazyByteString
+
+putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ErrorT String B.PutM) => a -> BondPut t
 putVarInt i | i < 0 = error "VarInt with negative value"
 putVarInt i | i < 128 = putWord8 $ fromIntegral i
 putVarInt i = let iLow = fromIntegral $ i .&. 0x7F

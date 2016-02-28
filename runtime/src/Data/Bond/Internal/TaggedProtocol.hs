@@ -6,7 +6,6 @@ import Data.Bond.Schema.BondDataType
 import Data.Bond.Struct
 import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.BinaryUtils
 import Data.Bond.Internal.Default
 import Data.Bond.Internal.OrdinalSet
@@ -21,6 +20,7 @@ import Data.Bits
 import Data.Proxy
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.Binary.Get as B
+import qualified Data.Binary.Put as B
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Map as M
 import qualified Data.Map.Strict as MS
@@ -64,14 +64,14 @@ getStruct level = do
     unless (isEmptySet notRead) $ fail $ "required fields not read: " ++ show (map (getFieldName schema) $ toOrdinalList notRead)
     return value
 
-putStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
+putStruct :: (WriterM t ~ ErrorT String B.PutM, TaggedProtocol t, BondStruct a) => StructLevel -> a -> BondPut t
 putStruct level a = do
     bondStructPut a
     case level of
         TopLevelStruct -> putTag bT_STOP
         BaseStruct -> putTag bT_STOP_BASE
 
-putBaseStruct :: (BinaryPut (BondPutM t), TaggedProtocol t, BondStruct a) => a -> BondPut t
+putBaseStruct :: (WriterM t ~ ErrorT String B.PutM, TaggedProtocol t, BondStruct a) => a -> BondPut t
 putBaseStruct = putStruct BaseStruct
 
 putField :: forall a b t. (Monad (BondPutM t), TaggedProtocol t, BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t
@@ -83,7 +83,7 @@ putField p ordinal value = do
         putFieldHeader tag ordinal
         bondPut value
 
-putTag :: BinaryPut (BondPutM t) => BondDataType -> BondPut t
+putTag :: WriterM t ~ ErrorT String B.PutM => BondDataType -> BondPut t
 putTag = putWord8 . fromIntegral . fromEnum
 
 binaryDecode :: forall a t. (ReaderM t ~ B.Get, BondStruct a, Protocol t) => t -> BL.ByteString -> Either String a
@@ -94,7 +94,7 @@ binaryDecode _ s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> Right a
 
-binaryEncode :: forall a t. (BinaryPut (WriterM t), BondStruct a, Protocol t) => t -> a -> Either String BL.ByteString
+binaryEncode :: forall a t. (WriterM t ~ ErrorT String B.PutM, BondStruct a, Protocol t) => t -> a -> Either String BL.ByteString
 binaryEncode _ a =
     let BondPut g = bondPutStruct a :: BondPut t
      in tryPut g
@@ -156,7 +156,7 @@ readTaggedWithSchema _ schema s =
             Right (rest, used, _) | not (BL.null rest) -> Left $ "incomplete parse, used " ++ show used ++ ", left " ++ show (BL.length rest)
             Right (_, _, a) -> checkStructSchema schema a
 
-putTaggedData :: forall t. (MonadError String (BondPutM t), BinaryPut (BondPutM t), TaggedProtocol t) => Struct -> BondPut t
+putTaggedData :: forall t. (MonadError String (BondPutM t), WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => Struct -> BondPut t
 putTaggedData s = do
     case base s of
         Just b -> putTaggedData b >> putTag bT_STOP_BASE
@@ -203,9 +203,9 @@ putTaggedData s = do
                 then writer
                 else throwError $ "element type do not match container type: " ++ bondTypeName td ++ " expected, " ++ bondTypeName realtd ++ " found"
 
-writeTagged :: forall t. (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
+writeTagged :: forall t. (MonadError String (BondPutM t), WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
 writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
                    in tryPut g
 
-writeTaggedWithSchema :: (MonadError String (BondPutM t), BinaryPut (WriterM t), TaggedProtocol t) => t -> StructSchema -> Struct -> Either String BL.ByteString
+writeTaggedWithSchema :: (MonadError String (BondPutM t), WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> StructSchema -> Struct -> Either String BL.ByteString
 writeTaggedWithSchema t schema struct = checkStructSchema schema struct >>= writeTagged t

@@ -5,7 +5,6 @@ module Data.Bond.Internal.FastBinaryProto (
 
 import Data.Bond.Proto
 import Data.Bond.Types
-import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.BinaryUtils
 import Data.Bond.Internal.BondedUtils
 import Data.Bond.Internal.Cast

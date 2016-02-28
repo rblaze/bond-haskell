@@ -37,8 +37,7 @@ library
                        Data.Bond.Schema.StructDef
                        Data.Bond.Schema.TypeDef
                        Data.Bond.Schema.Variant
-  other-modules:       Data.Bond.Internal.BinaryClass
-                       Data.Bond.Internal.BinaryUtils
+  other-modules:       Data.Bond.Internal.BinaryUtils
                        Data.Bond.Internal.Bonded
                        Data.Bond.Internal.BondedUtils
                        Data.Bond.Internal.Cast

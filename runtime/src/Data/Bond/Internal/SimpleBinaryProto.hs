@@ -8,7 +8,6 @@ import Data.Bond.Proto
 import Data.Bond.Struct
 import Data.Bond.TypedSchema
 import Data.Bond.Types
-import Data.Bond.Internal.BinaryClass
 import Data.Bond.Internal.BinaryUtils
 import Data.Bond.Internal.Cast
 import Data.Bond.Internal.CompactBinaryProto
@@ -326,7 +325,7 @@ decodeWithSchema _ rootSchema bs =
             v <- readValue value
             return (k, v)
 
-encodeWithSchema :: forall t. (SimpleProtocol t, Functor (WriterM t), BinaryPut (WriterM t), MonadError String (WriterM t)) => t -> StructSchema -> Struct -> Either String BL.ByteString
+encodeWithSchema :: forall t. (SimpleProtocol t, WriterM t ~ ErrorT String B.PutM) => t -> StructSchema -> Struct -> Either String BL.ByteString
 encodeWithSchema _ rootSchema s = do
     struct <- checkStructSchema rootSchema s
     let BondPut writer = putStruct rootSchema struct
