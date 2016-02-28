@@ -243,7 +243,6 @@ parseStruct = do
 putField :: forall a b . (BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut JsonProto
 putField p ordinal a = do
     let fieldInfo = M.findWithDefault (error "internal error: unknown field ordinal") ordinal (structFields $ getSchema p)
-    -- FIXME check all required fields written
     let needToSave = not (equalToDefault (fieldType fieldInfo) a) || fieldModifier fieldInfo /= FieldOptional
     when needToSave $ do
         let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
