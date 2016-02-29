@@ -279,6 +279,7 @@ jsonDecodeWithSchema rootSchema bs = A.eitherDecode bs >>= runReader (runErrorT 
             Just baseSchema -> Just <$> readStruct baseSchema
         value <- ask
         useObject "struct" value $ \ obj -> do
+            -- FIXME process object fields, use ordinals as is, convert names to ordinals
             fs <- M.fromList . catMaybes <$> mapM (readField obj) (M.toList $ structFields schema)
             return $ Struct parent fs
     readField obj (fieldId, fieldInfo) = do
@@ -343,7 +344,7 @@ jsonEncodeWithSchema rootSchema s = do
         mapM_ (putStructField $ structFields schema) $ M.toList $ fields struct
     putStructField schemamap (fieldId, fieldValue) =
         case M.lookup fieldId schemamap of
-            Nothing -> return () -- XXX schemaless operations not implemented
+            Nothing -> return () -- FIXME save field with ordinal as key
             Just fieldInfo -> do
                 let fieldname = M.findWithDefault (fieldName fieldInfo) "JsonName" (fieldAttrs fieldInfo)
                 A.Object obj <- get
