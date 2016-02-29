@@ -13,7 +13,7 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 
--- XXX until I can upgrade to binary >= 0.7.2.0 (and drop lts-2 support), isolate is unavailable
+-- XXX isolate is available in binary >= 0.7.2.0 (lts-3 and higher) only
 isolate :: ReaderM t ~ B.Get => Int -> BondGet t a -> BondGet t a
 isolate _ = Prelude.id
 --isolate n (BondGet g) = BondGet $ B.isolate n g

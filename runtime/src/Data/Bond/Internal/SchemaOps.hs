@@ -55,7 +55,7 @@ validateSchemaDef schema = do
         checkChain (IS.union seen stack) (n + 1)
     checkStruct struct = do
         maybe (return ()) checkType (SD.base_def struct)
-        -- TODO check for duplicate ordinals
+        -- FIXME check for duplicate ordinals
         V.forM_ (SD.fields struct) $ checkType . FD.typedef
     checkType t@TD.TypeDef{TD.id = typ}
         | typ == bT_BOOL = return ()
