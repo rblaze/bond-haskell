@@ -342,27 +342,7 @@ encodeWithSchema _ rootSchema s = do
         value <- maybe (getDefault $ fieldType fieldInfo) return $ M.lookup fieldId fieldmap
         putValue (fieldToElementType $ fieldType fieldInfo) value
 
-    getDefault (FieldBool d) = BOOL <$> checkForNothing d
-    getDefault (FieldInt8 d) = INT8 <$> checkForNothing d
-    getDefault (FieldInt16 d) = INT16 <$> checkForNothing d
-    getDefault (FieldInt32 d) = INT32 <$> checkForNothing d
-    getDefault (FieldInt64 d) = INT64 <$> checkForNothing d
-    getDefault (FieldUInt8 d) = UINT8 <$> checkForNothing d
-    getDefault (FieldUInt16 d) = UINT16 <$> checkForNothing d
-    getDefault (FieldUInt32 d) = UINT32 <$> checkForNothing d
-    getDefault (FieldUInt64 d) = UINT64 <$> checkForNothing d
-    getDefault (FieldFloat d) = FLOAT <$> checkForNothing d
-    getDefault (FieldDouble d) = DOUBLE <$> checkForNothing d
-    getDefault (FieldString d) = STRING <$> checkForNothing d
-    getDefault (FieldWString d) = WSTRING <$> checkForNothing d
-    getDefault (FieldStruct _ _) = error "not implemented: default value for structs"
-    getDefault (FieldBonded _ _) = error "not implemented: default value for bonded"
-    getDefault (FieldList d element) = LIST (elementToBondDataType element) . const [] <$> checkForNothing d
-    getDefault (FieldSet d element) = SET (elementToBondDataType element) . const [] <$> checkForNothing d
-    getDefault (FieldMap d key value) = MAP (elementToBondDataType key) (elementToBondDataType value) . const [] <$> checkForNothing d
-
-    checkForNothing DefaultNothing = throwError "can't serialize default nothing with SimpleBinary protocol"
-    checkForNothing (DefaultValue a) = return a
+    getDefault = maybe (throwError "can't serialize default nothing with SimpleBinary protocol") return . defaultFieldValue
 
     putValue ElementBool (BOOL b) = bondPutBool b
     putValue ElementInt8 (INT8 v) = bondPutInt8 v

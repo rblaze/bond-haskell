@@ -71,7 +71,8 @@ tests = testGroup "Haskell runtime tests"
     [ testGroup "Runtime schema tests"
         [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
           testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef,
-          testCase "check compile/decompile schema is identity" checkCompileIdentity
+          testCase "check compile/decompile schema is identity" checkCompileIdentity,
+          testCase "defaultStruct is correct" checkDefaultStruct
         ],
       testGroup "Runtime schema validation tests"
         [ testCaseInfo "loop in inheritance chain" $ checkSchemaError "inheritance_loop.json",
@@ -421,7 +422,7 @@ failToWriteRequiredNothing p = assertWithMsg $ do
 
 failToWriteRequiredNothingWithSchema :: BondTaggedProto t => t -> IO String
 failToWriteRequiredNothingWithSchema p = assertWithMsg $ do
-    let struct = Struct Nothing $ M.fromList [(Ordinal 10, INT8 0)]
+    let struct = Struct Nothing $ M.fromList [(Ordinal 10, INT8 5)]
     let schema = getSchema (Proxy :: Proxy Reqopt)
     checkHasError $ bondWriteWithSchema p schema struct
 
@@ -444,6 +445,14 @@ checkCompileIdentity = assertEither $ do
     checkEqual "original and decompiled schema do not match" schemadef assembledSchema
 --    reparsedSchema <- hoistEither $ parseSchema assembledSchema
 --    checkEqual "original and parsed schema do not match" parsedSchema reparsedSchema
+
+checkDefaultStruct :: Assertion
+checkDefaultStruct = do
+    let schema = getSchema (Proxy :: Proxy Reqopt)
+    let defStruct = defaultStruct schema
+    assertEqual "struct is not as expected"
+        (Struct Nothing $ M.fromList [(Ordinal 10, INT8 5), (Ordinal 20, STRING "")])
+        defStruct
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)

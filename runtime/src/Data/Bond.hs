@@ -15,6 +15,7 @@ module Data.Bond
     , assembleSchema
     , checkStructSchema
     , defaultValue
+    , defaultStruct
     , getValue
     , marshalValue
     , parseSchema

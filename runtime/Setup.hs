@@ -4,6 +4,7 @@ import Distribution.Simple.BuildPaths
 import Distribution.Simple.LocalBuildInfo
 import Distribution.Simple.Program
 import Distribution.Simple.Setup
+import Distribution.Simple.Utils
 import Distribution.Verbosity
 import Control.Applicative
 import Control.Monad
@@ -67,7 +68,9 @@ regenSchemas verbosity hbc schemasDir outDir flagFile = do
                             filesTS <- mapM getModificationTime schemaFiles
                             flagTS <- getModificationTime flagFile
                             return $ any (flagTS <) filesTS
-                        else return True
+                        else do
+                            info verbosity $ "flag file " ++ flagFile ++ " missing"
+                            return True
     when needSchemaRegen $ do
         runProgram verbosity hbc $ ["-o", outDir] ++ schemaFiles
         writeFile flagFile ""

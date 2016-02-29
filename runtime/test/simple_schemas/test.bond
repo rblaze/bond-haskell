@@ -20,7 +20,7 @@ struct outer {
 }
 
 struct reqopt {
-    10: required int8 m_req_int8;
+    10: required int8 m_req_int8 = 5;
     20: required_optional string m_reqopt_string;
     30: required int16 m_req_nothing_int16 = nothing;
 }

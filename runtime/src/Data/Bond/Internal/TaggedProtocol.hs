@@ -192,7 +192,7 @@ putTaggedData s = do
             saveTypedValue tv v
       )
     saveValue (BONDED (BondedObject v)) = (bT_STRUCT, putTaggedStruct v)
-    saveValue (BONDED _) = (bT_STRUCT, throwError "should decode bonded values before tagged writes")
+    saveValue (BONDED _) = (bT_STRUCT, throwError "not implemented: should decode bonded values before tagged writes")
             -- FIXME be smart here
             -- same sig - copy stream
             -- tagged sig - unmarshal struct blindly, then marshal

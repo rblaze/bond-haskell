@@ -27,6 +27,7 @@ import Data.Typeable
 import Data.Vector ((//))
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.IntSet as IS
+import qualified Data.Map.Lazy as ML
 import qualified Data.Map.Strict as M
 import qualified Data.Vector as V
 
@@ -373,3 +374,49 @@ checkStructSchema rootSchema rootStruct = do
                                 Nothing -> [s]
                                 Just b -> s : step b
                    in step rootSchema
+
+defaultFieldValue :: FieldTypeInfo -> Maybe Value
+defaultFieldValue (FieldBool DefaultNothing) = Nothing
+defaultFieldValue (FieldInt8 DefaultNothing) = Nothing
+defaultFieldValue (FieldInt16 DefaultNothing) = Nothing
+defaultFieldValue (FieldInt32 DefaultNothing) = Nothing
+defaultFieldValue (FieldInt64 DefaultNothing) = Nothing
+defaultFieldValue (FieldUInt8 DefaultNothing) = Nothing
+defaultFieldValue (FieldUInt16 DefaultNothing) = Nothing
+defaultFieldValue (FieldUInt32 DefaultNothing) = Nothing
+defaultFieldValue (FieldUInt64 DefaultNothing) = Nothing
+defaultFieldValue (FieldFloat DefaultNothing) = Nothing
+defaultFieldValue (FieldDouble DefaultNothing) = Nothing
+defaultFieldValue (FieldString DefaultNothing) = Nothing
+defaultFieldValue (FieldWString DefaultNothing) = Nothing
+defaultFieldValue (FieldStruct DefaultNothing _) = Nothing
+defaultFieldValue (FieldBonded DefaultNothing _) = Nothing
+defaultFieldValue (FieldList DefaultNothing _) = Nothing
+defaultFieldValue (FieldSet DefaultNothing _) = Nothing
+defaultFieldValue (FieldMap DefaultNothing _ _) = Nothing
+defaultFieldValue (FieldBool (DefaultValue v)) = Just (BOOL v)
+defaultFieldValue (FieldInt8 (DefaultValue v)) = Just (INT8 v)
+defaultFieldValue (FieldInt16 (DefaultValue v)) = Just (INT16 v)
+defaultFieldValue (FieldInt32 (DefaultValue v)) = Just (INT32 v)
+defaultFieldValue (FieldInt64 (DefaultValue v)) = Just (INT64 v)
+defaultFieldValue (FieldUInt8 (DefaultValue v)) = Just (UINT8 v)
+defaultFieldValue (FieldUInt16 (DefaultValue v)) = Just (UINT16 v)
+defaultFieldValue (FieldUInt32 (DefaultValue v)) = Just (UINT32 v)
+defaultFieldValue (FieldUInt64 (DefaultValue v)) = Just (UINT64 v)
+defaultFieldValue (FieldFloat (DefaultValue v)) = Just (FLOAT v)
+defaultFieldValue (FieldDouble (DefaultValue v)) = Just (DOUBLE v)
+defaultFieldValue (FieldString (DefaultValue v)) = Just (STRING v)
+defaultFieldValue (FieldWString (DefaultValue v)) = Just (WSTRING v)
+defaultFieldValue (FieldStruct (DefaultValue ()) schema) = Just (STRUCT $ defaultStruct schema)
+defaultFieldValue (FieldBonded (DefaultValue ()) schema) = Just (BONDED $ BondedObject $ defaultStruct schema)
+defaultFieldValue (FieldList (DefaultValue ()) et) = Just (LIST (elementToBondDataType et) [])
+defaultFieldValue (FieldSet (DefaultValue ()) et) = Just (SET (elementToBondDataType et) [])
+defaultFieldValue (FieldMap (DefaultValue ()) kt vt) = Just (MAP (elementToBondDataType kt) (elementToBondDataType vt) [])
+
+defaultStruct :: StructSchema -> Struct
+defaultStruct schema = Struct (defaultStruct <$> structBase schema) requiredFields
+    where
+    requiredFields = ML.mapMaybe makeDefault $ structFields schema
+    makeDefault field
+        | fieldModifier field == FieldOptional = Nothing
+        | otherwise = defaultFieldValue $ fieldType field
