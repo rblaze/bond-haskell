@@ -1,5 +1,5 @@
 name:                bond-haskell
-version:             0.1.0.0
+version:             0.4.0.1
 synopsis:            Runtime support for BOND serialization
 description:         Bond is a cross-platform framework for handling schematized
                      data. It supports cross-language de/serialization and
@@ -57,7 +57,7 @@ library
                        Data.Bond.Internal.Utils
                        Data.Bond.Schema.ProtocolType
   build-depends:       base >= 4.7 && < 5
---                     , bond-haskell-compiler
+                     , bond-haskell-compiler == 0.4.0.1
                      , aeson
                      , array
                      , binary >= 0.7.0.0
@@ -112,4 +112,4 @@ test-suite bond-haskell-test
 
 source-repository head
   type:     git
-  location: https://github.com/rblaze/bond-haskell
+  location: https://github.com/rblaze/bond-haskell.git
