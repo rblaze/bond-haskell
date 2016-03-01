@@ -26,7 +26,7 @@ before_install:
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install haskell-stack ; fi
 
 install:
-    - stack $STACK_ARGS --no-terminal setup
+    - if [ "$TRAVIS_OS_NAME" == "osx" ]; then stack $STACK_ARGS --no-terminal setup ; fi
     - stack $STACK_ARGS --no-terminal test --only-snapshot
 
 script:
