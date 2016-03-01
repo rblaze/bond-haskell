@@ -7,8 +7,12 @@ cache:
         - $HOME/.stack
 addons:
   apt:
+    sources:
+        - hvr-ghc
     packages:
         - libgmp-dev
+        - ghc-7.8.4
+        - ghc-7.10.3
 env:
     - STACK_ARGS="--resolver lts-5"
     - STACK_ARGS="--resolver lts-3"
