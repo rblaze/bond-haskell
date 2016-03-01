@@ -12,6 +12,7 @@ addons:
     packages:
         - libgmp-dev
         - ghc-7.8.4
+        - ghc-7.10.2
         - ghc-7.10.3
 env:
     - STACK_ARGS="--resolver lts-5"
@@ -22,7 +23,7 @@ before_install:
     - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mkdir -p ~/.local/bin ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ]; then export PATH=$HOME/.local/bin:$PATH ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ]; then travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack' ; fi
-    - export PATH=/opt/ghc/7.10.3/bin:/opt/ghc/7.8.4/bin:$PATH
+    - export PATH=/opt/ghc/7.10.3/bin:/opt/ghc/7.10.2/bin:/opt/ghc/7.8.4/bin:$PATH
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update ; fi
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install haskell-stack ; fi
 
