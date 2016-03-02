@@ -44,7 +44,8 @@ makeFieldType settype ctx field
     where
     reuseDefault con = App (Con $ implQual con) $ Paren $
         App (Con $ implQual "DefaultValue") $ Paren $
-            App (Var $ UnQual $ mkVar $ makeFieldName field) (Var $ implQual "defaultValue")
+            App (Var $ UnQual $ mkVar $ makeFieldName field) $ Paren $
+                InfixApp (Var $ implQual "defaultValue") (QVarOp $ implQual "asProxyTypeOf") (Var $ unqual "type'proxy")
 
 getSchema :: CodegenOpts -> MappingContext -> Declaration -> InstDecl
 getSchema opts ctx decl = InsDecl $ simpleFun noLoc (Ident "getSchema") (Ident "type'proxy") $

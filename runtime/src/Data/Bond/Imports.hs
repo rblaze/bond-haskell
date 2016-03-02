@@ -6,6 +6,7 @@ module Data.Bond.Imports
     , IsString
     , Protocol(..)
     , ap
+    , asProxyTypeOf
     , fromOrdinalList
     ) where 
 
@@ -18,5 +19,6 @@ import Data.Bond.Internal.Utils as X
 
 import Control.Monad (ap)
 import Data.Hashable (Hashable)
+import Data.Proxy (asProxyTypeOf)
 import Data.String (IsString)
 import Data.Typeable as X
