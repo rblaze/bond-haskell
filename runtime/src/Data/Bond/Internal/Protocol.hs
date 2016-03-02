@@ -13,6 +13,7 @@ import Control.Monad.State.Class
 import Data.Hashable
 import Data.Proxy
 import Data.Text
+import Data.Typeable
 import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.HashSet as H
 import qualified Data.Map as M
@@ -37,7 +38,7 @@ deriving instance (MonadError e (WriterM t)) => MonadError e (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
-class Default a => BondType a where
+class (Typeable a, Default a) => BondType a where
     -- | Read value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Write value.

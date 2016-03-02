@@ -150,8 +150,7 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
                 RecConstr (UnQual typeName) fieldDefaults
         ]
     bondTypeDecl = InstDecl noLoc Nothing []
-        (map (typeParamConstraint $ implQual "BondType") declParams ++
-            map (typeParamConstraint $ implQual "Typeable") declParams)
+        (map (typeParamConstraint $ implQual "BondType") declParams)
         (implQual "BondType")
         [makeType True typeName declParams]
         ([InsDecl $
@@ -162,8 +161,7 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
                 Var (implQual "bondPutStruct")
         ] ++ structNameAndType ctx decl)
     bondStructDecl = InstDecl noLoc Nothing []
-        (map (typeParamConstraint $ implQual "BondType") declParams ++
-            map (typeParamConstraint $ implQual "Typeable") declParams)
+        (map (typeParamConstraint $ implQual "BondType") declParams)
         (implQual "BondStruct")
         [makeType True typeName declParams]
         [ structPut typeName decl
