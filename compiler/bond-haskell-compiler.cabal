@@ -1,5 +1,5 @@
 name:                bond-haskell-compiler
-version:             0.4.0.1
+version:             0.1.0.0
 synopsis:            Bond code generator for Haskell
 description:         Bond is a cross-platform framework for handling schematized
                      data. It supports cross-language de/serialization and
