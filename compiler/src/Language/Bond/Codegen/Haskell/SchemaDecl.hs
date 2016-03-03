@@ -32,7 +32,8 @@ makeFieldType settype ctx field
             App (Con $ implQual "DefaultValue") $ Paren $
                 App (Var $ pQual "fromIntegral") $ Paren $
                     App (Var $ pQual "fromEnum") $ Paren $
-                        App (Var $ UnQual $ mkVar $ makeFieldName field) (Var $ implQual "defaultValue")
+                        App (Var $ UnQual $ mkVar $ makeFieldName field) $ Paren $
+                            InfixApp (Var $ implQual "defaultValue") (QVarOp $ implQual "asProxyTypeOf") (Var $ unqual "type'proxy")
     | BT_Maybe t <- fieldType field =
         App (Var $ implQual "elementToDefNothingFieldType") $ Paren $
             App (Var $ implQual "getElementType") $ Paren $
