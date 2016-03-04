@@ -16,7 +16,6 @@ maintainer:          Andrey Sverdlichenko <blaze@ruddy.ru>
 copyright:           (C) 2015 Andrey Sverdlichenko
 category:            Data,Parsing
 build-type:          Custom
--- extra-source-files:
 cabal-version:       >=1.18
 
 library
@@ -71,7 +70,7 @@ library
                      , unordered-containers >= 0.2
                      , vector >= 0.10
   default-language:    Haskell2010
-  ghc-options:         -threaded -W -Wall -fno-warn-warnings-deprecations
+  ghc-options:         -W -Wall -fno-warn-warnings-deprecations
 
 test-suite bond-haskell-test
   type:                exitcode-stdio-1.0

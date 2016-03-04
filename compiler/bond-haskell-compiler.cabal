@@ -27,8 +27,8 @@ library
                        Language.Bond.Codegen.Haskell.SchemaDecl
                        Language.Bond.Codegen.Haskell.StructDecl
                        Language.Bond.Codegen.Haskell.Util
-  ghc-options:         -threaded -rtsopts -with-rtsopts=-N -W -Wall
-  build-depends:       base
+  ghc-options:         -W -Wall
+  build-depends:       base >= 4.7 && < 5
                      , bond == 0.4.0.1
                      , filepath >= 1.0
                      , haskell-src-exts >= 1.16
