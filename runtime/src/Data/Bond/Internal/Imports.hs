@@ -1,4 +1,4 @@
-module Data.Bond.Imports 
+module Data.Bond.Internal.Imports 
     ( module X
     , BondStruct(..)
     , BondType(..)

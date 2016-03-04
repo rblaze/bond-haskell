@@ -1,7 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables, MultiWayIf #-}
 module Data.Bond.Marshal (
-    BondProto(bondMarshal, bondMarshalWithSchema),
-    BondTaggedProto(bondMarshalTagged),
     bondUnmarshal,
     bondUnmarshalWithSchema,
     bondUnmarshalTagged
@@ -18,6 +16,7 @@ import Data.Bond.Internal.Protocol
 
 import qualified Data.ByteString.Lazy as BL
 
+-- |Deserialize structure from stream, finding protocol from stream header.
 bondUnmarshal :: BondStruct a => BL.ByteString -> Either String a
 bondUnmarshal s
     = let (sig, rest) = BL.splitAt 4 s
@@ -29,6 +28,7 @@ bondUnmarshal s
              | sig == protoSig JsonProto -> bondRead JsonProto rest
              | otherwise -> Left "unknown signature in marshalled stream"
 
+-- |Deserialize structure from stream with provided schema, finding protocol from stream header.
 bondUnmarshalWithSchema :: StructSchema -> BL.ByteString -> Either String Struct
 bondUnmarshalWithSchema schema s
     = let (sig, rest) = BL.splitAt 4 s
@@ -40,6 +40,7 @@ bondUnmarshalWithSchema schema s
              | sig == protoSig JsonProto -> bondReadWithSchema JsonProto schema rest
              | otherwise -> Left "unknown signature in marshalled stream"
 
+-- |Deserialize structure from stream without schema, finding protocol from stream header.
 bondUnmarshalTagged :: BL.ByteString -> Either String Struct
 bondUnmarshalTagged s
     = let (sig, rest) = BL.splitAt 4 s

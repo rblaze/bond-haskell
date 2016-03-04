@@ -33,6 +33,7 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+-- |A binary, tagged protocol similar to 'CompactBinaryProto' but optimized for deserialization speed rather than payload compactness.
 data FastBinaryProto = FastBinaryProto
 
 instance TaggedProtocol FastBinaryProto where

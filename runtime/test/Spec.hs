@@ -1,6 +1,5 @@
 {-# Language GADTs, ScopedTypeVariables, OverloadedStrings #-}
 import Data.Bond
-import Data.Bond.Marshal
 import Data.Bond.Internal.ZigZag
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.SchemaDef

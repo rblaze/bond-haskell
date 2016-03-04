@@ -38,6 +38,7 @@ deriving instance (MonadError e (WriterM t)) => MonadError e (BondPutM t)
 
 type BondPut t = BondPutM t ()
 
+-- |A type bond knows how to read and write to stream as a part of 'BondStruct'.
 class (Typeable a, Default a) => BondType a where
     -- | Read value.
     bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
@@ -47,28 +48,33 @@ class (Typeable a, Default a) => BondType a where
     getName :: Proxy a -> Text
     -- | Get qualified name of type.
     getQualifiedName :: Proxy a -> Text
-    -- | Get ElementTypeInfo for this type.
+    -- | Get type description.
     getElementType :: Proxy a -> ElementTypeInfo
 
+-- |Bond top-level structure, can be de/serialized on its own.
 class BondType a => BondStruct a where
-    -- | Read struct from untagged stream
+    -- | Read all struct fields in order.
     bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
+    -- | Read base struct from stream.
     bondStructGetBase :: (Monad (ReaderM t), Protocol t) => a -> BondGet t a
+    -- | Read field with specific ordinal.
     bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
-    -- | Put struct
+    -- | Put all struct fields to stream in order.
     bondStructPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
+    -- | Obtain struct schema.
     getSchema :: Proxy a -> StructSchema
 
+-- |Bond serialization protocol, implements all operations.
 class Protocol t where
     type ReaderM t :: * -> *
     type WriterM t :: * -> *
-    -- | encode top-level struct
+    -- | Serialize top-level struct
     bondPutStruct :: BondStruct a => a -> BondPut t
-    -- | encode base struct
+    -- | Serialize base struct
     bondPutBaseStruct :: BondStruct a => a -> BondPut t
-    -- | decode top-level struct
+    -- | Deserialize top-level struct
     bondGetStruct :: BondStruct a => BondGet t a
-    -- | decode base struct
+    -- | Deserialize base struct
     bondGetBaseStruct :: BondStruct a => BondGet t a
 
     bondPutField :: (BondType a, BondStruct b) => Proxy b -> Ordinal -> a -> BondPut t

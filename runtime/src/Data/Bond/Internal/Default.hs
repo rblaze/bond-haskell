@@ -9,8 +9,12 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+-- |Type with default value.
+--  Used for optional field elimination.
 class Default a where
+    -- |Get default value for specified type.
     defaultValue :: a
+    -- |Check if value matches default in 'FieldTypeInfo'
     equalToDefault :: FieldTypeInfo -> a -> Bool
     equalToDefault _ _ = False
 

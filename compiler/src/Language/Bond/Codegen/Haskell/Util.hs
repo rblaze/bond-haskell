@@ -19,7 +19,7 @@ unique :: Ord a => [a] -> [a]
 unique = map head . group . sort
 
 internalModuleName :: ModuleName
-internalModuleName = ModuleName "Data.Bond.Imports"
+internalModuleName = ModuleName "Data.Bond.Internal.Imports"
 
 internalModuleAlias :: ModuleName
 internalModuleAlias = ModuleName "B'"

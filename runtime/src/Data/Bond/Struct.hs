@@ -5,6 +5,7 @@ import Data.Bond.Types
 
 import qualified Data.Map.Strict as M
 
+-- |Representation of bond serializable type used in runtime-schema operations.
 data Value
     = BOOL Bool
     | INT8 Int8
@@ -48,6 +49,7 @@ instance Eq Value where
     (BONDED (BondedStream a)) == (BONDED (BondedStream b)) = a == b
     _ == _ = False
 
+-- |Representation of bond structure used in runtime-schema operations.
 data Struct = Struct { base :: Maybe Struct, fields :: M.Map Ordinal Value }
     deriving (Show, Eq)
 

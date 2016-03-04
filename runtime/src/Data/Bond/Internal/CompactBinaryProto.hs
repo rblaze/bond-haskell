@@ -36,7 +36,12 @@ import qualified Data.Map as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+{-|
+A binary, tagged protocol using variable integer encoding and compact field header.
+Version 2 of Compact Binary adds length prefix for structs. This enables deserialization of bonded\<T\> and skipping of unknown struct fields in constant time.
+-}
 data CompactBinaryProto = CompactBinaryProto
+-- |A binary, tagged protocol using variable integer encoding and compact field header.
 data CompactBinaryV1Proto = CompactBinaryV1Proto
 
 instance TaggedProtocol CompactBinaryProto where

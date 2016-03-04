@@ -22,12 +22,12 @@ cabal-version:       >=1.18
 library
   hs-source-dirs:      src
   exposed-modules:     Data.Bond
-                       Data.Bond.Imports
                        Data.Bond.Marshal
                        Data.Bond.Proto
                        Data.Bond.Struct
                        Data.Bond.TypedSchema
                        Data.Bond.Types
+                       Data.Bond.Internal.Imports
                        Data.Bond.Internal.ZigZag
                        Data.Bond.Schema.BondDataType
                        Data.Bond.Schema.FieldDef

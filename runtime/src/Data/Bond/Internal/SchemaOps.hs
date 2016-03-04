@@ -92,6 +92,7 @@ validateSchemaDef schema = do
             when (idx >= V.length (structs schema)) $ throwError $ "struct index " ++ show idx ++ " out of range"
         | otherwise = throwError $ "unexpected data type " ++ bondTypeName typ
 
+-- |Convert 'SchemaDef' to internal schema representation.
 parseSchema :: SchemaDef -> Either String StructSchema
 parseSchema schemadef = validateSchemaDef schemadef >> makeSchema
     where
@@ -174,6 +175,7 @@ data SchemaState = SchemaState
     , structMap :: M.Map TypeRep Word16
     }
 
+-- |Convert internal schema representation to 'SchemaDef' for storage or transfer.
 assembleSchema :: StructSchema -> SchemaDef
 assembleSchema schema = SchemaDef { structs = structVector, root = rootStruct }
     where
@@ -322,6 +324,7 @@ assembleSchema schema = SchemaDef { structs = structVector, root = rootStruct }
     makeDefaultValue (FieldSet (DefaultValue ()) _) = defaultValue
     makeDefaultValue (FieldMap (DefaultValue ()) _ _) = defaultValue
 
+-- |Verify that 'Struct' matches 'StructSchema' and is internally consistent.
 checkStructSchema :: MonadError String m => StructSchema -> Struct -> m Struct
 checkStructSchema rootSchema rootStruct = do
     when (length schemaStack > length structStack) $ throwError "schema depth is larger than struct depth"
@@ -413,6 +416,7 @@ defaultFieldValue (FieldList (DefaultValue ()) et) = Just (LIST (elementToBondDa
 defaultFieldValue (FieldSet (DefaultValue ()) et) = Just (SET (elementToBondDataType et) [])
 defaultFieldValue (FieldMap (DefaultValue ()) kt vt) = Just (MAP (elementToBondDataType kt) (elementToBondDataType vt) [])
 
+-- |Create minimal valid 'Struct' representing given @schema@
 defaultStruct :: StructSchema -> Struct
 defaultStruct schema = Struct (defaultStruct <$> structBase schema) requiredFields
     where

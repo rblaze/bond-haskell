@@ -34,7 +34,12 @@ import qualified Data.Set as S
 import qualified Data.Traversable as T -- XXX lts-2
 import qualified Data.Vector as V
 
+{-|
+A binary, untagged protocol which is a good choice for storage scenarios as it offers potential for big saving on payload size. Because Simple is an untagged protocol, it requires that the payload schema is available during deserialization.
+Version 2 of Simple Protocol uses variable integer encoding for string and container lengths, resulting in more compact payload.
+-}
 data SimpleBinaryProto = SimpleBinaryProto
+-- |A binary, untagged protocol which is a good choice for storage scenarios as it offers potential for big saving on payload size. Because Simple is an untagged protocol, it requires that the payload schema is available during deserialization.
 data SimpleBinaryV1Proto = SimpleBinaryV1Proto
 
 class Protocol t => SimpleProtocol t where

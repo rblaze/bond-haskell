@@ -41,20 +41,27 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Vector as V
 
+-- |Bond "string" type
 newtype Utf8 = Utf8 BS.ByteString
     deriving (Eq, Ord, Hashable, Typeable)
 
+-- |Bond "wstring" type
 newtype Utf16 = Utf16 BS.ByteString
     deriving (Eq, Ord, Hashable, Typeable)
 
+-- |Bond "blob" type
 newtype Blob = Blob BS.ByteString
     deriving (Show, Eq, Ord, Hashable, Typeable)
 
-class EncodedString a where
+-- |Bond string\/wstring transformations from/to 'String' and 'T.Text'.
+class IsString a => EncodedString a where
+    -- |Convert to 'String'
     toString :: a -> String
     toString = T.unpack . toText
 
+    -- |Make bond string from 'T.Text'
     fromText :: T.Text -> a
+    -- |Convert to 'T.Text'
     toText :: a -> T.Text
 
 instance IsString Utf8 where
@@ -74,5 +81,6 @@ instance EncodedString Utf16 where
 instance Show Utf8 where show s = show $ toString s
 instance Show Utf16 where show s = show $ toString s
 
+-- |Bond structure field ordinal.
 newtype Ordinal = Ordinal Word16
     deriving (Eq, Ord, Show, Hashable)

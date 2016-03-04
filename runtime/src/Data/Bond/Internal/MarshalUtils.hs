@@ -1,6 +1,6 @@
 module Data.Bond.Internal.MarshalUtils where
 
-import Data.Bond.Marshal
+import Data.Bond.Proto
 import Data.Bond.Internal.Protocol
 
 import qualified Data.ByteString.Lazy as BL

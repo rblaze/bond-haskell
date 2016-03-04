@@ -3,7 +3,6 @@ module Data.Bond.Internal.JsonProto (
         JsonProto(..)
     ) where
 
-import Data.Bond.Marshal
 import Data.Bond.Proto
 import Data.Bond.Struct
 import Data.Bond.TypedSchema
@@ -42,6 +41,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
+-- |The output is a standard JSON and is a very good choice for interoperating with other systems or generating human readable payload. Because payload doesn't include field ordinals, it is treated as untagged protocol.
 data JsonProto = JsonProto
 
 type ReadM = ErrorT String (Reader A.Value)
