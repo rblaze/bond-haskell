@@ -20,12 +20,6 @@ main = defaultMainWithHooks $ simpleUserHooks
     , copyHook = addSchemaModulesCopy
     , regHook = addSchemaModulesReg
     , instHook = addSchemaModulesInstall
-    , replHook = \ a b c d e -> print "repl" >> replHook simpleUserHooks a b c d e
-    , testHook = \ a b c d e -> print "test" >> testHook simpleUserHooks a b c d e
-    , benchHook = \ a b c d e -> print "bench" >> benchHook simpleUserHooks a b c d e
-    , cleanHook = \ a b c d -> print "clean" >> cleanHook simpleUserHooks a b c d
-    , hscolourHook = \ a b c d -> print "hscolour" >> hscolourHook simpleUserHooks a b c d
-    , haddockHook = \ a b c d  -> print "haddock" >> haddockHook simpleUserHooks a b c d
 }
 
 addSchemaModules :: PackageDescription -> LocalBuildInfo -> IO PackageDescription
@@ -38,35 +32,27 @@ addSchemaModules pd0 lbi = do
 
 addSchemaModulesBuild :: PackageDescription -> LocalBuildInfo -> UserHooks -> BuildFlags -> IO ()
 addSchemaModulesBuild pd0 lbi hooks flags = do
-    print "build hook"
     pd <- addSchemaModules pd0 lbi
     -- run default hook
     buildHook simpleUserHooks pd lbi hooks flags
-    print "build finished"
 
 addSchemaModulesReg :: PackageDescription -> LocalBuildInfo -> UserHooks -> RegisterFlags -> IO ()
 addSchemaModulesReg pd0 lbi hooks flags = do
-    print "reg hook"
     pd <- addSchemaModules pd0 lbi
     -- run default hook
     regHook simpleUserHooks pd lbi hooks flags
-    print "reg finished"
 
 addSchemaModulesCopy :: PackageDescription -> LocalBuildInfo -> UserHooks -> CopyFlags -> IO ()
 addSchemaModulesCopy pd0 lbi hooks flags = do
-    print "copy hook"
     pd <- addSchemaModules pd0 lbi
     -- run default hook
     copyHook simpleUserHooks pd lbi hooks flags
-    print "copy finished"
 
 addSchemaModulesInstall :: PackageDescription -> LocalBuildInfo -> UserHooks -> InstallFlags -> IO ()
 addSchemaModulesInstall pd0 lbi hooks flags = do
-    print "install hook"
     pd <- addSchemaModules pd0 lbi
     -- run default hook
     instHook simpleUserHooks pd lbi hooks flags
-    print "install finished"
 
 runHbc :: Args -> ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 runHbc args conf pd lbi = do
