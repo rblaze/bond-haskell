@@ -1,5 +1,5 @@
 name:                bond-haskell
-version:             0.1.1.0
+version:             0.1.1.1
 synopsis:            Runtime support for BOND serialization
 description:         Bond is a cross-platform framework for handling schematized
                      data. It supports cross-language de/serialization and
@@ -17,6 +17,19 @@ copyright:           (C) 2015 Andrey Sverdlichenko
 category:            Data,Parsing
 build-type:          Custom
 cabal-version:       >=1.18
+extra-source-files:  schema/*.bond
+                     test/compat/schemas/*.bond
+                     test/simple_schemas/*.bond
+data-files:          test/broken_schemas/*.json
+                     test/compat/data/compat.compact2.dat
+                     test/compat/data/compat.compact.dat
+                     test/compat/data/compat.fast.dat
+                     test/compat/data/compat.json.dat
+                     test/compat/data/compat.pretty.dat
+                     test/compat/data/compat.schema.dat
+                     test/compat/data/compat.simple2.dat
+                     test/compat/data/compat.simple.dat
+                     test/compat/data/golden.json.dat
 
 library
   hs-source-dirs:      src
