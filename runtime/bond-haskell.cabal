@@ -28,14 +28,6 @@ library
                        Data.Bond.Types
                        Data.Bond.Internal.Imports
                        Data.Bond.Internal.ZigZag
-                       Data.Bond.Schema.BondDataType
-                       Data.Bond.Schema.FieldDef
-                       Data.Bond.Schema.Metadata
-                       Data.Bond.Schema.Modifier
-                       Data.Bond.Schema.SchemaDef
-                       Data.Bond.Schema.StructDef
-                       Data.Bond.Schema.TypeDef
-                       Data.Bond.Schema.Variant
   other-modules:       Data.Bond.Internal.BinaryUtils
                        Data.Bond.Internal.Bonded
                        Data.Bond.Internal.BondedUtils
@@ -54,9 +46,8 @@ library
                        Data.Bond.Internal.TaggedProtocol
                        Data.Bond.Internal.Utils
                        Data.Bond.Internal.Utils
-                       Data.Bond.Schema.ProtocolType
   build-depends:       base >= 4.7 && < 5
-                     , bond-haskell-compiler == 0.1.0.0
+                     , bond-haskell-compiler >= 0.1.0.0 && < 0.1.1
                      , aeson
                      , array
                      , binary >= 0.7.0.0
@@ -76,23 +67,6 @@ test-suite bond-haskell-test
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test
   main-is:             Spec.hs
-  other-modules:       DataPath
-                       Unittest.Compat.Another.Another
-                       Unittest.Compat.Another.EnumType
-                       Unittest.Compat.BasicTypes
-                       Unittest.Compat.BasicTypesUninitialized
-                       Unittest.Compat.Compat
-                       Unittest.Compat.Containers
-                       Unittest.Compat.EnumType1
-                       Unittest.Compat.EnumType2
-                       Unittest.Compat.Generic1
-                       Unittest.Compat.Generic2
-                       Unittest.Compat.Generic4
-                       Unittest.Compat.WithBase
-                       Unittest.Simple.Base
-                       Unittest.Simple.Inner
-                       Unittest.Simple.Outer
-                       Unittest.Simple.Reqopt                       
   build-depends:       base
                      , aeson
                      , bond-haskell
@@ -112,3 +86,4 @@ test-suite bond-haskell-test
 source-repository head
   type:     git
   location: https://github.com/rblaze/bond-haskell.git
+  subdir:   runtime

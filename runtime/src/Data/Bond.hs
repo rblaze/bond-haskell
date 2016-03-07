@@ -59,6 +59,12 @@ module Data.Bond
     , EncodedString(..)
     , Ordinal(..)
     , defaultValue
+    -- | Reexported from generated code
+    , BondDataType(..)
+    , bT_BOOL, bT_UINT8, bT_UINT16, bT_UINT32, bT_UINT64
+    , bT_FLOAT, bT_DOUBLE, bT_STRING, bT_STRUCT, bT_LIST
+    , bT_SET, bT_MAP, bT_INT8, bT_INT16, bT_INT32, bT_INT64, bT_WSTRING
+    , SchemaDef
     ) where
 
 import Data.Bond.Marshal
@@ -73,6 +79,8 @@ import Data.Bond.Internal.JsonProto
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SimpleBinaryProto
+import Data.Bond.Schema.BondDataType
+import Data.Bond.Schema.SchemaDef
 
 -- $examples
 -- Let's use following @schema.bond@ IDL file:

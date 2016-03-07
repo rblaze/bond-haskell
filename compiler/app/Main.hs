@@ -37,8 +37,11 @@ codegen options templates file = do
     namespaceMapping <- parseNamespaceMappings $ namespace options
     let mappingContext = MappingContext (error "can't create TypeMapping") aliasMapping namespaceMapping namespaces
     forM_ templates $ \template -> do
-        let MultiFile outputFiles = template mappingContext declarations
-        forM_ outputFiles $ \(name, code) -> do
-            let fileName = outputDir </> name
+        let outputFiles = template mappingContext declarations
+        forM_ outputFiles $ \ moduleInfo -> do
+            let fileName = outputDir </> moduleFile moduleInfo
             createDirectoryIfMissing True $ takeDirectory fileName
-            writeFile fileName code
+            writeFile fileName (moduleText moduleInfo)
+            case moduleName moduleInfo of
+                Nothing -> return ()
+                Just name -> putStrLn name
