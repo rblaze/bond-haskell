@@ -9,7 +9,7 @@ description:         Bond is a cross-platform framework for handling schematized
                      The package contains a command-line compiler/codegen
                      tool, named hbc, which is used to generate code for Haskell
                      programs using Bond.
-homepage:            http://github.com/rblaze/bond-haskell-compiler#readme
+homepage:            http://github.com/rblaze/bond-haskell#readme
 license:             BSD3
 license-file:        LICENSE
 author:              blaze@ruddy.ru
