@@ -74,7 +74,7 @@ runHbc args conf pd lbi = do
                         else return True
     when needSchemaRegen $ do
         extras <- getProgramOutput verbosity hbc ["-h", "-o", buildDir lbi, "--hsboot", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
-        createDirectoryIfMissing True outDir
+        createDirectoryIfMissing True (takeDirectory schemaFlag)
         writeFile schemaFlag extras
 
     -- generate json schemas for unittests
@@ -110,5 +110,5 @@ regenSchemas verbosity hbc schemasDir outDir flagFile = do
                             return True
     when needSchemaRegen $ do
         extras <- getProgramOutput verbosity hbc $ ["-o", outDir] ++ schemaFiles
-        createDirectoryIfMissing True outDir
+        createDirectoryIfMissing True (takeDirectory flagFile)
         writeFile flagFile extras
