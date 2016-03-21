@@ -22,7 +22,7 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
         Nothing
         Nothing
         [importInternalModule, importPrelude]
-        (dataDecl : bondTypeDecl : typeSig : values)
+        (dataDecl : bondTypeDecl : bondEnumDecl : typeSig : values)
     typeName = mkType $ makeDeclName decl
     typeCon = TyCon (UnQual typeName)
     dataDecl = DataDecl noLoc NewType [] typeName []
@@ -31,33 +31,44 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
         , (implQual "Hashable", []), (implQual "Default", []), (implQual "Typeable", [])
         ]
     bondTypeDecl = InstDecl noLoc Nothing [] [] (implQual "BondType")
-        [typeCon]
-        [InsDecl $
+        [ typeCon ]
+        [ InsDecl $
             FunBind
                 [Match noLoc (Ident "bondPut")
                     [PParen (PApp (UnQual typeName) [PVar $ Ident "v'"])]
                     Nothing
                     (UnGuardedRhs $
                         App (Var $ implQual "bondPut") (Var $ unqual "v'"))
-                    noBinds],
-         InsDecl $
+                    noBinds]
+        , InsDecl $
             PatBind noLoc (PVar $ Ident "bondGet")
                 (UnGuardedRhs $
                     appFun (Var $ pQual "fmap") [Con $ UnQual typeName, Var $ implQual "bondGet"])
-                noBinds,
-         InsDecl $ wildcardFunc "getName" $ strE (declName decl),
-         InsDecl $ wildcardFunc "getQualifiedName" $ strE (getDeclTypeName ctx{namespaceMapping = []} decl),
-         InsDecl $ wildcardFunc "getElementType" $ Con (implQual "ElementInt32")
+                noBinds
+        , InsDecl $ wildcardFunc "getName" $ strE (declName decl)
+        , InsDecl $ wildcardFunc "getQualifiedName" $ strE (getDeclTypeName ctx{namespaceMapping = []} decl)
+        , InsDecl $ wildcardFunc "getElementType" $ Con (implQual "ElementInt32")
         ]
+    bondEnumDecl = InstDecl noLoc Nothing [] [] (implQual "BondEnum")
+        [ typeCon ]
+        [ InsDecl $ FunBind $ map makeToNameMatch consts ++ [wildcardMatch "toName" $ Var $ pQual "Nothing"]
+        , InsDecl $ FunBind $ map makeFromNameMatch consts ++ [wildcardMatch "fromName" $ Var $ pQual "Nothing"]
+        ]
+    makeToNameMatch (constName, i) =
+        Match noLoc (Ident "toName") [ PParen $ PApp (UnQual typeName) [intP $ fromIntegral i] ]
+            Nothing (UnGuardedRhs $ App (Var $ pQual "Just") (strE constName)) noBinds
+    makeFromNameMatch (constName, _) =
+        Match noLoc (Ident "fromName") [ strP constName ]
+            Nothing (UnGuardedRhs $ App (Var $ pQual "Just") (Var $ UnQual $ mkVar constName)) noBinds
     typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
-    values = makeValue 0 (enumConstants decl)
-    makeValue _ [] = []
-    makeValue _ (Constant{constantName = cname, constantValue = Just i} : xs)
-        = mkConst cname i : makeValue (i + 1) xs
-    makeValue i (Constant{constantName = cname} : xs)
-        = mkConst cname i : makeValue (i + 1) xs
-    mkConst constName val
-        = patBind noLoc (PVar $ mkVar constName) $ App (Con $ UnQual typeName) (parenIntL val)
+    consts = makeConst 0 (enumConstants decl)
+    makeConst _ [] = []
+    makeConst _ (Constant{constantName = cname, constantValue = Just i} : xs)
+        = (cname, i) : makeConst (i + 1) xs
+    makeConst i (Constant{constantName = cname} : xs)
+        = (cname, i) : makeConst (i + 1) xs
+    values = map makeValue consts
+    makeValue (constName, val) = patBind noLoc (PVar $ mkVar constName) $ App (Con $ UnQual typeName) (parenIntL val)
 
 enumDecl _ _ _ _ = error "enumDecl called for invalid type"
 

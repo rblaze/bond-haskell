@@ -1,5 +1,6 @@
 module Data.Bond.Internal.Imports 
     ( module X
+    , BondEnum(..)
     , BondStruct(..)
     , BondType(..)
     , Hashable
@@ -13,6 +14,7 @@ module Data.Bond.Internal.Imports
 import Data.Bond.TypedSchema as X
 import Data.Bond.Types as X
 import Data.Bond.Internal.Default as X
+import Data.Bond.Internal.Enum
 import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.Utils as X

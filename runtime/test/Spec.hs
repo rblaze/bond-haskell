@@ -4,6 +4,7 @@ import Data.Bond.Internal.ZigZag
 import Unittest.Compat.Another.Another
 import Unittest.Compat.BasicTypes
 import Unittest.Compat.Compat
+import Unittest.Compat.EnumType1
 import Unittest.Simple.Inner as Inner
 import Unittest.Simple.Outer as Outer
 import Unittest.Simple.Reqopt as ReqOpt
@@ -65,93 +66,91 @@ brokenSchemasPath = "test" </> "broken_schemas"
 
 tests :: TestTree
 tests = testGroup "Haskell runtime tests"
-    [ testGroup "Runtime schema tests"
+    [ testGroup "Enum tests"
+        [ testCase "check enum value to name conversion" checkEnumNames
+        ]
+    , testGroup "Runtime schema tests"
         [ testCase "check saved Compat schema matching our schema" matchCompatSchemaDef,
           testCase "check gbc-generated SchemaDef schema matching our schema" matchGeneratedSchemaDef,
           testCase "check compile/decompile schema is identity" checkCompileIdentity,
           testCase "defaultStruct is correct" checkDefaultStruct
-        ],
-      testGroup "Runtime schema validation tests"
-        [ testCaseInfo "loop in inheritance chain" $ checkSchemaError "inheritance_loop.json",
-          testCaseInfo "non-struct in inheritance chain" $ checkSchemaError "inherit_from_int.json",
-          testCaseInfo "index out of range" $ checkSchemaError "index_out_of_range.json",
-          testCaseInfo "field type mismatch" $
-            checkSchemaMismatch (Proxy :: Proxy Outer) $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)],
-          testCaseInfo "field type mismatch in field struct" $
+        ]
+    , testGroup "Runtime schema validation tests"
+        [ testCaseInfo "loop in inheritance chain" $ checkSchemaError "inheritance_loop.json"
+        , testCaseInfo "non-struct in inheritance chain" $ checkSchemaError "inherit_from_int.json"
+        , testCaseInfo "index out of range" $ checkSchemaError "index_out_of_range.json"
+        , testCaseInfo "field type mismatch" $
+            checkSchemaMismatch (Proxy :: Proxy Outer) $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)]
+        , testCaseInfo "field type mismatch in field struct" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $ Struct Nothing $ M.fromList
-              [
-                (Ordinal 20, STRUCT $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)])
-              ],
-          testCaseInfo "type mismatch in list" $
+              [ (Ordinal 20, STRUCT $ Struct Nothing $ M.fromList [(Ordinal 10, BOOL True)])
+              ]
+        , testCaseInfo "type mismatch in list" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
-                Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_BOOL [])],
-          testCaseInfo "type mismatch in list element struct" $
+                Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_BOOL [])]
+        , testCaseInfo "type mismatch in list element struct" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
                 Struct Nothing $ M.fromList [(Ordinal 40, LIST bT_STRUCT
-                  [
-                    STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)]
-                  ])],
-          testCaseInfo "type mismatch in set" $
+                  [ STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)]
+                  ])]
+        , testCaseInfo "type mismatch in set" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
-                Struct Nothing $ M.fromList [(Ordinal 50, SET bT_BOOL [])],
-          testCaseInfo "type mismatch in map key" $
+                Struct Nothing $ M.fromList [(Ordinal 50, SET bT_BOOL [])]
+        , testCaseInfo "type mismatch in map key" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
-                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_BOOL bT_STRUCT [])],
-          testCaseInfo "type mismatch in map value" $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_BOOL bT_STRUCT [])]
+        , testCaseInfo "type mismatch in map value" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
-                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_BOOL [])],
-          testCaseInfo "type mismatch in map element key" $
-            checkSchemaMismatch (Proxy :: Proxy Outer) $
-                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-                  [
-                    (BOOL True, STRUCT $ Struct (Just $ Struct Nothing M.empty) M.empty)
-                  ])],
-          testCaseInfo "type mismatch in map element value" $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_BOOL [])]
+        , testCaseInfo "type mismatch in map element key" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
                 Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-                  [
-                    (UINT32 42, BOOL True)
-                  ])],
-          testCaseInfo "type mismatch in map element field" $
+                  [ (BOOL True, STRUCT $ Struct (Just $ Struct Nothing M.empty) M.empty)
+                  ])]
+        , testCaseInfo "type mismatch in map element value" $
             checkSchemaMismatch (Proxy :: Proxy Outer) $
                 Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
-                  [
-                    (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
-                  ])],
-          testCaseInfo "schema too deep for struct" $
-            checkSchemaMismatch (Proxy :: Proxy Inner) $ Struct Nothing M.empty,
-          testCase "shallow schema" checkShallowSchema
-        ],
-      testGroup "Protocol tests" $
-        (map testTagged taggedProtocols) ++
-        (map testSimple simpleProtocols) ++
-          [ testGroup "JSON"
-            [ testJson "read/write original Compat value" "compat.json.dat",
-              testJson "read/write golden Compat value" "golden.json.dat",
---              testJsonWithSchema "read/write original Compat value with schema" "compat.json.dat",
-              testJsonWithSchema "read/write golden Compat value with schema" "golden.json.dat",
---              testJsonWithRuntimeSchema "read/write original Compat value with runtime schema" "compat.json.dat",
-              testJsonWithRuntimeSchema "read/write golden Compat value with runtime schema" "golden.json.dat",
-              testCase "read BasicTypes value" $
-                readAsType JsonProto (Proxy :: Proxy BasicTypes) "compat.json.dat",
-              testCase "read Another value" $
-                readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat",
-              testCaseInfo "fail to read with required field missing" $ jsonFailToReadMissingRequired,
-              testCaseInfo "fail to write nothing to required field" $ failToWriteRequiredNothing JsonProto
-            ],
-          testGroup "Marshalling"
-            [ testCase "read/write SchemaDef value" readSchema,
-              testCase "read/write SchemaDef value with schema" readSchemaWithSchema,
-              testCase "read/write SchemaDef value w/o schema" readSchemaTagged
-            ],
-          testGroup "Cross-tests" crossTests,
-          testGroup "Bonded recoding" bondedRecodeTests
-        ],
-      testGroup "ZigZag encoding"
-        [ testProperty "Int16" zigzagInt16,
-          testProperty "Int32" zigzagInt32,
-          testProperty "Int64" zigzagInt64,
-          testProperty "Word64" zigzagWord64
+                  [ (UINT32 42, BOOL True)
+                  ])]
+        , testCaseInfo "type mismatch in map element field" $
+            checkSchemaMismatch (Proxy :: Proxy Outer) $
+                Struct Nothing $ M.fromList [(Ordinal 60, MAP bT_UINT32 bT_STRUCT
+                  [ (UINT32 42, STRUCT $ Struct (Just $ Struct Nothing M.empty) $ M.fromList [(Ordinal 10, BOOL True)])
+                  ])]
+        , testCaseInfo "schema too deep for struct" $
+            checkSchemaMismatch (Proxy :: Proxy Inner) $ Struct Nothing M.empty
+        , testCase "shallow schema" checkShallowSchema
+        ]
+    , testGroup "Protocol tests" $
+        map testTagged taggedProtocols ++
+        map testSimple simpleProtocols ++
+            [ testGroup "JSON"
+                [ testJson "read/write original Compat value" "compat.json.dat"
+                ,  testJson "read/write golden Compat value" "golden.json.dat"
+--              , testJsonWithSchema "read/write original Compat value with schema" "compat.json.dat"
+                , testJsonWithSchema "read/write golden Compat value with schema" "golden.json.dat"
+--              , testJsonWithRuntimeSchema "read/write original Compat value with runtime schema" "compat.json.dat"
+                , testJsonWithRuntimeSchema "read/write golden Compat value with runtime schema" "golden.json.dat"
+                , testCase "read BasicTypes value" $
+                    readAsType JsonProto (Proxy :: Proxy BasicTypes) "compat.json.dat"
+                , testCase "read Another value" $
+                    readAsType JsonProto (Proxy :: Proxy Another) "compat.json.dat"
+                , testCaseInfo "fail to read with required field missing" jsonFailToReadMissingRequired
+                , testCaseInfo "fail to write nothing to required field" $ failToWriteRequiredNothing JsonProto
+                ]
+            , testGroup "Marshalling"
+                [ testCase "read/write SchemaDef value" readSchema
+                , testCase "read/write SchemaDef value with schema" readSchemaWithSchema
+                , testCase "read/write SchemaDef value w/o schema" readSchemaTagged
+                ]
+            , testGroup "Cross-tests" crossTests
+            , testGroup "Bonded recoding" bondedRecodeTests
+            ]
+    , testGroup "ZigZag encoding"
+        [ testProperty "Int16" zigzagInt16
+        , testProperty "Int32" zigzagInt32
+        , testProperty "Int64" zigzagInt64
+        , testProperty "Word64" zigzagWord64
         ]
     ]
     where
@@ -398,12 +397,12 @@ failToReadMissingRequired :: BondTaggedProto t => t -> IO String
 failToReadMissingRequired p = assertWithMsg $ do
     let struct = Struct Nothing M.empty
     out <- hoistEither $ bondWriteTagged p struct
-    checkHasError $ (bondRead p out :: Either String Reqopt)
+    checkHasError (bondRead p out :: Either String Reqopt)
 
 jsonFailToReadMissingRequired :: IO String
 jsonFailToReadMissingRequired = assertWithMsg $ do
     let dat = BL8.pack "{}"
-    checkHasError $ (bondRead JsonProto dat :: Either String Reqopt)
+    checkHasError (bondRead JsonProto dat :: Either String Reqopt)
 
 failToReadMissingRequiredWithSchema :: BondTaggedProto t => t -> IO String
 failToReadMissingRequiredWithSchema p = assertWithMsg $ do
@@ -450,6 +449,15 @@ checkDefaultStruct = do
     assertEqual "struct is not as expected"
         (Struct Nothing $ M.fromList [(Ordinal 10, INT8 5), (Ordinal 20, STRING "")])
         defStruct
+
+checkEnumNames :: Assertion
+checkEnumNames = do
+    assertEqual "positive enum value not translated to name" (Just "EnumValue1") (toName (EnumType1 5))
+    assertEqual "negative enum value not translated to name" (Just "EnumValue3") (toName (EnumType1 (-10)))
+    assertEqual "unknown enum value translated to name" Nothing (toName (EnumType1 42))
+    assertEqual "enum name not translated to positive value" (Just (EnumType1 5)) (fromName "EnumValue1")
+    assertEqual "enum name not translated to negative value" (Just (EnumType1 (-10))) (fromName "EnumValue3")
+    assertEqual "unknown enum name translated to value" Nothing (fromName "undefined" :: Maybe EnumType1)
 
 zigzagInt16 :: Int16 -> Bool
 zigzagInt16 x = x == fromZigZag (toZigZag x)

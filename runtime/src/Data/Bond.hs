@@ -30,7 +30,7 @@ module Data.Bond
     , marshalValue
     , BondedException(..)
     -- * Runtime-schema operations
-    -- |Some generic applications may need to work with Bond schemas unknown
+    -- |Generic applications may need to work with Bond schemas unknown
     -- at compile-time. In order to address such scenarios Bond defines a
     -- type 'Data.Bond.Schema.SchemaDef' to represent schemas in stoorage
     -- and transfer.
@@ -38,6 +38,7 @@ module Data.Bond
     -- Haskell library uses 'StructSchema' internally for performance
     -- reasons and provides conversion functions.
     , BondStruct(getSchema)
+    , BondEnum(..)
     , assembleSchema
     , checkStructSchema
     , defaultStruct
@@ -74,6 +75,7 @@ import Data.Bond.Types
 import Data.Bond.Internal.Bonded
 import Data.Bond.Internal.CompactBinaryProto
 import Data.Bond.Internal.Default
+import Data.Bond.Internal.Enum
 import Data.Bond.Internal.FastBinaryProto
 import Data.Bond.Internal.JsonProto
 import Data.Bond.Internal.Protocol
