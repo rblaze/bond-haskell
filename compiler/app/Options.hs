@@ -15,6 +15,8 @@ data Options = Haskell
         , hashset :: Bool
         , noShow :: Bool
         , noEq :: Bool
+        , generic :: Bool
+        , nfData :: Bool
         }
       deriving (Show, Data, Typeable)
 
@@ -27,8 +29,10 @@ haskell = Haskell
     , namespace = def &= typ "MAPPING" &= name "n" &= help "Custom namespace mapping in the form bond_namespace=language_namespace"
     , hsboot = def &= name "s" &= help "Generate both .hs and .hs-boot files"
     , hashset = def &= name "h" &= help "Use HashSet for set<T> fields"
-    , noShow = def &= explicit &= name "noshow" &= help "do not derive Show instance for structs"
-    , noEq = def &= explicit &= name "noeq" &= help "do not derive Eq instance for structs"
+    , noShow = def &= help "do not derive Show instance for structs"
+    , noEq = def &= help "do not derive Eq instance for structs"
+    , generic = def &= help "derive Generic instance for structs"
+    , nfData = def &= help "derive NFData instance for structs (implies --generic)"
     } &=
     name "haskell" &=
     help "Generate Haskell code"

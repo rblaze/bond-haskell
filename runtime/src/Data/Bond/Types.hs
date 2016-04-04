@@ -28,6 +28,7 @@ module Data.Bond.Types (
 
 import {-# SOURCE #-} Data.Bond.Internal.Bonded
 
+import Control.DeepSeq
 import Data.Data
 import Data.Int
 import Data.String
@@ -43,15 +44,15 @@ import qualified Data.Vector as V
 
 -- |Bond "string" type
 newtype Utf8 = Utf8 BS.ByteString
-    deriving (Eq, Ord, Hashable, Typeable)
+    deriving (Eq, Ord, Hashable, Typeable, NFData)
 
 -- |Bond "wstring" type
 newtype Utf16 = Utf16 BS.ByteString
-    deriving (Eq, Ord, Hashable, Typeable)
+    deriving (Eq, Ord, Hashable, Typeable, NFData)
 
 -- |Bond "blob" type
 newtype Blob = Blob BS.ByteString
-    deriving (Show, Eq, Ord, Hashable, Typeable)
+    deriving (Show, Eq, Ord, Hashable, Typeable, NFData)
 
 -- |Bond string\/wstring transformations from/to 'String' and 'T.Text'.
 class IsString a => EncodedString a where

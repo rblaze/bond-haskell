@@ -11,8 +11,10 @@ import Data.Maybe
 
 data CodegenOpts = CodegenOpts
     { setType :: String
-    , deriveShow :: Bool
     , deriveEq :: Bool
+    , deriveGeneric :: Bool
+    , deriveNFData :: Bool
+    , deriveShow :: Bool
     }
 
 unique :: Ord a => [a] -> [a]
@@ -67,22 +69,33 @@ floatL n = NegApp $ floatL $ abs n
 
 importTemplate :: ImportDecl
 importTemplate = ImportDecl
-  { importLoc = noLoc, importModule = undefined,
-    importQualified = True, importSrc = False, importSafe = False,
-    importPkg = Nothing, importAs = Nothing, importSpecs = Nothing
-  }
+    { importLoc = noLoc
+    , importModule = undefined
+    , importQualified = True
+    , importSrc = False
+    , importSafe = False
+    , importPkg = Nothing
+    , importAs = Nothing
+    , importSpecs = Nothing
+    }
 
 importInternalModule :: ImportDecl
 importInternalModule = importTemplate
-  { importModule = internalModuleName,
-    importAs = Just internalModuleAlias
-  }
+    { importModule = internalModuleName
+    , importAs = Just internalModuleAlias
+    }
 
 importPrelude :: ImportDecl
 importPrelude = importTemplate
-  { importModule = ModuleName "Prelude",
-    importAs = Just preludeAlias
-  }
+    { importModule = ModuleName "Prelude"
+    , importAs = Just preludeAlias
+    }
+
+importGenerics :: ImportDecl
+importGenerics = importTemplate
+    { importModule = ModuleName "GHC.Generics"
+    , importAs = Just preludeAlias
+    }
 
 mkModuleName :: QualifiedName -> String -> ModuleName
 mkModuleName ns typename = ModuleName $ intercalate "." $ map capitalize $ ns ++ [typename]

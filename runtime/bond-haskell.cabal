@@ -67,6 +67,7 @@ library
                      , binary >= 0.7.0.0
                      , bytestring >= 0.10
                      , containers >= 0.4
+                     , deepseq
                      , extra >= 1.0
                      , hashable >= 1.0
                      , mtl >= 2.1
@@ -86,6 +87,7 @@ test-suite bond-haskell-test
                      , bond-haskell
                      , bytestring >= 0.10
                      , containers >= 0.4
+                     , deepseq
                      , either
                      , filepath >= 1.0
                      , mtl >= 2.1

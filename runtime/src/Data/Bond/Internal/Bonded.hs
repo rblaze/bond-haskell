@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric, DeriveDataTypeable #-}
 module Data.Bond.Internal.Bonded where
 
 import Data.Bond.Marshal
@@ -6,6 +6,8 @@ import Data.Bond.Proto
 import Data.Bond.Internal.MarshalUtils
 import {-# SOURCE #-} Data.Bond.Internal.Protocol
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.Exception
 import Data.Typeable
 import qualified Data.ByteString.Lazy as Lazy
@@ -21,7 +23,7 @@ instance Exception BondedException
 data Bonded a
         = BondedStream Lazy.ByteString -- ^ Marshalled stream
         | BondedObject a               -- ^ Deserialized value
-    deriving Typeable
+    deriving (Generic, Typeable)
 
 instance Show a => Show (Bonded a) where
     show BondedStream{} = "BondedStream"
@@ -35,6 +37,8 @@ instance (BondStruct a, Eq a) => Eq (Bonded a) where
                             Left msg -> throw (BondedException msg)
                             Right v -> v
               in aobj == bobj
+
+instance NFData a => NFData (Bonded a)
 
 -- | Extract value from 'Bonded' using compile-type schema
 getValue :: BondStruct a => Bonded a -> Either String a

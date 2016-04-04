@@ -73,7 +73,7 @@ runHbc args conf pd lbi = do
                             return (flagTS < bondTS || flagTS < bondConstTS)
                         else return True
     when needSchemaRegen $ do
-        extras <- getProgramOutput verbosity hbc ["-h", "-o", buildDir lbi, "--hsboot", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
+        extras <- getProgramOutput verbosity hbc ["-h", "-o", buildDir lbi, "--hsboot", "--nfdata", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
         createDirectoryIfMissing True (takeDirectory schemaFlag)
         writeFile schemaFlag extras
 
@@ -109,6 +109,6 @@ regenSchemas verbosity hbc schemasDir outDir flagFile = do
                             info verbosity $ "flag file " ++ flagFile ++ " missing"
                             return True
     when needSchemaRegen $ do
-        extras <- getProgramOutput verbosity hbc $ ["-o", outDir] ++ schemaFiles
+        extras <- getProgramOutput verbosity hbc $ ["--nfdata", "-o", outDir] ++ schemaFiles
         createDirectoryIfMissing True (takeDirectory flagFile)
         writeFile flagFile extras

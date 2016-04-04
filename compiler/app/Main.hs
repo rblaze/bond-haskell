@@ -19,11 +19,13 @@ main = do
     args <- getArgs
     options <- (if null args then withArgs ["--help"] else id) getOptions
 
-    let opts = CodegenOpts {
-        setType = if hashset options then "HashSet" else "Set",
-        deriveEq = not (noEq options),
-        deriveShow = not (noShow options)
-      }
+    let opts = CodegenOpts
+            { setType = if hashset options then "HashSet" else "Set"
+            , deriveEq = not (noEq options)
+            , deriveShow = not (noShow options)
+            , deriveNFData = nfData options
+            , deriveGeneric = nfData options || generic options
+            }
     let codegens = if hsboot options
         then [decl_hs opts, decl_hsboot opts]
         else [decl_hs opts]

@@ -113,16 +113,17 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
     where
     source = Module noLoc moduleName
         [LanguagePragma noLoc
-            [Ident "ScopedTypeVariables", Ident "DeriveDataTypeable", Ident "OverloadedStrings"]
+            ([Ident "ScopedTypeVariables", Ident "DeriveDataTypeable", Ident "OverloadedStrings"] ++ pragmaDeriveGeneric)
         ]
         Nothing
         (Just [EThingAll $ UnQual typeName])
         imports
-        [dataDecl, defaultDecl, bondTypeDecl,
-         bondStructDecl
-        ]
+        ([dataDecl, defaultDecl, bondTypeDecl, bondStructDecl] ++ nfdataDecl)
 
+    pragmaDeriveGeneric = if deriveGeneric opts then [Ident "DeriveGeneric"] else []
     imports = importInternalModule : importPrelude : map (\ m -> importTemplate{importModule = m}) fieldModules
+        ++ importGhcGenerics
+    importGhcGenerics = if deriveGeneric opts then [importGenerics] else []
 
     typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
@@ -134,9 +135,10 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
            | otherwise = ownFields
     dataDecl = DataDecl noLoc DataType [] typeName typeParams
               [QualConDecl noLoc [] [] (RecDecl typeName fields)]
-              (derivingShow $ derivingEq [(implQual "Typeable", [])])
+              (derivingGeneric $ derivingShow $ derivingEq [(implQual "Typeable", [])])
     derivingShow = if deriveShow opts then ((pQual "Show", []) :) else id
     derivingEq = if deriveEq opts then ((pQual "Eq", []) :) else id
+    derivingGeneric = if deriveGeneric opts then ((pQual "Generic", []) :) else id
 
     ownFieldDefaults = map (defaultFieldValue ctx) structFields
     fieldDefaults | isNothing structBase = ownFieldDefaults
@@ -149,6 +151,14 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
             patBind noLoc (PVar $ Ident "defaultValue") $
                 RecConstr (UnQual typeName) fieldDefaults
         ]
+    nfdataDecl = if deriveNFData opts
+        then [InstDecl noLoc Nothing []
+                (map (typeParamConstraint $ implQual "NFData") declParams)
+                (implQual "NFData")
+                [makeType True typeName declParams]
+                []
+             ]
+        else []
     bondTypeDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "BondType") declParams)
         (implQual "BondType")

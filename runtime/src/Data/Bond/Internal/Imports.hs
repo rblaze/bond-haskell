@@ -5,6 +5,7 @@ module Data.Bond.Internal.Imports
     , BondType(..)
     , Hashable
     , IsString
+    , NFData
     , Protocol(..)
     , ap
     , asProxyTypeOf
@@ -19,6 +20,7 @@ import Data.Bond.Internal.OrdinalSet
 import Data.Bond.Internal.Protocol
 import Data.Bond.Internal.Utils as X
 
+import Control.DeepSeq (NFData)
 import Control.Monad (ap)
 import Data.Hashable (Hashable)
 import Data.Proxy (asProxyTypeOf)
