@@ -84,4 +84,4 @@ instance Show Utf16 where show s = show $ toString s
 
 -- |Bond structure field ordinal.
 newtype Ordinal = Ordinal Word16
-    deriving (Eq, Ord, Show, Hashable)
+    deriving (Eq, Ord, Show, Hashable, NFData)

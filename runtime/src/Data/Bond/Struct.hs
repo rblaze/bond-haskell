@@ -1,8 +1,11 @@
+{-# Language DeriveGeneric #-}
 module Data.Bond.Struct where
 
 import {-# SOURCE #-} Data.Bond.Schema.BondDataType
 import Data.Bond.Types
 
+import Control.DeepSeq
+import GHC.Generics (Generic)
 import qualified Data.Map.Strict as M
 
 -- |Representation of bond serializable type used in runtime-schema operations.
@@ -25,7 +28,9 @@ data Value
     | SET BondDataType [Value]
     | MAP BondDataType BondDataType [(Value, Value)]
     | BONDED (Bonded Struct)
-    deriving Show
+    deriving (Show, Generic)
+
+instance NFData Value
 
 instance Eq Value where
     (BOOL a) == (BOOL b) = a == b
@@ -51,7 +56,9 @@ instance Eq Value where
 
 -- |Representation of bond structure used in runtime-schema operations.
 data Struct = Struct { base :: Maybe Struct, fields :: M.Map Ordinal Value }
-    deriving (Show, Eq)
+    deriving (Show, Eq, Generic)
+
+instance NFData Struct
 
 valueName :: Value -> String
 valueName (BOOL _) = "bool"
