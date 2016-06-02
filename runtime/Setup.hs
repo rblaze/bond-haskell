@@ -26,7 +26,7 @@ addSchemaModules :: PackageDescription -> LocalBuildInfo -> IO PackageDescriptio
 addSchemaModules pd0 lbi = do
     let outPath = autogenModulesDir lbi
     let schemaFlag = outPath </> "schemagen.flg"
-    modules <- fmap lines $ readFile schemaFlag
+    modules <- lines <$> readFile schemaFlag
     let hbi = (Just $ emptyBuildInfo{ otherModules = map fromString modules }, [])
     return $ updatePackageDescription hbi pd0
 
@@ -82,7 +82,7 @@ runHbc args conf pd lbi = do
 
     let dataPathFile = outPath </> "DataPath.hs"
     dataPathFileExists <- doesFileExist dataPathFile
-    when (not dataPathFileExists) $
+    unless dataPathFileExists $
         writeFile dataPathFile $
             "module DataPath where\n\
             \autogenPath :: String\n\

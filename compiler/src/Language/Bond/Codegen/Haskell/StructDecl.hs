@@ -120,10 +120,10 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
         imports
         ([dataDecl, defaultDecl, bondTypeDecl, bondStructDecl] ++ nfdataDecl)
 
-    pragmaDeriveGeneric = if deriveGeneric opts then [Ident "DeriveGeneric"] else []
+    pragmaDeriveGeneric = [Ident "DeriveGeneric" | deriveGeneric opts]
     imports = importInternalModule : importPrelude : map (\ m -> importTemplate{importModule = m}) fieldModules
         ++ importGhcGenerics
-    importGhcGenerics = if deriveGeneric opts then [importGenerics] else []
+    importGhcGenerics = [importGenerics | deriveGeneric opts]
 
     typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
