@@ -7,7 +7,9 @@ import Data.Bond.Internal.Protocol
 import Control.Applicative
 import Control.Monad.Error
 import Data.Bits
+import Data.Monoid
 import Prelude -- workaround for Control.Applicative in ghc 7.10
+import qualified Data.Binary.Builder as BLD
 import qualified Data.Binary.Get as B
 import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
@@ -78,9 +80,20 @@ putLazyByteString :: WriterM t ~ ErrorT String B.PutM => BL.ByteString -> BondPu
 putLazyByteString = BondPut . lift . B.putLazyByteString
 
 putVarInt :: (FiniteBits a, Integral a, WriterM t ~ ErrorT String B.PutM) => a -> BondPut t
-putVarInt i | i < 0 = error "VarInt with negative value"
-putVarInt i | i < 128 = putWord8 $ fromIntegral i
-putVarInt i = let iLow = fromIntegral $ i .&. 0x7F
-               in do
-                    putWord8 $ iLow `setBit` 7
-                    putVarInt (i `shiftR` 7)
+putVarInt n | n < 0 = error "VarInt with negative value"
+putVarInt n = BondPut $ lift $ B.putBuilder $ makeBuilder n
+    where
+    makeBuilder i | i < 128 = BLD.singleton $ fromIntegral i
+    makeBuilder i | i < 16384 = let (b1, b0) = fromIntegral i `divMod` 128
+                                 in BLD.putWord16be $ 0x8000 .|. (b0 `shiftL` 8) .|. b1
+    makeBuilder i | i < 2097152 = let (temp, b0) = i `divMod` 128
+                                      (b2, b1) = temp `divMod` 128
+                                   in BLD.putWord16be (0x8080 .|. fromIntegral ((b0 `shiftL` 8) .|. b1)) <>
+                                        BLD.singleton (fromIntegral b2)
+    makeBuilder i | i < 268435456 = let (temp1, b0) = i `divMod` 128
+                                        (temp2, b1) = temp1 `divMod` 128
+                                        (b3, b2) = temp2 `divMod` 128
+                                     in BLD.putWord32be $ 0x80808000 .|.
+                                            fromIntegral ((b0 `shiftL` 24) .|. (b1 `shiftL` 16) .|. (b2 `shiftL` 8) .|. b3)
+    makeBuilder i = let lo = fromIntegral $ i .&. 0x7F
+                     in BLD.singleton (lo .|. 0x80) <> makeBuilder (i `shiftR` 7)
