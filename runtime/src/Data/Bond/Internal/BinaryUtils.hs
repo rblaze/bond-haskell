@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts #-}
+{-# LANGUAGE TypeFamilies, ScopedTypeVariables, FlexibleContexts, BangPatterns, MultiWayIf #-}
 module Data.Bond.Internal.BinaryUtils where
 
 import Data.Bond.Types
@@ -48,12 +48,27 @@ getLazyByteString :: ReaderM t ~ B.Get => Int64 -> BondGet t BL.ByteString
 getLazyByteString = BondGet . B.getLazyByteString
 
 getVarInt :: forall a t. (FiniteBits a, Num a, ReaderM t ~ B.Get) => BondGet t a
-getVarInt = step 0
+getVarInt = BondGet $ fastGet <|> slowGet 0
     where
-    step n | n > finiteBitSize (0 :: a) `div` 7 = fail "VarInt: sequence too long"
-    step n = do
-        b <- fromIntegral <$> getWord8
-        rest <- if b `testBit` 7 then step (n + 1)  else return 0
+    maxSize = 1 + finiteBitSize (0 :: a) `div` 7
+    fastGet = do
+        binstr <- B.lookAhead $ B.getByteString maxSize
+        let loop i !v =
+                let b = fromIntegral $ BS.index binstr i
+                    v' = v .|. ((b `clearBit` 7) `shiftL` (i * 7))
+                 in if | i >= maxSize -> Nothing
+                       | b `testBit` 7 -> loop (i + 1) v'
+                       | otherwise -> Just (i + 1, v')
+        case loop 0 0 of
+            Nothing -> fail "VarInt: sequence too long"
+            Just (consumed, value) -> do
+                B.skip consumed
+                return value
+    -- fallback in case there is not enough bytes in stream for max sequence
+    slowGet i | i >= maxSize = fail "VarInt: sequence too long"
+    slowGet i = do
+        b <- fromIntegral <$> B.getWord8
+        rest <- if b `testBit` 7 then slowGet (i + 1)  else return 0
         return $ (b `clearBit` 7) .|. (rest `shiftL` 7)
 
 tryPut :: ErrorT String B.PutM () -> Either String BL.ByteString
