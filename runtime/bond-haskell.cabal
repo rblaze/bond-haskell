@@ -20,6 +20,7 @@ cabal-version:       >=1.18
 extra-source-files:  schema/*.bond
                      test/compat/schemas/*.bond
                      test/simple_schemas/*.bond
+                     bench/schemas/*.bond
 data-files:          test/broken_schemas/*.json
                      test/compat/data/compat.compact2.dat
                      test/compat/data/compat.compact.dat
@@ -105,9 +106,10 @@ benchmark bond-haskell-bench
   main-is:             Bench.hs
   build-depends:       base
                      , bond-haskell
-                     , bytestring >= 0.10
+                     , bytestring
                      , criterion
                      , filepath
+                     , vector
   ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 
