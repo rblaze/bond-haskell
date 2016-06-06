@@ -1,0 +1,5 @@
+namespace benchmark
+
+struct intvec {
+    10: vector<uint64> ints;
+}

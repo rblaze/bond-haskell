@@ -91,6 +91,10 @@ runHbc args conf pd lbi = do
     -- generate code for unittests
     when ((fromFlagOrDefault False $ configTests conf) || (fromFlagOrDefault False $ configBenchmarks conf)) $ do
         regenSchemas verbosity hbc ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
+
+    when (fromFlagOrDefault False $ configBenchmarks conf) $ do
+        regenSchemas verbosity hbc ("bench" </> "schemas") outPath (outPath </> "benchgen.flg")
+
     when (fromFlagOrDefault False $ configTests conf) $ do
         regenSchemas verbosity hbc ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
 
