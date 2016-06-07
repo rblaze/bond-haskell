@@ -16,7 +16,6 @@ addons:
         - ghc-7.10.3
 env:
     - STACK_ARGS="--resolver lts-6"
-    - STACK_ARGS="--resolver lts-5"
     - STACK_ARGS="--resolver lts-2"
 
 before_install:
@@ -24,7 +23,6 @@ before_install:
     - if [ "$TRAVIS_OS_NAME" == "linux" ]; then export PATH=$HOME/.local/bin:$PATH ; fi
     - if [ "$TRAVIS_OS_NAME" == "linux" ]; then travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack' ; fi
     - if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
-    - if [ "$STACK_ARGS" == "--resolver lts-5" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
     - if [ "$STACK_ARGS" == "--resolver lts-2" ]; then export PATH=/opt/ghc/7.8.4/bin:$PATH ; fi
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update ; fi
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install haskell-stack ; fi
