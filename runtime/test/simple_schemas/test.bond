@@ -24,3 +24,7 @@ struct reqopt {
     20: required_optional string m_reqopt_string;
     30: required int16 m_req_nothing_int16 = nothing;
 }
+
+struct intvec {
+    10: vector<uint64> ints;
+}

@@ -97,6 +97,7 @@ test-suite bond-haskell-test
                      , tasty-hunit
                      , tasty-quickcheck
                      , unordered-containers >= 0.2
+                     , vector
   ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
 

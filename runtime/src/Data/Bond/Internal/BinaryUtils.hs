@@ -110,5 +110,14 @@ putVarInt n = BondPut $ lift $ B.putBuilder $ makeBuilder n
                                         (b3, b2) = temp2 `divMod` 128
                                      in BLD.putWord32be $ 0x80808000 .|.
                                             fromIntegral ((b0 `shiftL` 24) .|. (b1 `shiftL` 16) .|. (b2 `shiftL` 8) .|. b3)
-    makeBuilder i = let lo = fromIntegral $ i .&. 0x7F
-                     in BLD.singleton (lo .|. 0x80) <> makeBuilder (i `shiftR` 7)
+    makeBuilder i | i < 9223372036854775808 = let (temp1, b0) = i `divMod` 128
+                                                  (temp2, b1) = temp1 `divMod` 128
+                                                  (temp3, b2) = temp2 `divMod` 128
+                                                  (rest, b3) = temp3 `divMod` 128
+                                               in BLD.putWord32be (0x80808080 .|.
+                                                        fromIntegral ((b0 `shiftL` 24) .|. (b1 `shiftL` 16) .|. (b2 `shiftL` 8) .|. b3)) <>
+                                                    makeBuilder rest
+    makeBuilder i = let (temp1, b0) = i `divMod` 128
+                        (temp2, b1) = temp1 `divMod` 128
+                     in BLD.putWord16be (0x8080 .|. fromIntegral ((b0 `shiftL` 8) .|. b1)) <>
+                            makeBuilder temp2

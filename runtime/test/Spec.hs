@@ -8,6 +8,7 @@ import Unittest.Compat.EnumType1
 import Unittest.Simple.Inner as Inner
 import Unittest.Simple.Outer as Outer
 import Unittest.Simple.Reqopt as ReqOpt
+import Unittest.Simple.Intvec
 
 import Control.Monad
 import Control.Monad.Trans
@@ -23,6 +24,7 @@ import Test.Tasty.QuickCheck
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Lazy.Char8 as BL8
 import qualified Data.Map as M
+import qualified Data.Vector as V
 
 import DataPath
 
@@ -152,6 +154,7 @@ tests = testGroup "Haskell runtime tests"
         , testProperty "Int64" zigzagInt64
         , testProperty "Word64" zigzagWord64
         ]
+    , testProperty "VarInt" varIntTest
     ]
     where
     testTagged (TaggedProtoWrapper name proto dat) = testGroup name
@@ -470,6 +473,13 @@ zigzagInt64 x = x == fromZigZag (toZigZag x)
 
 zigzagWord64 :: Word64 -> Bool
 zigzagWord64 x = x == toZigZag (fromZigZag x :: Int64)
+
+varIntTest :: [Word64] -> Bool
+varIntTest xs = let srcStruct = defaultValue { ints = V.fromList xs }
+                    Right stream = bondWrite CompactBinaryProto srcStruct
+                    Right dstStruct = bondRead CompactBinaryProto stream
+                    ys = V.toList $ ints dstStruct
+                 in xs == ys
 
 assertEither :: EitherT String IO () -> Assertion
 assertEither = eitherT assertFailure (const $ return ())
