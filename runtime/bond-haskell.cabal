@@ -1,5 +1,5 @@
 name:                bond-haskell
-version:             0.1.2.0
+version:             0.1.3.0
 synopsis:            Runtime support for BOND serialization
 description:         Bond is a cross-platform framework for handling schematized
                      data. It supports cross-language de/serialization and
@@ -62,7 +62,7 @@ library
                        Data.Bond.Internal.Utils
                        Data.Bond.Internal.Utils
   build-depends:       base >= 4.7 && < 5
-                     , bond-haskell-compiler >= 0.1.2.0 && < 0.1.3
+                     , bond-haskell-compiler >= 0.1.3.0 && < 0.1.4
                      , aeson
                      , array
                      , binary >= 0.7.0.0
