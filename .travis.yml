@@ -14,23 +14,68 @@ addons:
         - libgmp-dev
         - ghc-7.8.4
         - ghc-7.10.3
+        - cabal-install-1.24
 env:
-    - STACK_ARGS="--resolver lts-6"
-    - STACK_ARGS="--resolver lts-2"
+    - BUILD=stack STACK_ARGS="--resolver lts-6"
+    - BUILD=stack STACK_ARGS="--resolver lts-2"
+    - BUILD=cabal CABAL_VER="1.24" CABAL_GHC="7.8.4"
+
+matrix:
+  exclude:
+    - os: osx
+      env: BUILD=cabal CABAL_VER="1.24" CABAL_GHC="7.8.4"
 
 before_install:
-    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then mkdir -p ~/.local/bin ; fi
-    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then export PATH=$HOME/.local/bin:$PATH ; fi
-    - if [ "$TRAVIS_OS_NAME" == "linux" ]; then travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack' ; fi
-    - if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
-    - if [ "$STACK_ARGS" == "--resolver lts-2" ]; then export PATH=/opt/ghc/7.8.4/bin:$PATH ; fi
-    - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew update ; fi
-    - if [ "$TRAVIS_OS_NAME" == "osx" ]; then brew install haskell-stack ; fi
+    - |
+        if [ "$TRAVIS_OS_NAME" == "linux" ]; then
+          mkdir -p ~/.local/bin
+          export PATH=$HOME/.local/bin:$PATH
+          case "$BUILD" in
+            stack)
+              if [ "$BUILD" == "stack" ] ; then
+              travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+              if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
+              if [ "$STACK_ARGS" == "--resolver lts-2" ]; then export PATH=/opt/ghc/7.8.4/bin:$PATH ; fi
+              ;;
+            cabal)
+              export PATH=/opt/cabal/${CABAL_VER}/bin:/opt/ghc/${CABAL_GHC}/bin:$PATH
+              ;;
+          esac
+        fi
+        if [ "$TRAVIS_OS_NAME" == "osx" ]; then
+          brew update
+          brew install haskell-stack
+        fi
 
 install:
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then stack $STACK_ARGS --no-terminal setup ; fi
-    - stack $STACK_ARGS --no-terminal test --only-snapshot
+    - |
+        case "$BUILD" in
+          stack)
+            stack $STACK_ARGS --no-terminal test --only-snapshot
+            ;;
+          cabal)
+            travis_retry cabal update
+            cd compiler
+            cabal install --only-dependencies --enable-tests --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
+            cd ..
+            ;;
+        esac
 
 script:
-    - stack $STACK_ARGS --no-terminal build bond-haskell-compiler
-    - stack $STACK_ARGS --no-terminal test bond-haskell
+    - |
+        case "$BUILD" in
+          stack)
+            stack $STACK_ARGS --no-terminal build bond-haskell-compiler
+            stack $STACK_ARGS --no-terminal test bond-haskell
+            ;;
+          cabal)
+            cd compiler
+            cabal install
+            cd ../runtime
+            cabal configure --enable-tests
+            cabal build
+            cabal test
+            cd ..
+            ;;
+        esac
