@@ -56,7 +56,7 @@ install:
             ;;
           cabal)
             travis_retry cabal update
-            cabal install --only-dependencies --enable-tests --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
+            cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
             ;;
         esac
 
