@@ -5,10 +5,12 @@ import Data.Bond
 import Benchmark.Intvec
 import Unittest.Compat.Compat
 
+import Control.Applicative
 import Criterion.Main
 import Data.Proxy
 import Data.Word
 import System.FilePath
+import Prelude -- workaround for Control.Applicative in ghc 7.10
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.Vector as V

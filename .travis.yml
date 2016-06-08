@@ -27,6 +27,7 @@ matrix:
 
 before_install:
     - |
+        set -ex
         if [ "$TRAVIS_OS_NAME" == "linux" ]; then
           mkdir -p ~/.local/bin
           export PATH=$HOME/.local/bin:$PATH
@@ -41,6 +42,7 @@ before_install:
               ;;
           esac
         fi
+        set +ex
     - |
         if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           brew update
@@ -50,6 +52,7 @@ before_install:
 install:
     - if [ "$TRAVIS_OS_NAME" == "osx" ]; then stack $STACK_ARGS --no-terminal setup ; fi
     - |
+        set -ex
         case "$BUILD" in
           stack)
             stack $STACK_ARGS --no-terminal test --only-snapshot
@@ -59,9 +62,11 @@ install:
             cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
             ;;
         esac
+        set +ex
 
 script:
     - |
+        set -ex
         case "$BUILD" in
           stack)
             stack $STACK_ARGS --no-terminal build bond-haskell-compiler
@@ -77,3 +82,4 @@ script:
             cd ..
             ;;
         esac
+        set +ex
