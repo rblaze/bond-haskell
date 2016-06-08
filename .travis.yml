@@ -6,6 +6,7 @@ cache:
     directories:
         - $HOME/.stack
         - $HOME/.cabal
+        - $HOME/.ghc
 addons:
   apt:
     sources:
