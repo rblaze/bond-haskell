@@ -32,7 +32,6 @@ before_install:
           export PATH=$HOME/.local/bin:$PATH
           case "$BUILD" in
             stack)
-              if [ "$BUILD" == "stack" ] ; then
               travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
               if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
               if [ "$STACK_ARGS" == "--resolver lts-2" ]; then export PATH=/opt/ghc/7.8.4/bin:$PATH ; fi
@@ -42,6 +41,7 @@ before_install:
               ;;
           esac
         fi
+    - |
         if [ "$TRAVIS_OS_NAME" == "osx" ]; then
           brew update
           brew install haskell-stack
@@ -73,7 +73,7 @@ script:
             cd compiler
             cabal install
             cd ../runtime
-            cabal configure --enable-tests
+            cabal configure --enable-tests --enable-benchmarks
             cabal build
             cabal test
             cd ..
