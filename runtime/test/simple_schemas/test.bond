@@ -1,5 +1,7 @@
 namespace unittest.simple
 
+using mylist<T> = list<T>;
+
 struct base {
     10: int16 m_int16;
     20: string m_string;
@@ -7,7 +9,7 @@ struct base {
 
 struct inner : base {
     10: uint64 m_uint64;
-    20: list<uint32> m_uint32;
+    20: mylist<uint32> m_uint32;
 }
 
 struct outer {

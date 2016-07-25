@@ -22,7 +22,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Language.Bond.Codegen.Haskell.Decl
+  exposed-modules:     Language.Bond.Codegen.Haskell.AliasDecl
+                       Language.Bond.Codegen.Haskell.Decl
                        Language.Bond.Codegen.Haskell.EnumDecl
                        Language.Bond.Codegen.Haskell.SchemaDecl
                        Language.Bond.Codegen.Haskell.StructDecl

@@ -8,6 +8,7 @@ module Language.Bond.Codegen.Haskell.Decl
 
 import Language.Bond.Syntax.Types
 import Language.Bond.Codegen.TypeMapping (MappingContext)
+import Language.Bond.Codegen.Haskell.AliasDecl
 import Language.Bond.Codegen.Haskell.EnumDecl
 import Language.Bond.Codegen.Haskell.StructDecl
 import Language.Bond.Codegen.Haskell.Util
@@ -40,6 +41,7 @@ makeModule opts ctx decl = fmap (\ c -> (sourceName, Just printName, c)) code
     code = case decl of
         Enum{} -> enumDecl opts ctx modName decl
         Struct{} -> structDecl opts ctx modName decl
+        Alias{} -> aliasDecl opts ctx modName decl
         _ -> Nothing
     hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx

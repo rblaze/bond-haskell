@@ -16,12 +16,6 @@ import Language.Haskell.Exts.SrcLoc (noLoc)
 baseStructField :: Name
 baseStructField = Ident "base'"
 
-getTypeModules :: Language.Haskell.Exts.Type -> [ModuleName]
-getTypeModules (TyCon (Qual moduleName _)) = [moduleName]
-getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
-getTypeModules (TyList t) = getTypeModules t
-getTypeModules _ = []
-
 defaultFieldValue :: MappingContext -> Language.Bond.Syntax.Types.Field -> FieldUpdate
 defaultFieldValue ctx f@Field{fieldType, fieldDefault}
     = FieldUpdate (UnQual $ mkVar $ makeFieldName f) (defValue fieldDefault)

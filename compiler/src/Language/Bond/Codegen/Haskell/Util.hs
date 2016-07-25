@@ -143,17 +143,23 @@ hsType s c (BT_Set element) = TyApp (implType s) (hsType s c element)
 hsType s c (BT_Map key value) = TyApp (TyApp (implType "Map") (hsType s c key)) (hsType s c value)
 hsType s c (BT_Bonded type_) = TyApp (implType "Bonded") (hsType s c type_)
 hsType _ _ (BT_TypeParam type_) = TyVar $ mkVar $ paramName type_
-hsType _ _ (BT_UserDefined Alias{} _) = error "BT_UserDefined Alias"
 hsType s c (BT_UserDefined decl params) = foldl1 TyApp $ declType : map (hsType s c) params
     where
     declType = let ns = getDeclNamespace c decl
                    typename = declName decl
                 in TyCon $ Qual (mkModuleName ns typename) (mkType typename)
 
+getTypeModules :: Language.Haskell.Exts.Type -> [ModuleName]
+getTypeModules (TyCon (Qual moduleName _)) = [moduleName]
+getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
+getTypeModules (TyList t) = getTypeModules t
+getTypeModules _ = []
+
 proxyOf :: Language.Haskell.Exts.Type -> Exp
 proxyOf = ExpTypeSig noLoc (Con $ implQual "Proxy") . TyApp (TyCon $ implQual "Proxy")
 
 makeDeclName :: Declaration -> String
+makeDeclName decl@Alias{} = declName decl
 makeDeclName decl = overrideName (declName decl) (declAttributes decl)
 
 makeFieldName :: Field -> String
