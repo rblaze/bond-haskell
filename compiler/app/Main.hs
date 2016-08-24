@@ -4,7 +4,8 @@ import IO
 import Options
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext(MappingContext))
+import Language.Bond.Codegen.TypeMapping
+import Language.Bond.Codegen.Haskell.TypeMapping
 import Language.Bond.Codegen.Haskell.Decl
 
 import Control.Monad
@@ -33,11 +34,11 @@ main = do
 
 codegen :: Options -> [Template] -> FilePath -> IO ()
 codegen options templates file = do
-    (Bond _ namespaces declarations) <- parseFile (import_dir options) file
+    (Bond _ fileNamespaces declarations) <- parseFile (import_dir options) file
     let outputDir = output_dir options
-    aliasMapping <- parseAliasMappings $ using options
-    namespaceMapping <- parseNamespaceMappings $ namespace options
-    let mappingContext = MappingContext (error "can't create TypeMapping") aliasMapping namespaceMapping namespaces
+    fileAliasMapping <- parseAliasMappings $ using options
+    fileNamespaceMapping <- parseNamespaceMappings $ namespace options
+    let mappingContext = MappingContext haskellTypeMapping fileAliasMapping fileNamespaceMapping fileNamespaces
     forM_ templates $ \template -> do
         let outputFiles = template mappingContext declarations
         forM_ outputFiles $ \ moduleInfo -> do

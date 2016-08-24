@@ -1,13 +1,13 @@
 module Language.Bond.Codegen.Haskell.Util where
 
 import Data.Char
-import Language.Bond.Codegen.TypeMapping (MappingContext(..), NamespaceMapping(..))
+import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Syntax.Types
 import Language.Haskell.Exts hiding (Namespace)
 import Language.Haskell.Exts.SrcLoc (noLoc)
-import Control.Applicative
 import Data.List
-import Data.Maybe
+import Data.Text.Lazy (unpack)
+import Data.Text.Lazy.Builder
 
 data CodegenOpts = CodegenOpts
     { setType :: String
@@ -19,6 +19,9 @@ data CodegenOpts = CodegenOpts
 
 unique :: Ord a => [a] -> [a]
 unique = map head . group . sort
+
+fromBuilder :: Builder -> String
+fromBuilder = unpack . toLazyText
 
 internalModuleName :: ModuleName
 internalModuleName = ModuleName "Data.Bond.Internal.Imports"
@@ -167,28 +170,3 @@ makeFieldName f = overrideName (fieldName f) (fieldAttributes f)
 
 overrideName :: String -> [Attribute] -> String
 overrideName def attrs = maybe def attrValue $ find (\a -> attrName a == ["HaskellName"]) attrs
-
--- overrides for bond functions I can't use because of opaque TypeMapping
-
-getNamespace :: MappingContext -> QualifiedName
-getNamespace c = resolveNamespace c (namespaces c)
-
-getQualifiedName :: MappingContext -> QualifiedName -> String
-getQualifiedName _ = intercalate "."
-
-getDeclNamespace :: MappingContext -> Declaration -> QualifiedName
-getDeclNamespace c = resolveNamespace c . declNamespaces
-
-getDeclTypeName :: MappingContext -> Declaration -> String
-getDeclTypeName c = getQualifiedName c . declQualifiedName c
-
-resolveNamespace :: MappingContext -> [Namespace] -> QualifiedName
-resolveNamespace c ns =
-    maybe namespaceName toNamespace $ find ((namespaceName ==) . fromNamespace) (namespaceMapping c)
-    where
-    namespaceName = nsName . fromJust $ neutralNamespace <|> fallbackNamespace
-    neutralNamespace = find (isNothing . nsLanguage) ns
-    fallbackNamespace = Just $ last ns
-
-declQualifiedName :: MappingContext -> Declaration -> QualifiedName
-declQualifiedName c decl = getDeclNamespace c decl ++ [declName decl]

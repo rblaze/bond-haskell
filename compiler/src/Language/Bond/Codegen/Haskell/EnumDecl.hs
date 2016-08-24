@@ -4,7 +4,7 @@ module Language.Bond.Codegen.Haskell.EnumDecl (
     ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext(..))
+import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Codegen.Haskell.Util
 import Language.Haskell.Exts hiding (mode)
 import Language.Haskell.Exts.SrcLoc (noLoc)
@@ -46,7 +46,7 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
                     appFun (Var $ pQual "fmap") [Con $ UnQual typeName, Var $ implQual "bondGet"])
                 noBinds
         , InsDecl $ wildcardFunc "getName" $ strE (declName decl)
-        , InsDecl $ wildcardFunc "getQualifiedName" $ strE (getDeclTypeName ctx{namespaceMapping = []} decl)
+        , InsDecl $ wildcardFunc "getQualifiedName" $ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []} decl
         , InsDecl $ wildcardFunc "getElementType" $ Con (implQual "ElementInt32")
         ]
     bondEnumDecl = InstDecl noLoc Nothing [] [] (implQual "BondEnum")

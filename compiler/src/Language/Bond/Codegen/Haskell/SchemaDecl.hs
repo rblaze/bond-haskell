@@ -5,7 +5,7 @@ module Language.Bond.Codegen.Haskell.SchemaDecl (
 
 import Language.Bond.Codegen.Haskell.Util
 
-import Language.Bond.Codegen.TypeMapping (MappingContext(..))
+import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Syntax.Types
 
 import Data.Maybe
@@ -89,7 +89,7 @@ getSchema opts ctx decl = InsDecl $ simpleFun noLoc (Ident "getSchema") (Ident "
             ]
         ]
     makeAttr a = Tuple Boxed
-        [ strE $ getQualifiedName ctx $ attrName a
+        [ strE $ fromBuilder $ getQualifiedName ctx $ attrName a
         , strE $ attrValue a 
         ]
 
@@ -97,7 +97,7 @@ getSchema opts ctx decl = InsDecl $ simpleFun noLoc (Ident "getSchema") (Ident "
 structNameAndType :: MappingContext -> Declaration -> [InstDecl]
 structNameAndType ctx decl =
     [ InsDecl $ wildcardFunc "getName" $ nameFunc $ declName decl
-    , InsDecl $ wildcardFunc "getQualifiedName" $ nameFunc $ getDeclTypeName ctx{namespaceMapping = []} decl
+    , InsDecl $ wildcardFunc "getQualifiedName" $ nameFunc $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []} decl
     , InsDecl $ simpleFun noLoc (Ident "getElementType") (Ident "type'proxy") $
             App (Con $ implQual "ElementStruct") (Paren $ App (Var $ implQual "getSchema") (Var $ unqual "type'proxy"))
     ]

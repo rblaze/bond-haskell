@@ -5,7 +5,7 @@ module Language.Bond.Codegen.Haskell.StructDecl (
     ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext)
+import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Codegen.Haskell.SchemaDecl
 import Language.Bond.Codegen.Haskell.Util
 
