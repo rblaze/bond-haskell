@@ -15,8 +15,10 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 
-isolate :: ReaderM t ~ B.Get => Int -> BondGet t a -> BondGet t a
-isolate n (BondGet g) = BondGet $ B.isolate n g
+--isolate :: ReaderM t ~ B.Get => Int -> BondGet t a -> BondGet t a
+--isolate n (BondGet g) = BondGet $ B.isolate n g
+isolate :: Int -> BondGet t a -> BondGet t a
+isolate _ = id
 
 lookAhead :: ReaderM t ~ B.Get => BondGet t a -> BondGet t a
 lookAhead (BondGet g) = BondGet $ B.lookAhead g
