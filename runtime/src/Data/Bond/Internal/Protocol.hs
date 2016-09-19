@@ -41,7 +41,7 @@ type BondPut t = BondPutM t ()
 -- |A type bond knows how to read and write to stream as a part of 'BondStruct'.
 class (Typeable a, Default a) => BondType a where
     -- | Read value.
-    bondGet :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
+    bondGet :: (Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Write value.
     bondPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
     -- | Get name of type.
@@ -54,11 +54,11 @@ class (Typeable a, Default a) => BondType a where
 -- |Bond top-level structure, can be de/serialized on its own.
 class BondType a => BondStruct a where
     -- | Read all struct fields in order.
-    bondStructGetUntagged :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => BondGet t a
+    bondStructGetUntagged :: (Monad (ReaderM t), Protocol t) => BondGet t a
     -- | Read base struct from stream.
     bondStructGetBase :: (Monad (ReaderM t), Protocol t) => a -> BondGet t a
     -- | Read field with specific ordinal.
-    bondStructGetField :: (Functor (ReaderM t), Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
+    bondStructGetField :: (Monad (ReaderM t), Protocol t) => Ordinal -> a -> BondGet t a
     -- | Put all struct fields to stream in order.
     bondStructPut :: (Monad (BondPutM t), Protocol t) => a -> BondPut t
     -- | Obtain struct schema.

@@ -295,7 +295,7 @@ instance Protocol CompactBinaryV1Proto where
             Right v -> return v
         putLazyByteString (BL.drop 4 stream)
 
-getCompactFieldHeader :: (BondProto t, ReaderM t ~ B.Get) => BondGet t (BondDataType, Ordinal)
+getCompactFieldHeader :: (ReaderM t ~ B.Get) => BondGet t (BondDataType, Ordinal)
 getCompactFieldHeader = do
     tag <- getWord8
     case tag `shiftR` 5 of
@@ -307,7 +307,7 @@ getCompactFieldHeader = do
             return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal n)
         n -> return (BondDataType $ fromIntegral $ tag .&. 31, Ordinal (fromIntegral n))
 
-putCompactFieldHeader :: (BondProto t, WriterM t ~ ErrorT String B.PutM) => BondDataType -> Ordinal -> BondPut t
+putCompactFieldHeader :: (WriterM t ~ ErrorT String B.PutM) => BondDataType -> Ordinal -> BondPut t
 putCompactFieldHeader t (Ordinal n) =
     let tbits = fromIntegral $ fromEnum t
         nbits = fromIntegral n
@@ -363,7 +363,7 @@ getBonded sig ver = do
     bs <- getLazyByteString (fromIntegral size)
     return $ BondedStream $ BL.append (protoHeader sig ver) bs
 
-skipVarInt :: forall t. (Protocol t, ReaderM t ~ B.Get) => BondGet t ()
+skipVarInt :: forall t. (ReaderM t ~ B.Get) => BondGet t ()
 skipVarInt = void (getVarInt :: BondGet t Word64)
 
 compactSkipType :: (TaggedProtocol t, ReaderM t ~ B.Get) => BondDataType -> BondGet t ()
@@ -395,17 +395,17 @@ compactSkipType t =
             skip $ n * 2
         | otherwise -> fail $ "Invalid type to skip " ++ bondTypeName t
 
-putList :: forall a t. (TaggedProtocol t, WriterM t ~ ErrorT String B.PutM, BondType a) => [a] -> BondPut t
+putList :: forall a t. (TaggedProtocol t, Monad (WriterM t), BondType a) => [a] -> BondPut t
 putList xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (length xs)
     mapM_ bondPut xs
 
-putHashSet :: forall a t. (TaggedProtocol t, WriterM t ~ ErrorT String B.PutM, BondType a) => HashSet a -> BondPut t
+putHashSet :: forall a t. (TaggedProtocol t, Monad (WriterM t), BondType a) => HashSet a -> BondPut t
 putHashSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (H.size xs)
     mapM_ bondPut $ H.toList xs
 
-putSet :: forall a t. (TaggedProtocol t, WriterM t ~ ErrorT String B.PutM, BondType a) => Set a -> BondPut t
+putSet :: forall a t. (TaggedProtocol t, Monad (WriterM t), BondType a) => Set a -> BondPut t
 putSet xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (S.size xs)
     mapM_ bondPut $ S.toList xs
@@ -419,7 +419,7 @@ putMap m = do
         bondPut k
         bondPut v
 
-putVector :: forall a t. (TaggedProtocol t, WriterM t ~ ErrorT String B.PutM, BondType a) => Vector a -> BondPut t
+putVector :: forall a t. (TaggedProtocol t, Monad (WriterM t), BondType a) => Vector a -> BondPut t
 putVector xs = do
     putListHeader (getWireType (Proxy :: Proxy a)) (V.length xs)
     V.mapM_ bondPut xs

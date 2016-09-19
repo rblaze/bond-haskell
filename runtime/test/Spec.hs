@@ -347,7 +347,7 @@ testJsonWithRuntimeSchema name f = goldenVsString name (compatDataPath </> "gold
         s <- hoistEither $ bondReadWithSchema JsonProto schema dat
         hoistEither $ bondWriteWithSchema JsonProto schema s
 
-readAsType :: forall t a. (Show a, BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
+readAsType :: forall t a. (BondProto t, BondStruct a) => t -> Proxy a -> String -> Assertion
 readAsType p _ f = assertEither $ do
     dat <- readData (compatDataPath </> f)
     void $ hoistEither (bondRead p dat :: Either String a)

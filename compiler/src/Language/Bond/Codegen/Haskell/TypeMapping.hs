@@ -2,7 +2,6 @@ module Language.Bond.Codegen.Haskell.TypeMapping
     ( haskellTypeMapping
     ) where
 
-import Language.Bond.Syntax.Types
 import Language.Bond.Codegen.TypeMapping
 import Data.Text.Lazy.Builder
 

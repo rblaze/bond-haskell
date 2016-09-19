@@ -15,10 +15,8 @@ import qualified Data.Binary.Put as B
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 
--- XXX isolate is available in binary >= 0.7.2.0 (lts-3 and higher) only
 isolate :: ReaderM t ~ B.Get => Int -> BondGet t a -> BondGet t a
-isolate _ = Prelude.id
---isolate n (BondGet g) = BondGet $ B.isolate n g
+isolate n (BondGet g) = BondGet $ B.isolate n g
 
 lookAhead :: ReaderM t ~ B.Get => BondGet t a -> BondGet t a
 lookAhead (BondGet g) = BondGet $ B.lookAhead g

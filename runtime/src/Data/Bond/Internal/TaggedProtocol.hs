@@ -34,12 +34,12 @@ class Protocol t => TaggedProtocol t where
     getTaggedStruct :: BondGet t Struct
     putFieldHeader :: BondDataType -> Ordinal -> BondPut t
     putListHeader :: (Integral a, FiniteBits a) => BondDataType -> a -> BondPut t
-    putTaggedStruct :: MonadError String (BondPutM t) => Struct -> BondPut t
+    putTaggedStruct :: Struct -> BondPut t
     skipStruct :: BondGet t ()
     skipRestOfStruct :: BondGet t ()
-    skipType :: TaggedProtocol t => BondDataType -> BondGet t ()
+    skipType :: BondDataType -> BondGet t ()
 
-getStruct :: forall a t. (Functor (ReaderM t), Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
+getStruct :: forall a t. (Monad (ReaderM t), TaggedProtocol t, BondStruct a) => StructLevel -> BondGet t a
 getStruct level = do
     let schema = getSchema (Proxy :: Proxy a)
     let fieldsMap = structFields schema
@@ -203,9 +203,9 @@ putTaggedData s = do
                 then writer
                 else throwError $ "element type do not match container type: " ++ bondTypeName td ++ " expected, " ++ bondTypeName realtd ++ " found"
 
-writeTagged :: forall t. (MonadError String (BondPutM t), WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
+writeTagged :: forall t. (WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> Struct -> Either String BL.ByteString
 writeTagged _ a = let BondPut g = putTaggedStruct a :: BondPut t
                    in tryPut g
 
-writeTaggedWithSchema :: (MonadError String (BondPutM t), WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> StructSchema -> Struct -> Either String BL.ByteString
+writeTaggedWithSchema :: (WriterM t ~ ErrorT String B.PutM, TaggedProtocol t) => t -> StructSchema -> Struct -> Either String BL.ByteString
 writeTaggedWithSchema t schema struct = checkStructSchema schema struct >>= writeTagged t
