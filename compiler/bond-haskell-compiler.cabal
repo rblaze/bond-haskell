@@ -1,5 +1,5 @@
 name:                bond-haskell-compiler
-version:             0.1.4.1
+version:             0.1.5.0
 synopsis:            Bond code generator for Haskell
 description:         Bond is a cross-platform framework for handling schematized
                      data. It supports cross-language de/serialization and
@@ -31,7 +31,7 @@ library
                        Language.Bond.Codegen.Haskell.Util
   ghc-options:         -W -Wall
   build-depends:       base >= 4.7 && < 5
-                     , bond >= 0.5.0.0 && < 0.5.1.0
+                     , bond >= 0.7.0.0 && < 0.7.1.0
                      , filepath >= 1.0
                      , haskell-src-exts >= 1.16 && < 1.18
                      , text
