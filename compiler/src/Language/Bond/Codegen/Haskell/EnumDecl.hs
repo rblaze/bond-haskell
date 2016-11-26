@@ -79,6 +79,7 @@ enumHsBootDecl _ _ moduleName decl@Enum{} = Just hsboot
                 DataDecl noLoc NewType [] typeName [] [QualConDecl noLoc [] [] (ConDecl typeName [implType "Int32"])] [],
                 showInstance,
                 eqInstance,
+                nfdataInstance,
                 typeSig
               ]
     typeName = mkType $ makeDeclName decl
@@ -86,5 +87,6 @@ enumHsBootDecl _ _ moduleName decl@Enum{} = Just hsboot
     typeSig = TypeSig noLoc (map (mkVar . constantName) (enumConstants decl)) typeCon
     showInstance = InstDecl noLoc Nothing [] [] (pQual "Show") [typeCon] []
     eqInstance = InstDecl noLoc Nothing [] [] (pQual "Eq") [typeCon] []
+    nfdataInstance = InstDecl noLoc Nothing [] [] (implQual "NFData") [typeCon] []
 
 enumHsBootDecl _ _ _ _ = error "enumDecl called for invalid type"
