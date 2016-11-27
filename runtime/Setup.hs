@@ -60,22 +60,23 @@ runHbc args conf pd lbi = do
     (hbc, _) <- requireProgram verbosity (simpleProgram "hbc") (configPrograms conf)
     (gbc, _) <- requireProgram verbosity (simpleProgram "gbc") (configPrograms conf)
     let schemaPath = "schema"
+    let schemaFiles =
+            [ schemaPath </> "bond.bond"
+            , schemaPath </> "bond_const.bond"
+            , schemaPath </> "comm" </> "comm.bond"
+            , schemaPath </> "comm" </> "transport" </> "packet.bond"
+            , schemaPath </> "comm" </> "transport" </> "epoxy_transport.bond"
+            ]
     let outPath = autogenModulesDir lbi
 
-    -- generate code for SchemaDef & Co
-    let schemaFlag = outPath </> "schemagen.flg"
-    schemaGenFlagExists <- doesFileExist schemaFlag
-    needSchemaRegen <- if schemaGenFlagExists
-                        then do
-                            bondTS <- getModificationTime $ schemaPath </> "bond.bond"
-                            bondConstTS <- getModificationTime $ schemaPath </> "bond_const.bond"
-                            flagTS <- getModificationTime schemaFlag
-                            return (flagTS < bondTS || flagTS < bondConstTS)
-                        else return True
-    when needSchemaRegen $ do
-        extras <- getProgramOutput verbosity hbc ["-h", "-o", buildDir lbi, "--hsboot", "--nfdata", "-n", "bond=Data.Bond.Schema", schemaPath </> "bond.bond", schemaPath </> "bond_const.bond"]
-        createDirectoryIfMissing True (takeDirectory schemaFlag)
-        writeFile schemaFlag extras
+    -- generate code for internal bond schemas
+    regenSchemas verbosity hbc
+        [ "-h"
+        , "--hsboot"
+        , "--nfdata"
+        , "-n", "bond=Data.Bond.Schema"
+        , "-i", schemaPath
+        ] schemaFiles (buildDir lbi) (outPath </> "schemagen.flg")
 
     -- generate json schemas for unittests
     runProgram verbosity gbc ["schema", "-o", outPath, "-r", schemaPath </> "bond.bond"]
@@ -90,20 +91,24 @@ runHbc args conf pd lbi = do
 
     -- generate code for unittests
     when ((fromFlagOrDefault False $ configTests conf) || (fromFlagOrDefault False $ configBenchmarks conf)) $ do
-        regenSchemas verbosity hbc ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
+        regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
 
     when (fromFlagOrDefault False $ configBenchmarks conf) $ do
-        regenSchemas verbosity hbc ("bench" </> "schemas") outPath (outPath </> "benchgen.flg")
+        regenDirSchemas verbosity hbc ["--nfdata"] ("bench" </> "schemas") outPath (outPath </> "benchgen.flg")
 
     when (fromFlagOrDefault False $ configTests conf) $ do
-        regenSchemas verbosity hbc ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
+        regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
 
     -- run default hook
     postConf simpleUserHooks args conf pd lbi
 
-regenSchemas :: Verbosity -> ConfiguredProgram -> FilePath -> FilePath -> FilePath -> IO ()
-regenSchemas verbosity hbc schemasDir outDir flagFile = do
+regenDirSchemas :: Verbosity -> ConfiguredProgram -> [String] -> FilePath -> FilePath -> FilePath -> IO ()
+regenDirSchemas verbosity hbc extraArgs schemasDir outDir flagFile = do
     schemaFiles <- map (schemasDir </>) . filter (".bond" `isSuffixOf`) <$> getDirectoryContents schemasDir
+    regenSchemas verbosity hbc extraArgs schemaFiles outDir flagFile
+
+regenSchemas :: Verbosity -> ConfiguredProgram -> [String] -> [FilePath] -> FilePath -> FilePath -> IO ()
+regenSchemas verbosity hbc extraArgs schemaFiles outDir flagFile = do
     flagFileExists <- doesFileExist flagFile
     needSchemaRegen <- if flagFileExists
                         then do
@@ -114,6 +119,6 @@ regenSchemas verbosity hbc schemasDir outDir flagFile = do
                             info verbosity $ "flag file " ++ flagFile ++ " missing"
                             return True
     when needSchemaRegen $ do
-        extras <- getProgramOutput verbosity hbc $ ["--nfdata", "-o", outDir] ++ schemaFiles
+        extras <- getProgramOutput verbosity hbc $ ["-o", outDir] ++ extraArgs ++ schemaFiles
         createDirectoryIfMissing True (takeDirectory flagFile)
         writeFile flagFile extras
