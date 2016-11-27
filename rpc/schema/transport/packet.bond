@@ -1,4 +1,4 @@
-import "comm/comm.bond"
+import "comm.bond"
 
 namespace bond.comm
 

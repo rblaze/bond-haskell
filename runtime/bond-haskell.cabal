@@ -18,8 +18,6 @@ category:            Data,Parsing
 build-type:          Custom
 cabal-version:       >=1.18
 extra-source-files:  schema/*.bond
-                     schema/comm/*.bond
-                     schema/comm/transport/*.bond
                      test/compat/schemas/*.bond
                      test/simple_schemas/*.bond
                      bench/schemas/*.bond

@@ -62,7 +62,7 @@ install:
             ;;
           cabal)
             travis_retry cabal update
-            cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
+            cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime `pwd`/rpc
             ;;
         esac
         set +ex
@@ -74,12 +74,18 @@ script:
           stack)
             stack $STACK_ARGS --no-terminal build bond-haskell-compiler
             stack $STACK_ARGS --no-terminal test bond-haskell
+            stack $STACK_ARGS --no-terminal test bond-haskell-comm
             ;;
           cabal)
             cd compiler
             cabal install
             cd ../runtime
             cabal configure --enable-tests --enable-benchmarks
+            cabal build
+            cabal test
+            cabal install
+            cd ../rpc
+            cabal configure --enable-tests
             cabal build
             cabal test
             cd ..

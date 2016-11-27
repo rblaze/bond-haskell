@@ -14,7 +14,7 @@ import System.Directory
 import System.FilePath
 
 main = defaultMainWithHooks $ simpleUserHooks
-    { hookedPrograms = [simpleProgram "hbc", simpleProgram "gbc"]
+    { hookedPrograms = [simpleProgram "hbc"]
     , postConf = runHbc
     , buildHook = addSchemaModulesBuild
     , copyHook = addSchemaModulesCopy
@@ -58,11 +58,11 @@ runHbc :: Args -> ConfigFlags -> PackageDescription -> LocalBuildInfo -> IO ()
 runHbc args conf pd lbi = do
     let verbosity = fromFlagOrDefault normal $ configVerbosity conf
     (hbc, _) <- requireProgram verbosity (simpleProgram "hbc") (configPrograms conf)
-    (gbc, _) <- requireProgram verbosity (simpleProgram "gbc") (configPrograms conf)
     let schemaPath = "schema"
     let schemaFiles =
-            [ schemaPath </> "bond.bond"
-            , schemaPath </> "bond_const.bond"
+            [ schemaPath </> "comm.bond"
+            , schemaPath </> "transport" </> "packet.bond"
+            , schemaPath </> "transport" </> "epoxy_transport.bond"
             ]
     let outPath = autogenModulesDir lbi
 
@@ -75,26 +75,9 @@ runHbc args conf pd lbi = do
         , "-i", schemaPath
         ] schemaFiles (buildDir lbi) (outPath </> "schemagen.flg")
 
-    -- generate json schemas for unittests
-    runProgram verbosity gbc ["schema", "-o", outPath, "-r", schemaPath </> "bond.bond"]
-
-    let dataPathFile = outPath </> "DataPath.hs"
-    dataPathFileExists <- doesFileExist dataPathFile
-    unless dataPathFileExists $
-        writeFile dataPathFile $
-            "module DataPath where\n\
-            \autogenPath :: String\n\
-            \autogenPath = " ++ show outPath
-
     -- generate code for unittests
-    when ((fromFlagOrDefault False $ configTests conf) || (fromFlagOrDefault False $ configBenchmarks conf)) $ do
-        regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
-
-    when (fromFlagOrDefault False $ configBenchmarks conf) $ do
-        regenDirSchemas verbosity hbc ["--nfdata"] ("bench" </> "schemas") outPath (outPath </> "benchgen.flg")
-
     when (fromFlagOrDefault False $ configTests conf) $ do
-        regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
+        regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "rpc_schemas") outPath (outPath </> "simplegen.flg")
 
     -- run default hook
     postConf simpleUserHooks args conf pd lbi

@@ -1,0 +1,48 @@
+name:                bond-haskell-comm
+version:             0.1.5.0
+synopsis:            Bond Communication Framework
+description:         Bond is a cross-platform framework for handling schematized
+                     data. It supports cross-language de/serialization and
+                     powerful generic mechanisms for efficiently manipulating
+                     data.
+                     .
+                     This package contains Haskell implementation of the Bond Communication Framework.
+homepage:            http://github.com/rblaze/bond-haskell#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Andrey Sverdlichenko <blaze@ruddy.ru>
+maintainer:          Andrey Sverdlichenko <blaze@ruddy.ru>
+copyright:           (C) 2016 Andrey Sverdlichenko
+category:            Network
+build-type:          Custom
+cabal-version:       >=1.18
+extra-source-files:  schema/*.bond
+                     schema/transport/*.bond
+                     test/rpc_schemas/*.bond
+
+library
+  hs-source-dirs:      src
+  exposed-modules:     Network.Bond
+  build-depends:       base >= 4.7 && < 5
+                     , bond-haskell-compiler >= 0.1.5.0 && < 0.1.6
+                     , bond-haskell >= 0.1.5.0 && < 0.1.6
+                     , network
+  default-language:    Haskell2010
+  ghc-options:         -W -Wall -fno-warn-warnings-deprecations
+
+test-suite bond-haskell-comm-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , bond-haskell
+                     , bond-haskell-comm
+                     , tasty
+                     , tasty-hunit
+  ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+
+source-repository head
+  type:     git
+  location: https://github.com/rblaze/bond-haskell.git
+  subdir:   rpc

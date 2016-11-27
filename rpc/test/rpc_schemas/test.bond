@@ -1,0 +1,7 @@
+namespace unittest.simple
+
+service Service
+{
+    void Method();
+};
+
