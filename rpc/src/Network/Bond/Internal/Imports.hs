@@ -1,8 +1,11 @@
 module Network.Bond.Internal.Imports
     ( BondStruct
+    , CommClient(..)
     , MonadIO
-    , Void (..)
+    , Void(..)
     ) where 
 
-import Data.Bond (BondStruct, Void(..))
+import Data.Bond
 import Control.Monad.IO.Class (MonadIO)
+
+import Network.Bond.CommClient
