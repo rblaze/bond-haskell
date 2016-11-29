@@ -1,0 +1,29 @@
+namespace unittest.calculator
+
+struct Operation
+{
+    1: int32 arg1;
+    2: int32 arg2;
+}
+
+struct Result
+{
+    1: int32 result;
+}
+
+struct Settings
+{
+    1: int32 offset;
+}
+
+struct Stats
+{
+    1: uint32 ops_completed;
+}
+
+service Calculator
+{
+    Result Calculate(Operation);
+    void Configure(Settings);
+    Stats GetStats();
+}

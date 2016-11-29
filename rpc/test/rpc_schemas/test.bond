@@ -5,3 +5,22 @@ service Service
     void Method();
 };
 
+struct Identifier
+{
+    1: uint32 who_am_i;
+}
+
+service Watchdog
+{
+    nothing Heartbeat(Identifier);
+}
+
+struct Result
+{
+    1: bool is_success;
+}
+
+service Gateway<Identifier>
+{
+    Result Authenticate(Identifier);
+}

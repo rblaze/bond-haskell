@@ -23,6 +23,8 @@ extra-source-files:  schema/*.bond
 library
   hs-source-dirs:      src
   exposed-modules:     Network.Bond
+                       Network.Bond.CommClient
+                       Network.Bond.Internal.Imports
   build-depends:       base >= 4.7 && < 5
                      , bond-haskell-compiler >= 0.1.5.0 && < 0.1.6
                      , bond-haskell >= 0.1.5.0 && < 0.1.6

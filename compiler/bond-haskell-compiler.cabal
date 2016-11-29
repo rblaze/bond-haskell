@@ -26,6 +26,7 @@ library
                        Language.Bond.Codegen.Haskell.Decl
                        Language.Bond.Codegen.Haskell.EnumDecl
                        Language.Bond.Codegen.Haskell.SchemaDecl
+                       Language.Bond.Codegen.Haskell.ServiceDecl
                        Language.Bond.Codegen.Haskell.StructDecl
                        Language.Bond.Codegen.Haskell.TypeMapping
                        Language.Bond.Codegen.Haskell.Util

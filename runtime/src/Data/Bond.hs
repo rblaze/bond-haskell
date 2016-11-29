@@ -66,6 +66,7 @@ module Data.Bond
     , bT_FLOAT, bT_DOUBLE, bT_STRING, bT_STRUCT, bT_LIST
     , bT_SET, bT_MAP, bT_INT8, bT_INT16, bT_INT32, bT_INT64, bT_WSTRING
     , SchemaDef
+    , Void (..)
     ) where
 
 import Data.Bond.Marshal
@@ -83,6 +84,7 @@ import Data.Bond.Internal.SchemaOps
 import Data.Bond.Internal.SimpleBinaryProto
 import Data.Bond.Schema.BondDataType
 import Data.Bond.Schema.SchemaDef
+import Data.Bond.Schema.Void
 
 -- $examples
 -- Let's use following @schema.bond@ IDL file:

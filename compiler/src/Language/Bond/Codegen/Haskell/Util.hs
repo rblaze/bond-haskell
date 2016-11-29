@@ -26,6 +26,9 @@ fromBuilder = unpack . toLazyText
 internalModuleName :: ModuleName
 internalModuleName = ModuleName "Data.Bond.Internal.Imports"
 
+internalCommModuleName :: ModuleName
+internalCommModuleName = ModuleName "Network.Bond.Internal.Imports"
+
 internalModuleAlias :: ModuleName
 internalModuleAlias = ModuleName "B'"
 
@@ -85,6 +88,12 @@ importTemplate = ImportDecl
 importInternalModule :: ImportDecl
 importInternalModule = importTemplate
     { importModule = internalModuleName
+    , importAs = Just internalModuleAlias
+    }
+
+importInternalCommModule :: ImportDecl
+importInternalCommModule = importTemplate
+    { importModule = internalCommModuleName
     , importAs = Just internalModuleAlias
     }
 
@@ -153,9 +162,11 @@ hsType s c (BT_UserDefined decl params) = foldl1 TyApp $ declType : map (hsType 
                 in TyCon $ Qual (mkModuleName ns typename) (mkType typename)
 
 getTypeModules :: Language.Haskell.Exts.Type -> [ModuleName]
-getTypeModules (TyCon (Qual moduleName _)) = [moduleName]
-getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
+getTypeModules (TyForall _ _ t) = getTypeModules t
+getTypeModules (TyFun t1 t2) = getTypeModules t1 ++ getTypeModules t2
 getTypeModules (TyList t) = getTypeModules t
+getTypeModules (TyApp t1 t2) = getTypeModules t1 ++ getTypeModules t2
+getTypeModules (TyCon (Qual moduleName _)) = [moduleName]
 getTypeModules _ = []
 
 proxyOf :: Language.Haskell.Exts.Type -> Exp
@@ -167,6 +178,9 @@ makeDeclName decl = overrideName (declName decl) (declAttributes decl)
 
 makeFieldName :: Field -> String
 makeFieldName f = overrideName (fieldName f) (fieldAttributes f)
+
+makeMethodName :: Method -> String
+makeMethodName m = overrideName (methodName m) (methodAttributes m)
 
 overrideName :: String -> [Attribute] -> String
 overrideName def attrs = maybe def attrValue $ find (\a -> attrName a == ["HaskellName"]) attrs

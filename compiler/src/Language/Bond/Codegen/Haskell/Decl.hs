@@ -10,6 +10,7 @@ import Language.Bond.Syntax.Types
 import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Codegen.Haskell.AliasDecl
 import Language.Bond.Codegen.Haskell.EnumDecl
+import Language.Bond.Codegen.Haskell.ServiceDecl
 import Language.Bond.Codegen.Haskell.StructDecl
 import Language.Bond.Codegen.Haskell.Util
 
@@ -26,12 +27,12 @@ data ModuleCode = ModuleCode
 type CodegenOutput = [ModuleCode]
 
 decl_hs :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hs opts ctx declarations = mapMaybe step declarations
+decl_hs opts ctx = mapMaybe step
     where
     step = fmap (\ (f, n, c) -> ModuleCode f n (prettyPrint c)) . makeModule opts ctx
 
 decl_hsboot :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hsboot opts ctx declarations = mapMaybe step declarations
+decl_hsboot opts ctx = mapMaybe step
     where
     step = fmap (\ (f, n, c) -> ModuleCode f n (prettyPrint c)) . makeHsBootModule opts ctx
 
@@ -42,6 +43,7 @@ makeModule opts ctx decl = fmap (\ c -> (sourceName, Just printName, c)) code
         Enum{} -> enumDecl opts ctx modName decl
         Struct{} -> structDecl opts ctx modName decl
         Alias{} -> aliasDecl opts ctx modName decl
+        Service{} -> serviceDecl opts ctx modName decl
         _ -> Nothing
     hsModule = capitalize (makeDeclName decl)
     hsNamespaces = map capitalize $ getNamespace ctx
