@@ -3,6 +3,7 @@ module Language.Bond.Codegen.Haskell.EnumDecl (
         enumHsBootDecl
     ) where
 
+import Data.Int
 import Language.Bond.Syntax.Types
 import Language.Bond.Codegen.TypeMapping
 import Language.Bond.Codegen.Haskell.Util
@@ -55,7 +56,7 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
         , InsDecl $ FunBind $ map makeFromNameMatch consts ++ [wildcardMatch "fromName" $ Var $ pQual "Nothing"]
         ]
     makeToNameMatch (constName, i) =
-        Match noLoc (Ident "toName") [ PParen $ PApp (UnQual typeName) [intP $ fromIntegral i] ]
+        Match noLoc (Ident "toName") [ PParen $ PApp (UnQual typeName) [intP i] ]
             Nothing (UnGuardedRhs $ App (Var $ pQual "Just") (strE constName)) noBinds
     makeFromNameMatch (constName, _) =
         Match noLoc (Ident "fromName") [ strP constName ]
@@ -64,11 +65,13 @@ enumDecl _ ctx moduleName decl@Enum{} = Just source
     consts = makeConst 0 (enumConstants decl)
     makeConst _ [] = []
     makeConst _ (Constant{constantName = cname, constantValue = Just i} : xs)
-        = (cname, i) : makeConst (i + 1) xs
+        = (cname, restrictRange i) : makeConst (i + 1) xs
     makeConst i (Constant{constantName = cname} : xs)
-        = (cname, i) : makeConst (i + 1) xs
+        = (cname, restrictRange i) : makeConst (i + 1) xs
     values = map makeValue consts
     makeValue (constName, val) = patBind noLoc (PVar $ mkVar constName) $ App (Con $ UnQual typeName) (parenIntL val)
+    restrictRange :: Int -> Integer
+    restrictRange i = fromIntegral (fromIntegral i :: Int32)
 
 enumDecl _ _ _ _ = error "enumDecl called for invalid type"
 
