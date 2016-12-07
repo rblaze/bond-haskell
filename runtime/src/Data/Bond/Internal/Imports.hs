@@ -3,6 +3,7 @@ module Data.Bond.Internal.Imports
     , BondEnum(..)
     , BondStruct(..)
     , BondType(..)
+    , Generic
     , Hashable
     , IsString
     , NFData
@@ -26,3 +27,4 @@ import Data.Hashable (Hashable)
 import Data.Proxy (asProxyTypeOf)
 import Data.String (IsString)
 import Data.Typeable as X
+import GHC.Generics (Generic)

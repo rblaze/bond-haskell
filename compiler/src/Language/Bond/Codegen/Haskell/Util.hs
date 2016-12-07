@@ -103,12 +103,6 @@ importPrelude = importTemplate
     , importAs = Just preludeAlias
     }
 
-importGenerics :: ImportDecl
-importGenerics = importTemplate
-    { importModule = ModuleName "GHC.Generics"
-    , importAs = Just preludeAlias
-    }
-
 mkModuleName :: QualifiedName -> String -> ModuleName
 mkModuleName ns typename = ModuleName $ intercalate "." $ map capitalize $ ns ++ [typename]
 

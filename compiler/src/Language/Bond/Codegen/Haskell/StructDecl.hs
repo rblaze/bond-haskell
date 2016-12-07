@@ -116,8 +116,6 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
 
     pragmaDeriveGeneric = [Ident "DeriveGeneric" | deriveGeneric opts]
     imports = importInternalModule : importPrelude : map (\ m -> importTemplate{importModule = m}) fieldModules
-        ++ importGhcGenerics
-    importGhcGenerics = [importGenerics | deriveGeneric opts]
 
     typeName = mkType $ makeDeclName decl
     typeParams = map (\TypeParam{paramName} -> UnkindedVar $ mkVar paramName) declParams
@@ -132,7 +130,7 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
               (derivingGeneric $ derivingShow $ derivingEq [(implQual "Typeable", [])])
     derivingShow = if deriveShow opts then ((pQual "Show", []) :) else id
     derivingEq = if deriveEq opts then ((pQual "Eq", []) :) else id
-    derivingGeneric = if deriveGeneric opts then ((pQual "Generic", []) :) else id
+    derivingGeneric = if deriveGeneric opts then ((implQual "Generic", []) :) else id
 
     ownFieldDefaults = map (defaultFieldValue ctx) structFields
     fieldDefaults | isNothing structBase = ownFieldDefaults
