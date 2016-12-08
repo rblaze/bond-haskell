@@ -3,10 +3,11 @@ module Network.Bond.CommClient where
 
 import Control.Monad.IO.Class
 import Data.Bond
+import Data.Bond.Types
 
 class CommClient m t where
-    talk :: (BondStruct req, BondStruct resp) => t -> req -> m resp
-    sendEvent :: BondStruct req => t -> req -> m ()
+    talk :: (BondStruct req, BondStruct resp) => Utf8 -> Utf8 -> t -> req -> m resp
+    sendEvent :: BondStruct req => Utf8 -> Utf8 -> t -> req -> m ()
 
 data EpoxyClient = EpoxyClient
 

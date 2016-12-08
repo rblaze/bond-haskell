@@ -4,7 +4,7 @@ module Language.Bond.Codegen.Haskell.ServiceDecl
     ) where
 
 import Language.Bond.Syntax.Types
-import Language.Bond.Codegen.TypeMapping (MappingContext(..))
+import Language.Bond.Codegen.TypeMapping (MappingContext(..), getDeclTypeName)
 import Language.Bond.Codegen.Haskell.Util
 import Language.Haskell.Exts as L
 import Language.Haskell.Exts.SrcLoc (noLoc)
@@ -13,7 +13,7 @@ serviceDecl :: CodegenOpts -> MappingContext -> ModuleName -> Declaration -> May
 serviceDecl opts ctx moduleName decl@Service{} = Just source
     where
     source = Module noLoc moduleName
-        [ ]
+        [LanguagePragma noLoc [Ident "OverloadedStrings"]]
         Nothing
         Nothing
         imports
@@ -49,13 +49,23 @@ serviceDecl opts ctx moduleName decl@Service{} = Just source
     makeFunc m@Function{methodInput = Nothing} =
         simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
             appFun (Var $ implQual "talk")
-                [ Var $ UnQual clientParam
+                [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+                , strE $ makeMethodName m
+                , Var $ UnQual clientParam
                 , RecConstr (implQual "Void") []
                 ]
     makeFunc m@Function{} = simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
-        App (Var $ implQual "talk") (Var $ UnQual clientParam)
+        appFun (Var $ implQual "talk")
+            [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+            , strE $ makeMethodName m
+            , Var $ UnQual clientParam
+            ]
     makeFunc m@Event{} = simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
-        App (Var $ implQual "sendEvent") (Var $ UnQual clientParam)
+        appFun (Var $ implQual "sendEvent")
+            [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+            , strE $ makeMethodName m
+            , Var $ UnQual clientParam
+            ]
 
     imports = importInternalCommModule : map (\ m -> importTemplate{importModule = m}) methodModules
     methodModules = unique $ filter (/= moduleName) $ filter (/= internalModuleAlias)
