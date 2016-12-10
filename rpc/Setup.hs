@@ -76,7 +76,7 @@ runHbc args conf pd lbi = do
         ] schemaFiles (buildDir lbi) (outPath </> "schemagen.flg")
 
     -- generate code for unittests
-    when (fromFlagOrDefault False $ configTests conf) $ do
+    when (fromFlagOrDefault False $ configTests conf) $
         regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "rpc_schemas") outPath (outPath </> "simplegen.flg")
 
     -- run default hook

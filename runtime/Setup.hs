@@ -87,13 +87,13 @@ runHbc args conf pd lbi = do
             \autogenPath = " ++ show outPath
 
     -- generate code for unittests
-    when ((fromFlagOrDefault False $ configTests conf) || (fromFlagOrDefault False $ configBenchmarks conf)) $ do
+    when ((fromFlagOrDefault False $ configTests conf) || (fromFlagOrDefault False $ configBenchmarks conf)) $
         regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "compat" </> "schemas") outPath (outPath </> "compatgen.flg")
 
-    when (fromFlagOrDefault False $ configBenchmarks conf) $ do
+    when (fromFlagOrDefault False $ configBenchmarks conf) $
         regenDirSchemas verbosity hbc ["--nfdata"] ("bench" </> "schemas") outPath (outPath </> "benchgen.flg")
 
-    when (fromFlagOrDefault False $ configTests conf) $ do
+    when (fromFlagOrDefault False $ configTests conf) $
         regenDirSchemas verbosity hbc ["--nfdata"] ("test" </> "simple_schemas") outPath (outPath </> "simplegen.flg")
 
     -- run default hook
