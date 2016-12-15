@@ -37,8 +37,8 @@ before_install:
           case "$BUILD" in
             stack)
               travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-              if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
-              if [ "$STACK_ARGS" == "--resolver lts-7" ]; then export PATH=/opt/ghc/8.0.1/bin:$PATH ; fi
+              if [ "$STACK_ARGS" == "--resolver lts-6 --system-ghc" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
+              if [ "$STACK_ARGS" == "--resolver lts-7 --system-ghc" ]; then export PATH=/opt/ghc/8.0.1/bin:$PATH ; fi
               ;;
             cabal)
               export PATH=/opt/cabal/${CABAL_VER}/bin:/opt/ghc/${GHC_VER}/bin:/opt/happy/${HAPPY_VER}/bin:$PATH
