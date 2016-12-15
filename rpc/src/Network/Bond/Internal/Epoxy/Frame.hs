@@ -1,12 +1,14 @@
 {-# LANGUAGE NamedFieldPuns #-}
 module Network.Bond.Internal.Epoxy.Frame where 
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.Bond.Types
 import Data.List
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.ByteString.Lazy as BL
 
 import Network.Bond.Internal.CommSocket
