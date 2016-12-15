@@ -4,12 +4,14 @@ module Network.Bond.Internal.Epoxy.Client
     , createEpoxyClient
     ) where
 
+import Control.Applicative
 import Control.Concurrent.MVar
 import Control.Concurrent.STM
 import Control.Exception.Safe
 import Control.Monad.IO.Class
 import Data.Bond
 import Data.Bond.Types
+import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.HashMap.Strict as HM
 
 import Network.Bond.CommClient
