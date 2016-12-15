@@ -19,8 +19,8 @@ addons:
         - cabal-install-1.24
         - happy-1.19.5
 env:
-    - BUILD=stack STACK_ARGS="--resolver lts-7"
-    - BUILD=stack STACK_ARGS="--resolver lts-6"
+    - BUILD=stack STACK_ARGS="--resolver lts-7 --system-ghc"
+    - BUILD=stack STACK_ARGS="--resolver lts-6 --system-ghc"
     - BUILD=cabal CABAL_VER="1.24" GHC_VER="7.8.4" HAPPY_VER="1.19.5"
 
 matrix:
