@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.Bond.Internal.Epoxy.ProtocolException where
 
 import Control.Exception.Safe

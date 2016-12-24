@@ -71,8 +71,7 @@ recvFrame s = do
                         return Framelet{ flType = ft, flData = fldata }
             return Frame{ framelets = fls }
     let loop d = case d of
-            Fail _ _ _ -> do
-                throw InvalidFrameFormat -- FIXME add exception message
+            Fail{} -> throw InvalidFrameFormat -- FIXME add exception message
             Done rest _ a -> do
                 sockPushBack s rest
                 return a

@@ -182,7 +182,7 @@ epoxyRecvThread sockvar pending = loop
         when (null framelets) $ throw ProtocolViolation
         let headers = head framelets
         convId <- case flType headers of
-            EpoxyHeaders -> do
+            EpoxyHeaders ->
                 case bondRead FastBinaryProto (flData $ head framelets) of
                     Left _ -> throw InvalidFrameFormat
                     Right hdr -> do
