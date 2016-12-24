@@ -49,22 +49,22 @@ serviceDecl opts ctx moduleName decl@Service{} = Just source
     makeFunc m@Function{methodInput = Nothing} =
         simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
             appFun (Var $ implQual "talk")
-                [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+                [ Var $ UnQual clientParam
+                , strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
                 , strE $ makeMethodName m
-                , Var $ UnQual clientParam
                 , RecConstr (implQual "Void") []
                 ]
     makeFunc m@Function{} = simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
         appFun (Var $ implQual "talk")
-            [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+            [ Var $ UnQual clientParam
+            , strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
             , strE $ makeMethodName m
-            , Var $ UnQual clientParam
             ]
     makeFunc m@Event{} = simpleFun noLoc (mkVar $ makeMethodName m) clientParam $
         appFun (Var $ implQual "sendEvent")
-            [ strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
+            [ Var $ UnQual clientParam
+            , strE $ fromBuilder $ getDeclTypeName ctx{namespaceMapping = []}  decl
             , strE $ makeMethodName m
-            , Var $ UnQual clientParam
             ]
 
     imports = importInternalCommModule : map (\ m -> importTemplate{importModule = m}) methodModules

@@ -16,7 +16,6 @@ instance CommSocket TCPSocket where
     bsClose (TCPSocket s) = liftIO $ S.close s
     bsSend (TCPSocket s) bs = liftIO $ sendMany s $ BL.toChunks bs
     bsRecv (TCPSocket s) = liftIO $ recv s 65536
-        
 
 mkTCPSocket :: MonadIO m => Family -> SockAddr -> m (SmartSocket TCPSocket)
 mkTCPSocket family addr = liftIO $ do

@@ -2,8 +2,9 @@
 module Network.Bond.Internal.Epoxy.Frame where 
 
 import Control.Applicative
+import Control.Exception.Base (AssertionFailed(..))
+import Control.Exception.Safe
 import Control.Monad
-import Control.Monad.IO.Class
 import Data.Binary.Get
 import Data.Binary.Put
 import Data.Bond.Types
@@ -12,6 +13,7 @@ import Prelude          -- ghc 7.10 workaround for Control.Applicative
 import qualified Data.ByteString.Lazy as BL
 
 import Network.Bond.Internal.CommSocket
+import Network.Bond.Internal.Epoxy.ProtocolException
 
 data FrameletType
     = EpoxyConfig
@@ -43,8 +45,8 @@ data Framelet = Framelet { flType :: FrameletType, flData :: BL.ByteString }
 
 data Frame = Frame { framelets :: [Framelet] }
 
-sendFrame :: (MonadIO m, CommSocket s) => SmartSocket s -> Frame -> m ()
-sendFrame _ Frame{framelets = []} = liftIO $ ioError $ userError "internal error: attempt to send empty frame"
+sendFrame :: CommSocket s => SmartSocket s -> Frame -> IO ()
+sendFrame _ Frame{framelets = []} = throw $ AssertionFailed "internal error: attempt to send empty frame"
 sendFrame s Frame{framelets} = do
     let output = runPut $ do
             putWord16le $ genericLength framelets
@@ -52,9 +54,9 @@ sendFrame s Frame{framelets} = do
                 putWord16le $ frameletTypeToWord flType
                 putWord32le $ fromIntegral $ BL.length flData
                 putLazyByteString flData
-    liftIO $ sockSend s output
+    sockSend s output
 
-recvFrame :: (MonadIO m, CommSocket s) => SmartSocket s -> m Frame
+recvFrame :: CommSocket s => SmartSocket s -> IO Frame
 recvFrame s = do
     let decoder = runGetIncremental $ do
             nframelets <- getWord16le
@@ -69,9 +71,8 @@ recvFrame s = do
                         return Framelet{ flType = ft, flData = fldata }
             return Frame{ framelets = fls }
     let loop d = case d of
-            Fail _ _ e -> do
-                -- FIXME send protocol error, close connection
-                liftIO $ ioError $ userError e
+            Fail _ _ _ -> do
+                throw InvalidFrameFormat -- FIXME add exception message
             Done rest _ a -> do
                 sockPushBack s rest
                 return a

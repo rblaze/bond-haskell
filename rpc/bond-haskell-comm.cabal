@@ -29,9 +29,11 @@ library
                        Network.Bond.Internal.CommSocket.Net
                        Network.Bond.Internal.Epoxy.Client
                        Network.Bond.Internal.Epoxy.Frame
+                       Network.Bond.Internal.Epoxy.ProtocolException
   build-depends:       base >= 4.7 && < 5
                      , bond-haskell-compiler >= 0.1.5.0 && < 0.1.6
                      , bond-haskell >= 0.1.5.0 && < 0.1.6
+                     , async
                      , binary
                      , bytestring
                      , network
