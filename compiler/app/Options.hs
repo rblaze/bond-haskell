@@ -7,8 +7,8 @@ import System.Console.CmdArgs
 
 data Options = Haskell
         { files :: [FilePath]
-        , import_dir :: [FilePath]
-        , output_dir :: FilePath
+        , importDir :: [FilePath]
+        , outputDir :: FilePath
         , using :: [String]
         , namespace :: [String]
         , hsboot :: Bool
@@ -23,8 +23,8 @@ data Options = Haskell
 haskell :: Options
 haskell = Haskell
     { files = def &= typFile &= args
-    , import_dir = def &= typDir &= name "i" &= help "Add the directory to import search path"
-    , output_dir = "." &= typDir &= name "o" &= help "Output generated files into the specified directory"
+    , importDir = def &= typDir &= name "i" &= help "Add the directory to import search path"
+    , outputDir = "." &= typDir &= name "o" &= help "Output generated files into the specified directory"
     , using = def &= typ "MAPPING" &= name "u" &= help "Custom type alias mapping in the form alias=type"
     , namespace = def &= typ "MAPPING" &= name "n" &= help "Custom namespace mapping in the form bond_namespace=language_namespace"
     , hsboot = def &= name "s" &= help "Generate both .hs and .hs-boot files"

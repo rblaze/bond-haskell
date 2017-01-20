@@ -145,14 +145,14 @@ structDecl opts ctx moduleName decl@Struct{structBase, structFields, declParams}
             patBind noLoc (PVar $ Ident "defaultValue") $
                 RecConstr (UnQual typeName) fieldDefaults
         ]
-    nfdataDecl = if deriveNFData opts
-        then [InstDecl noLoc Nothing []
-                (map (typeParamConstraint $ implQual "NFData") declParams)
-                (implQual "NFData")
-                [makeType True typeName declParams]
-                []
-             ]
-        else []
+    nfdataDecl =
+        [InstDecl noLoc Nothing []
+            (map (typeParamConstraint $ implQual "NFData") declParams)
+            (implQual "NFData")
+            [makeType True typeName declParams]
+            []
+        | deriveNFData opts
+        ]
     bondTypeDecl = InstDecl noLoc Nothing []
         (map (typeParamConstraint $ implQual "BondType") declParams)
         (implQual "BondType")

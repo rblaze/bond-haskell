@@ -9,9 +9,11 @@ import Language.Bond.Codegen.Haskell.TypeMapping
 import Language.Bond.Codegen.Haskell.Decl
 
 import Control.Monad
+import Data.Traversable
 import System.Directory
 import System.Environment
 import System.FilePath
+import Prelude -- workaround for Data.Traversable in ghc 7.10
 
 type Template = MappingContext -> [Declaration] -> CodegenOutput
 
@@ -28,23 +30,20 @@ main = do
             , deriveGeneric = nfData options || generic options
             }
     let codegens = if hsboot options
-        then [decl_hs opts, decl_hsboot opts]
-        else [decl_hs opts]
+        then [declHs opts, declHsBoot opts]
+        else [declHs opts]
     forM_ (files options) $ codegen options codegens
 
 codegen :: Options -> [Template] -> FilePath -> IO ()
 codegen options templates file = do
-    (Bond _ fileNamespaces declarations) <- parseFile (import_dir options) file
-    let outputDir = output_dir options
+    (Bond _ fileNamespaces declarations) <- parseFile (importDir options) file
     fileAliasMapping <- parseAliasMappings $ using options
     fileNamespaceMapping <- parseNamespaceMappings $ namespace options
     let mappingContext = MappingContext haskellTypeMapping fileAliasMapping fileNamespaceMapping fileNamespaces
     forM_ templates $ \template -> do
         let outputFiles = template mappingContext declarations
         forM_ outputFiles $ \ moduleInfo -> do
-            let fileName = outputDir </> moduleFile moduleInfo
+            let fileName = outputDir options </> moduleFile moduleInfo
             createDirectoryIfMissing True $ takeDirectory fileName
             writeFile fileName (moduleText moduleInfo)
-            case moduleName moduleInfo of
-                Nothing -> return ()
-                Just name -> putStrLn name
+            traverse putStrLn (moduleName moduleInfo)

@@ -19,8 +19,8 @@ addons:
         - cabal-install-1.24
         - happy-1.19.5
 env:
-    - BUILD=stack STACK_ARGS="--resolver lts-7"
-    - BUILD=stack STACK_ARGS="--resolver lts-6"
+    - BUILD=stack STACK_ARGS="--resolver lts-7 --system-ghc"
+    - BUILD=stack STACK_ARGS="--resolver lts-6 --system-ghc"
     - BUILD=cabal CABAL_VER="1.24" GHC_VER="7.8.4" HAPPY_VER="1.19.5"
 
 matrix:
@@ -37,8 +37,8 @@ before_install:
           case "$BUILD" in
             stack)
               travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
-              if [ "$STACK_ARGS" == "--resolver lts-6" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
-              if [ "$STACK_ARGS" == "--resolver lts-7" ]; then export PATH=/opt/ghc/8.0.1/bin:$PATH ; fi
+              if [ "$STACK_ARGS" == "--resolver lts-6 --system-ghc" ]; then export PATH=/opt/ghc/7.10.3/bin:$PATH ; fi
+              if [ "$STACK_ARGS" == "--resolver lts-7 --system-ghc" ]; then export PATH=/opt/ghc/8.0.1/bin:$PATH ; fi
               ;;
             cabal)
               export PATH=/opt/cabal/${CABAL_VER}/bin:/opt/ghc/${GHC_VER}/bin:/opt/happy/${HAPPY_VER}/bin:$PATH
@@ -62,7 +62,7 @@ install:
             ;;
           cabal)
             travis_retry cabal update
-            cabal install --only-dependencies --enable-tests --enable-benchmarks --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
+            cabal install --only-dependencies --enable-tests --force-reinstalls --reorder-goals --max-backjumps=-1 `pwd`/compiler `pwd`/runtime
             ;;
         esac
         set +ex
@@ -79,7 +79,7 @@ script:
             cd compiler
             cabal install
             cd ../runtime
-            cabal configure --enable-tests --enable-benchmarks
+            cabal configure --enable-tests
             cabal build
             cabal test
             cd ..

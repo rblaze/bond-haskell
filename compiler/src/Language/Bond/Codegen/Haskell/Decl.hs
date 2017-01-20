@@ -2,8 +2,8 @@ module Language.Bond.Codegen.Haskell.Decl
     ( CodegenOpts(..)
     , CodegenOutput
     , ModuleCode(..)
-    , decl_hs
-    , decl_hsboot
+    , declHs
+    , declHsBoot
     ) where
 
 import Language.Bond.Syntax.Types
@@ -25,13 +25,13 @@ data ModuleCode = ModuleCode
 
 type CodegenOutput = [ModuleCode]
 
-decl_hs :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hs opts ctx declarations = mapMaybe step declarations
+declHs :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
+declHs opts ctx = mapMaybe step
     where
     step = fmap (\ (f, n, c) -> ModuleCode f n (prettyPrint c)) . makeModule opts ctx
 
-decl_hsboot :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
-decl_hsboot opts ctx declarations = mapMaybe step declarations
+declHsBoot :: CodegenOpts -> MappingContext -> [Declaration] -> CodegenOutput
+declHsBoot opts ctx = mapMaybe step
     where
     step = fmap (\ (f, n, c) -> ModuleCode f n (prettyPrint c)) . makeHsBootModule opts ctx
 

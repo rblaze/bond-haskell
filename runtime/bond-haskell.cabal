@@ -108,7 +108,7 @@ benchmark bond-haskell-bench
   build-depends:       base
                      , bond-haskell
                      , bytestring
-                     , criterion
+                     , criterion >= 1.0.0.1
                      , filepath
                      , vector
   ghc-options:         -threaded -W -Wall -rtsopts -with-rtsopts=-N
